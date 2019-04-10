@@ -1401,7 +1401,6 @@ class MultiModalBertForVQA(BertPreTrainedModel):
         attention_mask=None,
         output_all_encoded_layers=True,
         image_attention_mask=None,
-        labels=None,
     ):
         
         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
@@ -1415,9 +1414,4 @@ class MultiModalBertForVQA(BertPreTrainedModel):
 
         # pooled_output_t = self.dropout(pooled_output_t)
         logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
-        if labels is not None:
-
-            batch_score = F.binary_cross_entropy_with_logits(logits, labels)
-            return batch_score
-        else:
-            return logits
+        return logits

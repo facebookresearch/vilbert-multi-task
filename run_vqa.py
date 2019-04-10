@@ -31,6 +31,8 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm, trange
 
 import torch
+import torch.nn.functional as F
+
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 
@@ -393,9 +395,11 @@ def main():
         model.train()
         # t1 = timer()
         for epochId in trange(int(args.num_train_epochs), desc="Epoch"):
+            total_loss = 0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
             train_score = 0
+            optimizer.zero_grad()
 
             # iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataloader):
@@ -410,15 +414,18 @@ def main():
                     # batch
                 # )
 
-                batch_score = model(
+                pred = model(
                     question,
                     features,
                     spatials,
                     segment_ids,
                     input_mask,
-                    labels=target,
                 )
-                total_loss += batch_score.item() * features.size(0)
+
+                loss = instance_bce_with_logits(pred, target)
+                batch_score = compute_score_with_logits(pred, target).sum()
+
+                total_loss += loss.item() * features.size(0)
                 train_score += batch_score
 
                 if n_gpu > 1:
@@ -429,8 +436,6 @@ def main():
                     optimizer.backward(loss)
                 else:
                     loss.backward()
-
-                tr_loss += loss.item()
 
                 # print(tr_loss)
                 viz.linePlot(iterId, loss.item(), "loss", "train")
@@ -525,7 +530,6 @@ def evaluate(args, model, dataloader):
             spatials,
             segment_ids,
             input_mask,
-            labels=None,
         )
         batch_score = compute_score_with_logits(pred, target.cuda()).sum()
         score += batch_score
@@ -536,12 +540,21 @@ def evaluate(args, model, dataloader):
     upper_bound = upper_bound / len(dataloader.dataset)
     return score, upper_bound
 
+
+def instance_bce_with_logits(logits, labels):
+    assert logits.dim() == 2
+
+    loss = F.binary_cross_entropy_with_logits(logits, labels)
+    loss *= labels.size(1)
+    return loss
+
 def compute_score_with_logits(logits, labels):
     logits = torch.max(logits, 1)[1].data # argmax
     one_hots = torch.zeros(*labels.size()).cuda()
     one_hots.scatter_(1, logits.view(-1, 1), 1)
     scores = (one_hots * labels)
     return scores
+
 
 if __name__ == "__main__":
 
