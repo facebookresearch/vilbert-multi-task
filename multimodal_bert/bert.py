@@ -1401,7 +1401,6 @@ class MultiModalBertForVQA(BertPreTrainedModel):
         attention_mask=None,
         output_all_encoded_layers=True,
         image_attention_mask=None,
-        labels=None,
     ):
         
         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
@@ -1413,17 +1412,8 @@ class MultiModalBertForVQA(BertPreTrainedModel):
             output_all_encoded_layers=False,
         )
 
-        pooled_output_t = self.dropout(pooled_output_t)
-        pooled_output_v = self.dropout(pooled_output_v)
-
-        logits = self.classifier(pooled_output_t * pooled_output_v)
-        if labels is not None:
-
-            loss = F.binary_cross_entropy_with_logits(logits, labels)
-            loss *= labels.size(1)
-            return loss
-        else:
-            return logits
+        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
+        return logits
 
 
 class MultiModalBertForFoilClassification(BertPreTrainedModel):
@@ -1475,9 +1465,4 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         # Add dropout to multimodal pooled output.
         pooled_output_multimodal = self.dropout(pooled_output_multimodal)
         logits = self.classifier(pooled_output_multimodal)
-
-        if labels is not None:
-            loss = self.loss_function(logits, labels)
-            return loss
-        else:
-            return logits
+        return logits
