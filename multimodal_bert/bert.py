@@ -1424,3 +1424,60 @@ class MultiModalBertForVQA(BertPreTrainedModel):
             return loss
         else:
             return logits
+
+
+class MultiModalBertForFoilClassification(BertPreTrainedModel):
+    """Multi-modal BERT for the FOIL classification task. This task is trivially similar to binary
+    VQA, where the caption is treated as a "question" and the goal is to answer whether the image
+    and caption match or not.
+
+    This module is composed of the Multi-modal BERT model with a linear layer on top of the pooled
+    outputs from visual and textual BERT.
+
+    Params:
+        `config`: a BertConfig class instance with the configuration to build a new model.
+        `num_labels`: the number of classes for the classifier. Default = 2.
+    """
+
+    def __init__(self, config: BertConfig, num_labels: int = 2):
+        super().__init__(config)
+        self.num_labels = num_labels
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, 2)
+
+        self.apply(self.init_bert_weights)
+        self.loss_function = nn.BCELoss()
+
+    def forward(
+        self,
+        input_ids,
+        image_feat,
+        image_loc,  # not used right now.
+        token_type_ids=None,
+        attention_mask=None,
+        image_attention_mask=None,
+        labels=None,
+    ):
+        _, _, pooled_output_t, pooled_output_v = self.bert(
+            input_ids,
+            image_feat,
+            image_loc,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
+            image_attention_mask=image_attention_mask,
+            output_all_encoded_layers=False,
+        )
+
+        # Do pointwise multipication of "pooled" features from visual and textual encoders.
+        pooled_output_multimodal = pooled_output_t * pooled_output_v
+
+        # Add dropout to multimodal pooled output.
+        pooled_output_multimodal = self.dropout(pooled_output_multimodal)
+        logits = self.classifier(pooled_output_multimodal)
+
+        if labels is not None:
+            loss = self.loss_function(logits, labels)
+            return loss
+        else:
+            return logits
