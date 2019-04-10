@@ -1413,14 +1413,11 @@ class MultiModalBertForVQA(BertPreTrainedModel):
             output_all_encoded_layers=False,
         )
 
-        pooled_output_t = self.dropout(pooled_output_t)
-        pooled_output_v = self.dropout(pooled_output_v)
-
-        logits = self.classifier(pooled_output_t * pooled_output_v)
+        # pooled_output_t = self.dropout(pooled_output_t)
+        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
         if labels is not None:
 
-            loss = F.binary_cross_entropy_with_logits(logits, labels)
-            loss *= labels.size(1)
-            return loss
+            batch_score = F.binary_cross_entropy_with_logits(logits, labels)
+            return batch_score
         else:
             return logits

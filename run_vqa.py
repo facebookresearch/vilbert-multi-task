@@ -395,6 +395,7 @@ def main():
         for epochId in trange(int(args.num_train_epochs), desc="Epoch"):
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
+            train_score = 0
 
             # iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataloader):
@@ -409,7 +410,7 @@ def main():
                     # batch
                 # )
 
-                loss = model(
+                batch_score = model(
                     question,
                     features,
                     spatials,
@@ -417,6 +418,8 @@ def main():
                     input_mask,
                     labels=target,
                 )
+                total_loss += batch_score.item() * features.size(0)
+                train_score += batch_score
 
                 if n_gpu > 1:
                     loss = loss.mean()  # mean() to average on multi-gpu.
@@ -434,7 +437,6 @@ def main():
                 # viz.linePlot(iterId, optimizer.get_lr()[0], 'learning_rate', 'train')
 
                 loss_tmp += loss.item()
-                masked_loss_v_tmp += masked_loss_v.item()
 
                 nb_tr_examples += input_ids.size(0)
                 nb_tr_steps += 1
@@ -476,6 +478,15 @@ def main():
 
                     loss_tmp = 0
 
+            train_score = 100 * train_score / len(train_loader.dataset)
+            model.train(False)
+            eval_score, bound = evaluate(args, model, eval_loader)
+            model.train(True)
+
+            logger.info('epoch %d, time: %.2f' % (epoch, time.time()-t))
+            logger.info('\ttrain_loss: %.2f, score: %.2f' % (total_loss, train_score))
+            logger.info('\teval score: %.2f (%.2f)' % (100 * eval_score, 100 * bound))
+
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
             model_to_save = (
@@ -499,6 +510,38 @@ class TBlogger:
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
 
+
+
+def evaluate(args, model, dataloader):
+    score = 0
+    upper_bound = 0
+    num_data = 0
+    for batch in iter(dataloader):
+        batch = tuple(t.cuda() for t in batch)
+        features, spatials, question, target, input_mask, segment_ids = batch
+        pred = model(
+            question,
+            features,
+            spatials,
+            segment_ids,
+            input_mask,
+            labels=None,
+        )
+        batch_score = compute_score_with_logits(pred, target.cuda()).sum()
+        score += batch_score
+        upper_bound += (a.max(1)[0]).sum()
+        num_data += pred.size(0)
+
+    score = score / len(dataloader.dataset)
+    upper_bound = upper_bound / len(dataloader.dataset)
+    return score, upper_bound
+
+def compute_score_with_logits(logits, labels):
+    logits = torch.max(logits, 1)[1].data # argmax
+    one_hots = torch.zeros(*labels.size()).cuda()
+    one_hots.scatter_(1, logits.view(-1, 1), 1)
+    scores = (one_hots * labels)
+    return scores
 
 if __name__ == "__main__":
 
