@@ -1382,12 +1382,13 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
 
 
 class MultiModalBertForVQA(BertPreTrainedModel):
-    def __init__(self, config, num_labels):
+    def __init__(self, config, num_labels, pretrained_weight=None):
         super(MultiModalBertForVQA, self).__init__(config)
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
 
+        pdb.set_trace()
         self.apply(self.init_bert_weights)
 
     def forward(
@@ -1400,7 +1401,7 @@ class MultiModalBertForVQA(BertPreTrainedModel):
         output_all_encoded_layers=True,
         image_attention_mask=None,
     ):
-    
+        
         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
             input_ids,
             image_feat,

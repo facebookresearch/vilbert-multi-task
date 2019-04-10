@@ -68,6 +68,15 @@ def main():
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
         "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
     )
+
+    parser.add_argument(
+        "--pretrained_weight",
+        default="09-Apr-19-02\:42\:50-Tue_458475/pytorch_model_6.bin",
+        type=str,
+        help="Bert pre-trained model selected in the list: bert-base-uncased, "
+        "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
+    )
+
     parser.add_argument(
         "--output_dir",
         default="save",
@@ -238,8 +247,6 @@ def main():
             tokenizer,
             seq_len=args.max_seq_length,
             batch_size=args.train_batch_size,
-            hard_negative=args.hard_negative,
-            predict_feature=args.predict_feature,
             num_workers=args.num_workers,
             use_location=args.use_location,
         )
@@ -265,10 +272,11 @@ def main():
         config.v_target_size = 1601
         config.predict_feature = False
 
+    num_labels = 3000
     if args.from_pretrained:
-        model = BertForMultiModalPreTraining.from_pretrained(args.bert_model, config)
+        model = BertForMultiModalPreTraining(config, num_labels, args.pretrained_weight)
     else:
-        model = BertForMultiModalPreTraining(config)
+        model = BertForMultiModalPreTraining(config, num_labels)
 
     if args.fp16:
         model.half()

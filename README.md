@@ -27,12 +27,20 @@ cd multi-modal-bert
 mkdir data
 cd data
 mkdir conceptual_caption
-ln -s /srv/share2/jlu347/conceptual_caption/training ./conceptual_caption
-ln -s /srv/share2/jlu347/conceptual_caption/validation ./conceptual_caption
+ln -s /srv/share2/jlu347/conceptual_caption/training_2 ./conceptual_caption/training
+ln -s /srv/share2/jlu347/conceptual_caption/validation ./conceptual_caption/validation
 ```
 
 To train the model: 
 
 ```
-python train.py --do_train --num_workers 16 --from_pretrained --train_batch_size 800
+python train.py --do_train --num_workers 16 --from_pretrained --train_batch_size 512
 ```
+
+
+# VQA Data Setup
+
+```
+ln -s /srv/share2/jlu347/conceptual_caption/VQA ./
+```
+
