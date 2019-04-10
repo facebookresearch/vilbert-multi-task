@@ -38,7 +38,7 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 from pytorch_pretrained_bert import BertModel
 
-from multimodal_bert.ConceptualCaptionDataset import CaptionDataset, SchedualSampler, CaptionLoader
+from multimodal_bert.VQAdataset import BertDictionary, BertFeatureDataset
 from multimodal_bert.bert import MultiModalBertForVQA, BertConfig
 import pdb
 
@@ -48,7 +48,6 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -228,10 +227,6 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    tokenizer = BertTokenizer.from_pretrained(
-        args.bert_model, do_lower_case=args.do_lower_case
-    )
-
     # train_examples = None
     num_train_optimization_steps = None
     if args.do_train:
@@ -242,17 +237,13 @@ def main():
         # train_dataset = CaptionDataset(args.train_file, tokenizer, predict_feature=args.predict_feature,
         #                                 seq_len=args.max_seq_length, corpus_lines=None, on_memory=args.on_memory)
 
-        train_dataset = CaptionLoader(
-            args.train_file,
-            tokenizer,
-            seq_len=args.max_seq_length,
-            batch_size=args.train_batch_size,
-            num_workers=args.num_workers,
-            use_location=args.use_location,
-        )
+        dictionary = BertDictionary(args)        
+        train_dset = BertFeatureDataset('train', dictionary, dataroot='data/VQA')
+        eval_dset = BertFeatureDataset('val', dictionary, dataroot='data/VQA')
+
         num_train_optimization_steps = (
             int(
-                train_dataset.num_dataset
+                len(train_dset)
                 / args.train_batch_size
                 / args.gradient_accumulation_steps
             )
@@ -265,18 +256,12 @@ def main():
 
     config = BertConfig.from_json_file(args.config_file)
 
-    if args.predict_feature:
-        config.v_target_size = 2048
-        config.predict_feature = True
-    else:
-        config.v_target_size = 1601
-        config.predict_feature = False
-
-    num_labels = 3000
+    # num_labels = 3000
+    num_labels = train_dset.num_ans_candidates
     if args.from_pretrained:
-        model = BertForMultiModalPreTraining(config, num_labels, args.pretrained_weight)
+        model = MultiModalBertForVQA(config, num_labels, args.pretrained_weight)
     else:
-        model = BertForMultiModalPreTraining(config, num_labels)
+        model = MultiModalBertForVQA(config, num_labels)
 
     if args.fp16:
         model.half()
@@ -371,7 +356,7 @@ def main():
 
     if args.do_train:
         logger.info("***** Running training *****")
-        logger.info("  Num examples = %d", train_dataset.num_dataset)
+        logger.info("  Num examples = %d", len(train_dset))
         logger.info("  Batch size = %d", args.train_batch_size)
         logger.info("  Num steps = %d", num_train_optimization_steps)
 
@@ -383,12 +368,19 @@ def main():
         #     # (it doesn't return item back by index)
         #     train_sampler = DistributedSampler(train_dataset)
 
-        # train_dataloader = DataLoader(train_dataset,
-        #                 # sampler=train_sampler,
-        #                 shuffle=True,
-        #                 batch_size=args.train_batch_size,
-        #                 num_workers=args.num_workers,
-        #                 pin_memory=True)
+        train_dataloader = DataLoader(train_dset,
+                        # sampler=train_sampler,
+                        shuffle=True,
+                        batch_size=args.train_batch_size,
+                        num_workers=args.num_workers,
+                        pin_memory=True)
+
+        eval_dataloader = DataLoader(eval_dset,
+                        # sampler=train_sampler,
+                        shuffle=True,
+                        batch_size=args.train_batch_size,
+                        num_workers=args.num_workers,
+                        pin_memory=True)
 
         startIterID = 0
         global_step = 0
@@ -405,36 +397,29 @@ def main():
             nb_tr_examples, nb_tr_steps = 0, 0
 
             # iter_dataloader = iter(train_dataloader)
-            for step, batch in enumerate(train_dataset):
-                iterId = startIterID + step + (epochId * len(train_dataset))
+            for step, batch in enumerate(train_dataloader):
+                iterId = startIterID + step + (epochId * len(train_dataloader))
                 # pdb.set_trace()
                 # batch = iter_dataloader.next()
                 # batch = tuple(t.to(device, async=True) for t in batch)
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label = (
-                    batch
-                )
-                masked_loss_t, masked_loss_v, next_sentence_loss = model(
-                    input_ids,
-                    image_feat,
-                    image_target,
-                    image_loc,
+                features, spatials, question, target, input_mask, segment_ids = batch
+                # input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label = (
+                    # batch
+                # )
+
+                loss = model(
+                    question,
+                    features,
+                    spatials,
                     segment_ids,
                     input_mask,
-                    lm_label_ids,
-                    image_label,
-                    is_next,
+                    labels=target,
                 )
-
-                masked_loss_v = masked_loss_v * args.img_weight
-                loss = masked_loss_t + masked_loss_v + next_sentence_loss
 
                 if n_gpu > 1:
                     loss = loss.mean()  # mean() to average on multi-gpu.
-                    masked_loss_t = masked_loss_t.mean()
-                    masked_loss_v = masked_loss_v.mean()
-                    next_sentence_loss = next_sentence_loss.mean()
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
@@ -442,24 +427,14 @@ def main():
                 else:
                     loss.backward()
 
-                if math.isnan(loss.item()):
-                    pdb.set_trace()
-
                 tr_loss += loss.item()
 
                 # print(tr_loss)
                 viz.linePlot(iterId, loss.item(), "loss", "train")
-                viz.linePlot(iterId, masked_loss_t.item(), "masked_loss_t", "train")
-                viz.linePlot(iterId, masked_loss_v.item(), "masked_loss_v", "train")
-                viz.linePlot(
-                    iterId, next_sentence_loss.item(), "next_sentence_loss", "train"
-                )
                 # viz.linePlot(iterId, optimizer.get_lr()[0], 'learning_rate', 'train')
 
                 loss_tmp += loss.item()
                 masked_loss_v_tmp += masked_loss_v.item()
-                masked_loss_t_tmp += masked_loss_t.item()
-                next_sentence_loss_tmp += next_sentence_loss.item()
 
                 nb_tr_examples += input_ids.size(0)
                 nb_tr_steps += 1
@@ -479,16 +454,13 @@ def main():
                     global_step += 1
 
                 if step % 20 == 0 and step != 0:
-                    masked_loss_t_tmp = masked_loss_t_tmp / 20.0
-                    masked_loss_v_tmp = masked_loss_v_tmp / 20.0
-                    next_sentence_loss_tmp = next_sentence_loss_tmp / 20.0
                     loss_tmp = loss_tmp / 20.0
 
                     end_t = timer()
                     timeStamp = strftime("%a %d %b %y %X", gmtime())
 
                     Ep = epochId + nb_tr_steps / float(len(train_dataset))
-                    printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][Loss_v: %.5g][Loss_t: %.5g][Loss_n: %.5g][LR: %.5g]"
+                    printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][LR: %.5g]"
 
                     printInfo = [
                         timeStamp,
@@ -496,18 +468,12 @@ def main():
                         nb_tr_steps,
                         end_t - start_t,
                         loss_tmp,
-                        masked_loss_v_tmp,
-                        masked_loss_t_tmp,
-                        next_sentence_loss_tmp,
                         optimizer.get_lr()[0],
                     ]
 
                     start_t = end_t
                     print(printFormat % tuple(printInfo))
 
-                    masked_loss_v_tmp = 0
-                    masked_loss_t_tmp = 0
-                    next_sentence_loss_tmp = 0
                     loss_tmp = 0
 
             # Save a trained model
@@ -523,7 +489,6 @@ def main():
             )
             if args.do_train:
                 torch.save(model_to_save.state_dict(), output_model_file)
-
 
 class TBlogger:
     def __init__(self, log_dir, exp_name):

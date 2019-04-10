@@ -5,13 +5,16 @@ import six
 import _pickle as cPickle
 #import cPickle
 import numpy as np
-import utils
 import h5py
 import torch
 from torch.utils.data import Dataset
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 import pdb
+os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
+
+def assert_eq(real, expected):
+    assert real == expected, '%s (true) vs %s (expected)' % (real, expected)
 
 def _create_entry(img, question, answer):
     answer.pop('image_id')
@@ -40,11 +43,11 @@ def _load_dataset(dataroot, name, img_id2val):
     answers = cPickle.load(open(answer_path, 'rb'))
     answers = sorted(answers, key=lambda x: x['question_id'])
 
-    utils.assert_eq(len(questions), len(answers))
+    assert_eq(len(questions), len(answers))
     entries = []
     for question, answer in zip(questions, answers):
-        utils.assert_eq(question['question_id'], answer['question_id'])
-        utils.assert_eq(question['image_id'], answer['image_id'])
+        assert_eq(question['question_id'], answer['question_id'])
+        assert_eq(question['image_id'], answer['image_id'])
         img_id = question['image_id']
         entries.append(_create_entry(img_id2val[img_id], question, answer))
 
@@ -98,7 +101,7 @@ class VQAFeatureDataset(Dataset):
                 # Note here we pad in front of the sentence
                 padding = [self.dictionary.padding_idx] * (max_length - len(tokens))
                 tokens = padding + tokens
-            utils.assert_eq(len(tokens), max_length)
+            assert_eq(len(tokens), max_length)
             entry['q_token'] = tokens
 
     def tensorize(self):
@@ -230,7 +233,7 @@ class BertFeatureDataset(Dataset):
                 input_mask += padding
                 segment_ids += padding
 
-            utils.assert_eq(len(tokens), max_length)
+            assert_eq(len(tokens), max_length)
             entry['q_token'] = tokens
             entry['q_input_mask'] = input_mask
             entry['q_segment_ids'] = segment_ids

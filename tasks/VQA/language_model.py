@@ -100,7 +100,3 @@ class BertEmbedding(nn.Module):
         _, pooled_output = self.bert(x, mask, segment, output_all_encoded_layers=False)
         
         return pooled_output
-
-    def forward_all(self, x):
-        # x: [batch, sequence, in_dim]
-        pass

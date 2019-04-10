@@ -32,6 +32,7 @@ from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
 
 from multimodal_bert.file_utils import cached_path
+import pdb
 
 logger = logging.getLogger(__name__)
 
@@ -1382,13 +1383,13 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
 
 
 class MultiModalBertForVQA(BertPreTrainedModel):
+
     def __init__(self, config, num_labels, pretrained_weight=None):
         super(MultiModalBertForVQA, self).__init__(config)
+        self.num_labels = num_labels
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, num_labels)
-
-        pdb.set_trace()
+        self.classifier = nn.Linear(config.bi_hidden_size, num_labels)
         self.apply(self.init_bert_weights)
 
     def forward(
@@ -1400,20 +1401,26 @@ class MultiModalBertForVQA(BertPreTrainedModel):
         attention_mask=None,
         output_all_encoded_layers=True,
         image_attention_mask=None,
+        labels=None,
     ):
         
         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
-            input_ids,
-            image_feat,
+            input_txt,
+            input_imgs,
             image_loc,
             token_type_ids,
             attention_mask,
             output_all_encoded_layers=False,
         )
 
-        pdb.set_trace()
+        pooled_output_t = self.dropout(pooled_output_t)
+        pooled_output_v = self.dropout(pooled_output_v)
 
+        logits = self.classifier(pooled_output_t * pooled_output_v)
+        if labels is not None:
 
-
-
-
+            loss = F.binary_cross_entropy_with_logits(logits, labels)
+            loss *= labels.size(1)
+            return loss
+        else:
+            return logits
