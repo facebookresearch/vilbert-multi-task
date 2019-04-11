@@ -61,12 +61,10 @@ class FoilClassificationDataset(Dataset):
                 sentence_tokens = self._tokenizer.tokenize(self._entries[image_id][i]["caption"])
                 sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
 
-                tokens = []
-                for w in sentence_tokens:
-                    if w in self._tokenizer.vocab:
-                        tokens.append(self._tokenizer.vocab[w])
-                    else:
-                        tokens.append(self._tokenizer.vocab["[UNK]"])
+                tokens = [
+                    self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+                    for w in sentence_tokens
+                ]
                 tokens = tokens[: self._max_caption_length]
                 if len(tokens) < self._max_caption_length:
                     # Note here we pad in front of the sentence
