@@ -71,7 +71,7 @@ class InputFeatures(object):
         self.image_target = image_target
 
 
-class CaptionLoader(object):
+class ConceptCapLoader(object):
     """
     Data loader. Combines a dataset and a sampler, and provides
     single- or multi-process iterators over the dataset.

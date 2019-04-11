@@ -19,7 +19,7 @@ import boto3
 import requests
 from botocore.exceptions import ClientError
 from tqdm import tqdm
-
+import pdb
 
 PYTORCH_PRETRAINED_BERT_CACHE = Path(
     os.getenv("PYTORCH_PRETRAINED_BERT_CACHE", Path.home() / ".pytorch_pretrained_bert")
@@ -100,7 +100,6 @@ def cached_path(url_or_filename, cache_dir=None):
     else:
         # Something unknown
         raise ValueError("unable to parse {} as a URL or as a local path".format(url_or_filename))
-
 
 def split_s3_path(url):
     """Split a full s3 path into the bucket name and path."""

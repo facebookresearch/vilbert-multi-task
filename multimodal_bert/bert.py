@@ -1028,6 +1028,7 @@ class BertPreTrainedModel(nn.Module):
                 )
             )
             return None
+
         if resolved_archive_file == archive_file:
             logger.info("loading archive file {}".format(archive_file))
         else:
@@ -1039,6 +1040,9 @@ class BertPreTrainedModel(nn.Module):
         tempdir = None
         if os.path.isdir(resolved_archive_file) or from_tf:
             serialization_dir = resolved_archive_file
+        elif resolved_archive_file[-3:] == 'bin':
+            serialization_dir = '/'.join(resolved_archive_file.split('/')[:-1])
+            WEIGHTS_NAME = resolved_archive_file.split('/')[-1]
         else:
             # Extract archive to temp dir
             tempdir = tempfile.mkdtemp()

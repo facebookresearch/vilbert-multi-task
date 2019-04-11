@@ -40,7 +40,7 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 from pytorch_pretrained_bert import BertModel
 
-from multimodal_bert.VQAdataset import BertDictionary, BertFeatureDataset
+from multimodal_bert.datasets import VQAClassificationDataset, BertDictionary
 from multimodal_bert.bert import MultiModalBertForVQA, BertConfig
 import pdb
 
@@ -72,7 +72,7 @@ def main():
 
     parser.add_argument(
         "--pretrained_weight",
-        default="09-Apr-19-02\:42\:50-Tue_458475/pytorch_model_6.bin",
+        default="save/09-Apr-19-02:42:50-Tue_458475/pytorch_model_6.bin",
         type=str,
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
         "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
@@ -240,8 +240,8 @@ def main():
         #                                 seq_len=args.max_seq_length, corpus_lines=None, on_memory=args.on_memory)
 
         dictionary = BertDictionary(args)        
-        train_dset = BertFeatureDataset('train', dictionary, dataroot='data/VQA')
-        eval_dset = BertFeatureDataset('val', dictionary, dataroot='data/VQA')
+        train_dset = VQAClassificationDataset('train', dictionary, dataroot='data/VQA')
+        eval_dset = VQAClassificationDataset('val', dictionary, dataroot='data/VQA')
 
         num_train_optimization_steps = (
             int(
@@ -261,7 +261,12 @@ def main():
     # num_labels = 3000
     num_labels = train_dset.num_ans_candidates
     if args.from_pretrained:
-        model = MultiModalBertForVQA(config, num_labels, args.pretrained_weight)
+        # model = MultiModalBertForVQA.from_pretrained(
+        #     args.pretrained_weight, config, num_labels=num_labels
+        # )
+        model = MultiModalBertForVQA.from_pretrained(
+            args.pretrained_weight, config, num_labels=num_labels
+        )
     else:
         model = MultiModalBertForVQA(config, num_labels)
 
@@ -466,7 +471,7 @@ def main():
                     end_t = timer()
                     timeStamp = strftime("%a %d %b %y %X", gmtime())
 
-                    Ep = epochId + nb_tr_steps / float(len(train_dataset))
+                    Ep = epochId + nb_tr_steps / float(len(train_dataloader))
                     printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][LR: %.5g]"
 
                     printInfo = [
@@ -483,9 +488,9 @@ def main():
 
                     loss_tmp = 0
 
-            train_score = 100 * train_score / len(train_loader.dataset)
+            train_score = 100 * train_score / len(train_dataloader.dataset)
             model.train(False)
-            eval_score, bound = evaluate(args, model, eval_loader)
+            eval_score, bound = evaluate(args, model, eval_dataloader)
             model.train(True)
 
             logger.info('epoch %d, time: %.2f' % (epoch, time.time()-t))
