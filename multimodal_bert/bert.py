@@ -1437,7 +1437,7 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         self.classifier = nn.Linear(config.hidden_size, 2)
 
         self.apply(self.init_bert_weights)
-        self.loss_function = nn.BCELoss()
+        self.loss_function = nn.CrossEntropyLoss(ignore_index=-1, reduction="none")
 
     def forward(
         self,
@@ -1465,4 +1465,10 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         # Add dropout to multimodal pooled output.
         pooled_output_multimodal = self.dropout(pooled_output_multimodal)
         logits = self.classifier(pooled_output_multimodal)
-        return logits
+
+        # Return loss in during training and validation (absent during inference, ofcourse).
+        if labels is not None:
+            loss = self.loss_function(logits.view(-1, self.num_labels), labels.view(-1))
+            return loss
+        else:
+            return logits

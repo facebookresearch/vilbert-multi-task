@@ -44,3 +44,9 @@ python train.py --do_train --num_workers 16 --from_pretrained --train_batch_size
 ln -s /srv/share2/jlu347/conceptual_caption/VQA ./
 ```
 
+# FOIL Data Setup
+
+```
+ln -s /srv/share/datasets/foil data/foil
+ln -s /srv/share2/kd/multi-modal-bert/data/coco data/coco
+```
