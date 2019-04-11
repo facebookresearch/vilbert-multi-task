@@ -29,7 +29,6 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
 import torch
-import torch.nn.functional as F
 
 from torch.utils.data import DataLoader
 
@@ -369,9 +368,8 @@ def main():
                 features, spatials, captions, targets = batch
 
                 loss = model(captions, features, spatials, labels=targets)
+                loss = loss.mean()
 
-                if n_gpu > 1:
-                    loss = loss.mean()  # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
