@@ -37,6 +37,7 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 
 from multimodal_bert.datasets import FoilClassificationDataset
+from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 from multimodal_bert.bert import MultiModalBertForFoilClassification, BertConfig
 
 logging.basicConfig(
@@ -51,17 +52,12 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Data files for FOIL task.
-    parser.add_argument(
-        "--features-train-h5path", default="data/coco/features_faster_rcnn_x101_train.h5"
-    )
-    parser.add_argument(
-        "--features-val-h5path", default="data/coco/features_faster_rcnn_x101_val.h5"
-    )
+    parser.add_argument("--features-h5path", default="data/coco/features_faster_rcnn_x101.h5")
     parser.add_argument(
         "--instances-train-jsonpath", default="data/foil/annotations/foilv1.0_train_2017.json"
     )
     parser.add_argument(
-        "--instances-val-jsonpath", default="data/foil/annotations/foilv1.0_val_2017.json"
+        "--instances-val-jsonpath", default="data/foil/annotations/foilv1.0_test_2017.json"
     )
 
     # Required parameters
@@ -210,13 +206,16 @@ def main():
     if args.do_train:
 
         viz = TBlogger("logs", timeStamp)
-        tokenizer = BertTokenizer.from_pretrained(args.bert_model, args.do_lower_case)
+        tokenizer = BertTokenizer.from_pretrained(
+            args.bert_model, do_lower_case=args.do_lower_case
+        )
 
+        image_features_reader = ImageFeaturesH5Reader(args.features_h5path)
         train_dset = FoilClassificationDataset(
-            args.instances_train_jsonpath, args.features_train_h5path, tokenizer
+            args.instances_train_jsonpath, image_features_reader, tokenizer
         )
         eval_dset = FoilClassificationDataset(
-            args.instances_val_jsonpath, args.features_val_h5path, tokenizer
+            args.instances_val_jsonpath, image_features_reader, tokenizer
         )
 
         num_train_optimization_steps = (
@@ -364,20 +363,13 @@ def main():
             train_score = 0
             optimizer.zero_grad()
 
-            # iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataloader):
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
                 features, spatials, captions, targets = batch
 
-                pred = model(captions, features, spatials, labels=targets)
-
-                loss = instance_bce_with_logits(pred, target)
-                batch_score = compute_score_with_logits(pred, target).sum()
-
-                total_loss += loss.item() * features.size(0)
-                train_score += batch_score
+                loss = model(captions, features, spatials, labels=targets)
 
                 if n_gpu > 1:
                     loss = loss.mean()  # mean() to average on multi-gpu.
@@ -388,13 +380,11 @@ def main():
                 else:
                     loss.backward()
 
-                # print(tr_loss)
                 viz.linePlot(iterId, loss.item(), "loss", "train")
-                # viz.linePlot(iterId, optimizer.get_lr()[0], 'learning_rate', 'train')
 
                 loss_tmp += loss.item()
 
-                nb_tr_examples += input_ids.size(0)
+                nb_tr_examples += captions.size(0)
                 nb_tr_steps += 1
                 if (step + 1) % args.gradient_accumulation_steps == 0:
                     if args.fp16:
@@ -416,7 +406,7 @@ def main():
                     end_t = timer()
                     timeStamp = strftime("%a %d %b %y %X", gmtime())
 
-                    Ep = epochId + nb_tr_steps / float(len(train_dataset))
+                    Ep = epochId + nb_tr_steps / float(len(train_dset))
                     printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][LR: %.5g]"
 
                     printInfo = [
