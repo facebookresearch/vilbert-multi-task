@@ -1010,6 +1010,10 @@ class BertPreTrainedModel(nn.Module):
             *inputs, **kwargs: additional input for the specific Bert class
                 (ex: num_labels for BertForSequenceClassification)
         """
+        CONFIG_NAME = "bert_config.json"
+        WEIGHTS_NAME = "pytorch_model.bin"
+        TF_WEIGHTS_NAME = "model.ckpt"
+
         if pretrained_model_name_or_path in PRETRAINED_MODEL_ARCHIVE_MAP:
             archive_file = PRETRAINED_MODEL_ARCHIVE_MAP[pretrained_model_name_or_path]
         else:

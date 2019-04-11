@@ -240,14 +240,13 @@ def main():
     # num_labels = 3000
     num_labels = train_dset.num_ans_candidates
     if args.from_pretrained:
-        # model = MultiModalBertForVQA.from_pretrained(
-        #     args.pretrained_weight, config, num_labels=num_labels
-        # )
         model = MultiModalBertForVQA.from_pretrained(
             args.pretrained_weight, config, num_labels=num_labels
         )
     else:
-        model = MultiModalBertForVQA(config, num_labels)
+        model = MultiModalBertForVQA.from_pretrained(
+            args.bert_model, config, num_labels=num_labels
+        )
 
     if args.fp16:
         model.half()
