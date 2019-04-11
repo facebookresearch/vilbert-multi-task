@@ -360,7 +360,6 @@ def main():
             total_loss = 0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
-            train_score = 0
             optimizer.zero_grad()
 
             for step, batch in enumerate(train_dataloader):
@@ -423,14 +422,10 @@ def main():
 
                     loss_tmp = 0
 
-            train_score = 100 * train_score / len(train_dataloader.dataset)
-            model.train(False)
-            eval_score, bound = evaluate(args, model, eval_dataloader)
-            model.train(True)
-
-            logger.info("epoch %d, time: %.2f" % (epoch, time.time() - t))
-            logger.info("\ttrain_loss: %.2f, score: %.2f" % (total_loss, train_score))
-            logger.info("\teval score: %.2f (%.2f)" % (100 * eval_score, 100 * bound))
+            model.eval()
+            eval_loss = evaluate(args, model, eval_dataloader)
+            model.train()
+            logger.info("\teval loss: %.2f" % (eval_loss))
 
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -456,37 +451,16 @@ class TBlogger:
 
 
 def evaluate(args, model, dataloader):
-    score = 0
-    upper_bound = 0
+    total_loss = 0
     num_data = 0
     for batch in iter(dataloader):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, question, target, input_mask, segment_ids = batch
-        pred = model(question, features, spatials, segment_ids, input_mask)
-        batch_score = compute_score_with_logits(pred, target.cuda()).sum()
-        score += batch_score
-        upper_bound += (a.max(1)[0]).sum()
-        num_data += pred.size(0)
+        features, spatials, captions, targets = batch
+        loss = model(captions, features, spatials, labels=targets)
+        total_loss += loss.sum()
+        num_data += loss.size(0)
 
-    score = score / len(dataloader.dataset)
-    upper_bound = upper_bound / len(dataloader.dataset)
-    return score, upper_bound
-
-
-def instance_bce_with_logits(logits, labels):
-    assert logits.dim() == 2
-
-    loss = F.binary_cross_entropy_with_logits(logits, labels)
-    loss *= labels.size(1)
-    return loss
-
-
-def compute_score_with_logits(logits, labels):
-    logits = torch.max(logits, 1)[1].data  # argmax
-    one_hots = torch.zeros(*labels.size()).cuda()
-    one_hots.scatter_(1, logits.view(-1, 1), 1)
-    scores = one_hots * labels
-    return scores
+    return total_loss / num_data
 
 
 if __name__ == "__main__":

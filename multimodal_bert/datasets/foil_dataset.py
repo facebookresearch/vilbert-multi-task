@@ -85,7 +85,7 @@ class FoilClassificationDataset(Dataset):
         target = torch.tensor(int(entry["foil"]))
 
         # TODO (kd): update code to return spatial features
-        spatials = None
+        spatials = -1
 
         return features, spatials, caption, target
 
