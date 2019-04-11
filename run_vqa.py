@@ -443,7 +443,7 @@ def main():
 
                 loss_tmp += loss.item()
 
-                nb_tr_examples += input_ids.size(0)
+                nb_tr_examples += question.size(0)
                 nb_tr_steps += 1
                 if (step + 1) % args.gradient_accumulation_steps == 0:
                     if args.fp16:
@@ -540,7 +540,6 @@ def evaluate(args, model, dataloader):
     upper_bound = upper_bound / len(dataloader.dataset)
     return score, upper_bound
 
-
 def instance_bce_with_logits(logits, labels):
     assert logits.dim() == 2
 
@@ -554,7 +553,6 @@ def compute_score_with_logits(logits, labels):
     one_hots.scatter_(1, logits.view(-1, 1), 1)
     scores = (one_hots * labels)
     return scores
-
 
 if __name__ == "__main__":
 
