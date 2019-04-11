@@ -36,8 +36,8 @@ from torch.utils.data import DataLoader
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 
-from multimodal_bert.datasets import BertDictionary, BertFeatureDataset
-from multimodal_bert.bert import MultiModalBertForVQA, BertConfig
+from multimodal_bert.datasets import FoilClassificationDataset
+from multimodal_bert.bert import MultiModalBertForFoilClassification, BertConfig
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -52,20 +52,16 @@ def main():
 
     # Data files for FOIL task.
     parser.add_argument(
-        "--features-train-h5path",
-        default="data/coco/features_faster_rcnn_x101_train.h5"
+        "--features-train-h5path", default="data/coco/features_faster_rcnn_x101_train.h5"
     )
     parser.add_argument(
-        "--features-val-h5path",
-        default="data/coco/features_faster_rcnn_x101_val.h5"
+        "--features-val-h5path", default="data/coco/features_faster_rcnn_x101_val.h5"
     )
     parser.add_argument(
-        "--instances-train-jsonpath",
-        default="data/foil/annotations/foilv1.0_train_2017.json"
+        "--instances-train-jsonpath", default="data/foil/annotations/foilv1.0_train_2017.json"
     )
     parser.add_argument(
-        "--instances-val-jsonpath",
-        default="data/foil/annotations/foilv1.0_val_2017.json"
+        "--instances-val-jsonpath", default="data/foil/annotations/foilv1.0_val_2017.json"
     )
 
     # Required parameters
@@ -167,6 +163,7 @@ def main():
     )
     args = parser.parse_args()
 
+    # Declare path to save checkpoints.
     timeStamp = strftime("%d-%b-%y-%X-%a", gmtime())
     timeStamp += "_{:0>6d}".format(random.randint(0, 10e6))
     savePath = os.path.join(args.output_dir, timeStamp)
@@ -213,11 +210,14 @@ def main():
     if args.do_train:
 
         viz = TBlogger("logs", timeStamp)
+        tokenizer = BertTokenizer.from_pretrained(args.bert_model, args.do_lower_case)
 
-        dictionary = BertDictionary(args)
-
-        train_dset = BertFeatureDataset("train", dictionary, dataroot="data/VQA")
-        eval_dset = BertFeatureDataset("val", dictionary, dataroot="data/VQA")
+        train_dset = FoilClassificationDataset(
+            args.instances_train_jsonpath, args.features_train_h5path, tokenizer
+        )
+        eval_dset = FoilClassificationDataset(
+            args.instances_val_jsonpath, args.features_val_h5path, tokenizer
+        )
 
         num_train_optimization_steps = (
             int(len(train_dset) / args.train_batch_size / args.gradient_accumulation_steps)
@@ -230,12 +230,13 @@ def main():
 
     config = BertConfig.from_json_file(args.config_file)
 
-    # num_labels = 3000
-    num_labels = train_dset.num_ans_candidates
+    num_labels = 2
     if args.from_pretrained:
-        model = MultiModalBertForVQA(config, num_labels, args.pretrained_weight)
+        model = MultiModalBertForFoilClassification.from_pretrained(
+            args.pretrained_weight, config, num_labels=num_labels
+        )
     else:
-        model = MultiModalBertForVQA(config, num_labels)
+        model = MultiModalBertForFoilClassification(config, num_labels)
 
     if args.fp16:
         model.half()
@@ -251,7 +252,7 @@ def main():
         model = torch.nn.DataParallel(model)
 
     model.cuda()
-    # pdb.set_trace()
+
     # Prepare optimizer
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 
@@ -332,7 +333,6 @@ def main():
 
         train_dataloader = DataLoader(
             train_dset,
-            # sampler=train_sampler,
             shuffle=True,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
@@ -341,7 +341,6 @@ def main():
 
         eval_dataloader = DataLoader(
             eval_dset,
-            # sampler=train_sampler,
             shuffle=True,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
@@ -370,9 +369,9 @@ def main():
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-                features, spatials, question, target, input_mask, segment_ids = batch
+                features, spatials, captions, targets = batch
 
-                pred = model(question, features, spatials, segment_ids, input_mask)
+                pred = model(captions, features, spatials, labels=targets)
 
                 loss = instance_bce_with_logits(pred, target)
                 batch_score = compute_score_with_logits(pred, target).sum()
@@ -434,9 +433,9 @@ def main():
 
                     loss_tmp = 0
 
-            train_score = 100 * train_score / len(train_loader.dataset)
+            train_score = 100 * train_score / len(train_dataloader.dataset)
             model.train(False)
-            eval_score, bound = evaluate(args, model, eval_loader)
+            eval_score, bound = evaluate(args, model, eval_dataloader)
             model.train(True)
 
             logger.info("epoch %d, time: %.2f" % (epoch, time.time() - t))
