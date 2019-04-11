@@ -71,7 +71,7 @@ def main():
 
     parser.add_argument(
         "--pretrained_weight",
-        default="save/09-Apr-19-02:42:50-Tue_458475/pytorch_model_6.bin",
+        default="save/09-Apr-19-02:42:50-Tue_458475/pytorch_model_10.bin",
         type=str,
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
         "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
@@ -342,17 +342,8 @@ def main():
         logger.info("  Batch size = %d", args.train_batch_size)
         logger.info("  Num steps = %d", num_train_optimization_steps)
 
-        # if args.local_rank == -1:
-        #     train_sampler = RandomSampler(train_dataset)
-        #     # train_sampler = SchedualSampler(train_dataset)
-        # else:
-        #     #TODO: check if this works with current data generator from disk that relies on next(file)
-        #     # (it doesn't return item back by index)
-        #     train_sampler = DistributedSampler(train_dataset)
-
         train_dataloader = DataLoader(
             train_dset,
-            # sampler=train_sampler,
             shuffle=True,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
@@ -361,7 +352,6 @@ def main():
 
         eval_dataloader = DataLoader(
             eval_dset,
-            # sampler=train_sampler,
             shuffle=True,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
@@ -388,18 +378,10 @@ def main():
             # iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataloader):
                 iterId = startIterID + step + (epochId * len(train_dataloader))
-                # pdb.set_trace()
-                # batch = iter_dataloader.next()
-                # batch = tuple(t.to(device, async=True) for t in batch)
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
                 features, spatials, question, target, input_mask, segment_ids = batch
-                # input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label = (
-                # batch
-                # )
-
                 pred = model(question, features, spatials, segment_ids, input_mask)
-
                 loss = instance_bce_with_logits(pred, target)
                 batch_score = compute_score_with_logits(pred, target).sum()
 
@@ -491,7 +473,6 @@ class TBlogger:
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
 
-
 def evaluate(args, model, dataloader):
     score = 0
     upper_bound = 0
@@ -502,7 +483,7 @@ def evaluate(args, model, dataloader):
         pred = model(question, features, spatials, segment_ids, input_mask)
         batch_score = compute_score_with_logits(pred, target.cuda()).sum()
         score += batch_score
-        upper_bound += (a.max(1)[0]).sum()
+        upper_bound += (target.max(1)[0]).sum()
         num_data += pred.size(0)
 
     score = score / len(dataloader.dataset)
@@ -515,7 +496,6 @@ def instance_bce_with_logits(logits, labels):
     loss = F.binary_cross_entropy_with_logits(logits, labels)
     loss *= labels.size(1)
     return loss
-
 
 def compute_score_with_logits(logits, labels):
     logits = torch.max(logits, 1)[1].data  # argmax
