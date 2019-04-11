@@ -29,7 +29,6 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
 import torch
-import torch.nn.functional as F
 
 from torch.utils.data import DataLoader
 
@@ -37,6 +36,7 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 
 from multimodal_bert.datasets import FoilClassificationDataset
+from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 from multimodal_bert.bert import MultiModalBertForFoilClassification, BertConfig
 
 logging.basicConfig(
@@ -51,17 +51,12 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Data files for FOIL task.
-    parser.add_argument(
-        "--features-train-h5path", default="data/coco/features_faster_rcnn_x101_train.h5"
-    )
-    parser.add_argument(
-        "--features-val-h5path", default="data/coco/features_faster_rcnn_x101_val.h5"
-    )
+    parser.add_argument("--features-h5path", default="data/coco/features_faster_rcnn_x101.h5")
     parser.add_argument(
         "--instances-train-jsonpath", default="data/foil/annotations/foilv1.0_train_2017.json"
     )
     parser.add_argument(
-        "--instances-val-jsonpath", default="data/foil/annotations/foilv1.0_val_2017.json"
+        "--instances-val-jsonpath", default="data/foil/annotations/foilv1.0_test_2017.json"
     )
 
     # Required parameters
@@ -210,13 +205,16 @@ def main():
     if args.do_train:
 
         viz = TBlogger("logs", timeStamp)
-        tokenizer = BertTokenizer.from_pretrained(args.bert_model, args.do_lower_case)
+        tokenizer = BertTokenizer.from_pretrained(
+            args.bert_model, do_lower_case=args.do_lower_case
+        )
 
+        image_features_reader = ImageFeaturesH5Reader(args.features_h5path)
         train_dset = FoilClassificationDataset(
-            args.instances_train_jsonpath, args.features_train_h5path, tokenizer
+            args.instances_train_jsonpath, image_features_reader, tokenizer
         )
         eval_dset = FoilClassificationDataset(
-            args.instances_val_jsonpath, args.features_val_h5path, tokenizer
+            args.instances_val_jsonpath, image_features_reader, tokenizer
         )
 
         num_train_optimization_steps = (
@@ -361,26 +359,17 @@ def main():
             total_loss = 0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
-            train_score = 0
             optimizer.zero_grad()
 
-            # iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataloader):
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
                 features, spatials, captions, targets = batch
 
-                pred = model(captions, features, spatials, labels=targets)
+                loss = model(captions, features, spatials, labels=targets)
+                loss = loss.mean()
 
-                loss = instance_bce_with_logits(pred, target)
-                batch_score = compute_score_with_logits(pred, target).sum()
-
-                total_loss += loss.item() * features.size(0)
-                train_score += batch_score
-
-                if n_gpu > 1:
-                    loss = loss.mean()  # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
@@ -388,13 +377,11 @@ def main():
                 else:
                     loss.backward()
 
-                # print(tr_loss)
                 viz.linePlot(iterId, loss.item(), "loss", "train")
-                # viz.linePlot(iterId, optimizer.get_lr()[0], 'learning_rate', 'train')
 
                 loss_tmp += loss.item()
 
-                nb_tr_examples += input_ids.size(0)
+                nb_tr_examples += captions.size(0)
                 nb_tr_steps += 1
                 if (step + 1) % args.gradient_accumulation_steps == 0:
                     if args.fp16:
@@ -416,7 +403,7 @@ def main():
                     end_t = timer()
                     timeStamp = strftime("%a %d %b %y %X", gmtime())
 
-                    Ep = epochId + nb_tr_steps / float(len(train_dataset))
+                    Ep = epochId + nb_tr_steps / float(len(train_dset))
                     printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][LR: %.5g]"
 
                     printInfo = [
@@ -433,14 +420,10 @@ def main():
 
                     loss_tmp = 0
 
-            train_score = 100 * train_score / len(train_dataloader.dataset)
-            model.train(False)
-            eval_score, bound = evaluate(args, model, eval_dataloader)
-            model.train(True)
-
-            logger.info("epoch %d, time: %.2f" % (epoch, time.time() - t))
-            logger.info("\ttrain_loss: %.2f, score: %.2f" % (total_loss, train_score))
-            logger.info("\teval score: %.2f (%.2f)" % (100 * eval_score, 100 * bound))
+            model.eval()
+            eval_loss = evaluate(args, model, eval_dataloader)
+            model.train()
+            logger.info("\teval loss: %.2f" % (eval_loss))
 
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -466,37 +449,16 @@ class TBlogger:
 
 
 def evaluate(args, model, dataloader):
-    score = 0
-    upper_bound = 0
+    total_loss = 0
     num_data = 0
     for batch in iter(dataloader):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, question, target, input_mask, segment_ids = batch
-        pred = model(question, features, spatials, segment_ids, input_mask)
-        batch_score = compute_score_with_logits(pred, target.cuda()).sum()
-        score += batch_score
-        upper_bound += (a.max(1)[0]).sum()
-        num_data += pred.size(0)
+        features, spatials, captions, targets = batch
+        loss = model(captions, features, spatials, labels=targets)
+        total_loss += loss.sum()
+        num_data += loss.size(0)
 
-    score = score / len(dataloader.dataset)
-    upper_bound = upper_bound / len(dataloader.dataset)
-    return score, upper_bound
-
-
-def instance_bce_with_logits(logits, labels):
-    assert logits.dim() == 2
-
-    loss = F.binary_cross_entropy_with_logits(logits, labels)
-    loss *= labels.size(1)
-    return loss
-
-
-def compute_score_with_logits(logits, labels):
-    logits = torch.max(logits, 1)[1].data  # argmax
-    one_hots = torch.zeros(*labels.size()).cuda()
-    one_hots.scatter_(1, logits.view(-1, 1), 1)
-    scores = one_hots * labels
-    return scores
+    return total_loss / num_data
 
 
 if __name__ == "__main__":
