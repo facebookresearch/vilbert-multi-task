@@ -40,7 +40,7 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 from pytorch_pretrained_bert import BertModel
 
-from multimodal_bert.VQAdataset import BertDictionary, BertFeatureDataset
+from multimodal_bert.datasets import VqaFeatureDataset
 from multimodal_bert.bert import MultiModalBertForVQA, BertConfig
 import pdb
 
