@@ -210,7 +210,7 @@ def main():
     num_train_optimization_steps = None
     if args.do_train:
 
-        viz = TBlogger("logs", timeStamp)
+        viz = TBlogger(args.output_dir)
 
         # print("Loading Train Dataset", args.train_file)
         # train_dataset = CaptionDataset(args.train_file, tokenizer, predict_feature=args.predict_feature,
@@ -464,8 +464,7 @@ def main():
 
 
 class TBlogger:
-    def __init__(self, log_dir, exp_name):
-        log_dir = log_dir + "/" + exp_name
+    def __init__(self, log_dir):
         print("logging file at: " + log_dir)
         self.logger = SummaryWriter(log_dir=log_dir)
 
