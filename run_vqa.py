@@ -446,7 +446,7 @@ def main():
             eval_score, bound = evaluate(args, model, eval_dataloader)
             model.train(True)
 
-            logger.info("epoch %d, time: %.2f" % (epoch, time.time() - t))
+            logger.info("epoch %d" % (epochId))
             logger.info("\ttrain_loss: %.2f, score: %.2f" % (total_loss, train_score))
             logger.info("\teval score: %.2f (%.2f)" % (100 * eval_score, 100 * bound))
 
@@ -476,10 +476,11 @@ def evaluate(args, model, dataloader):
     score = 0
     upper_bound = 0
     num_data = 0
-    for batch in iter(dataloader):
+    for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
         features, spatials, question, target, input_mask, segment_ids = batch
-        pred = model(question, features, spatials, segment_ids, input_mask)
+        with torch.no_grad():
+            pred = model(question, features, spatials, segment_ids, input_mask)
         batch_score = compute_score_with_logits(pred, target.cuda()).sum()
         score += batch_score
         upper_bound += (target.max(1)[0]).sum()
