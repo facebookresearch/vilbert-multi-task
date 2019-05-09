@@ -1,13 +1,17 @@
 import json
 from typing import Any, Dict, List
 import random
+import os
 
 import torch
 from torch.utils.data import Dataset
+import numpy as np
 
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from ._image_features_reader import ImageFeaturesH5Reader
-
+import pdb
+def assert_eq(real, expected):
+    assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
 
 def _load_annotations(annotations_jsonpath: str) -> Dict[int, List[Dict[str, Any]]]:
     """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
@@ -15,15 +19,13 @@ def _load_annotations(annotations_jsonpath: str) -> Dict[int, List[Dict[str, Any
     annotations_json: Dict[str, Any] = json.load(open(annotations_jsonpath))
 
     # Build an index which maps image id with a list of caption annotations.
-    entries: Dict[int, List[Dict[str, Any]]] = {}
+    entries = []
 
     for annotation in annotations_json["annotations"]:
-        if annotation["image_id"] not in entries:
-            entries[annotation["image_id"]] = []
 
-        # Only keep relevant fields for now: 'caption', 'foil'
-        entries[annotation["image_id"]].append(
-            {"caption": annotation["caption"], "foil": annotation["foil"]}
+        pdb.set_trace()
+        entries.append(
+            {"caption": annotation["caption"], "foil": annotation["foil"], 'image_id':annotation["image_id"]}
         )
     return entries
 
@@ -31,6 +33,7 @@ def _load_annotations(annotations_jsonpath: str) -> Dict[int, List[Dict[str, Any
 class FoilClassificationDataset(Dataset):
     def __init__(
         self,
+        name: str,
         annotations_jsonpath: str,
         image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
@@ -45,10 +48,14 @@ class FoilClassificationDataset(Dataset):
         self._padding_index = padding_index
         self._max_caption_length = max_caption_length
 
-        self.tokenize()
-
-        # Hold a list of Image IDs to index the dataset.
-        self._image_ids = list(self._entries.keys())
+        # cache file path data/cache/train_ques
+        cap_cache_path = "data/cache/" + name + "_foil.pkl"
+        if not os.path.exists(cap_cache_path):
+            self.tokenize()
+            self.tensorize()
+            # cPickle.dump(self.entries, open(ques_cache_path, 'wb'))
+        else:
+            self.entries = cPickle.load(open(ques_cache_path, "rb"))
 
     def tokenize(self):
         """Tokenizes the captions.
@@ -56,36 +63,65 @@ class FoilClassificationDataset(Dataset):
         This will add caption_tokens in each entry of the dataset.
         -1 represents nil, and should be treated as padding_idx in embedding.
         """
-        for image_id in self._entries:
-            for i in range(len(self._entries[image_id])):
-                sentence_tokens = self._tokenizer.tokenize(self._entries[image_id][i]["caption"])
-                sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
+        for entry in self._entries:
+            sentence_tokens = self._tokenizer.tokenize(entry["caption"])
+            sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
 
-                tokens = [
-                    self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-                    for w in sentence_tokens
-                ]
-                tokens = tokens[: self._max_caption_length]
-                if len(tokens) < self._max_caption_length:
-                    # Note here we pad in front of the sentence
-                    padding = [self._padding_index] * (self._max_caption_length - len(tokens))
-                    tokens = padding + tokens
-                self._entries[image_id][i]["caption"] = tokens
+            tokens = [
+                self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+                for w in sentence_tokens
+            ]
+            tokens = tokens[:self._max_caption_length]
+            segment_ids = [0] * len(tokens)
+            input_mask = [1] * len(tokens)
+
+            if len(tokens) < self._max_caption_length:
+                # Note here we pad in front of the sentence
+                padding = [self._padding_index] * (self._max_caption_length - len(tokens))
+                tokens = tokens + padding
+                input_mask += padding
+                segment_ids += padding
+
+            assert_eq(len(tokens), self._max_caption_length)
+            entry["token"] = tokens
+            entry["input_mask"] = input_mask
+            entry["segment_ids"] = segment_ids
+
+    def tensorize(self):
+
+        for entry in self._entries:
+            token = torch.from_numpy(np.array(entry["token"]))
+            entry["token"] = token
+
+            input_mask = torch.from_numpy(np.array(entry["input_mask"]))
+            entry["input_mask"] = input_mask
+
+            segment_ids = torch.from_numpy(np.array(entry["segment_ids"]))
+            entry["segment_ids"] = segment_ids
+
 
     def __getitem__(self, index):
-        image_id = self._image_ids[index]
-        features = torch.tensor(self._image_features_reader[image_id])
+        entry = self._entries[index]
+        image_id = entry["image_id"]
 
-        # Pick a random caption.
-        entry = random.choice(self._entries[image_id])
+        features, num_boxes = self._image_features_reader[image_id]
+        image_mask = [1] * (int(num_boxes))
 
-        caption = torch.tensor(entry["caption"])
-        target = torch.tensor(int(entry["foil"]))
+        while len(image_mask) < 36:
+            image_mask.append(0)
 
-        # TODO (kd): update code to return spatial features
+        features = torch.tensor(features)
+        image_mask = torch.tensor(image_mask).long()
         spatials = -1
 
-        return features, spatials, caption, target
+        caption = entry["token"]
+        target = int(entry["foil"])
+        input_mask = entry["input_mask"]
+        segment_ids = entry["segment_ids"]
+
+        spatials = -1
+
+        return features, spatials, image_mask, caption, target, input_mask, segment_ids
 
     def __len__(self):
         return len(self._entries)

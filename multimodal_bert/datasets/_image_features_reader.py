@@ -1,6 +1,8 @@
 from typing import List
-
+import csv
 import h5py
+
+FIELDNAMES = ['image_id', 'image_w','image_h','num_boxes', 'boxes', 'features', 'cls_prob']
 
 class ImageFeaturesH5Reader(object):
     """
@@ -30,13 +32,13 @@ class ImageFeaturesH5Reader(object):
     def __init__(self, features_h5path: str, in_memory: bool = False):
         self.features_h5path = features_h5path
         self._in_memory = in_memory
-
+        
         with h5py.File(self.features_h5path, "r") as features_h5:
-            self._split = features_h5.attrs["split"]
-            self._image_ids = list(features_h5["image_id"])
+            self._image_ids = list(features_h5["image_ids"])
             # "features" is List[np.ndarray] if the dataset is loaded in-memory
             # If not loaded in memory, then list of None.
-            self.features = [None] * len(self._image_ids)
+        self.features = [None] * len(self._image_ids)
+        self.num_boxes = [None] * len(self._image_ids)
 
     def __len__(self):
         return len(self._image_ids)
@@ -48,20 +50,22 @@ class ImageFeaturesH5Reader(object):
             # has a slow start.
             if self.features[index] is not None:
                 features = self.features[index]
+                num_boxes = self.num_boxes[index]
             else:
                 with h5py.File(self.features_h5path, "r") as features_h5:
                     features = features_h5["features"][index]
+                    num_boxes = features_h5["num_boxes"][index]
+
                     self.features[index] = features
+                    self.num_boxes[index] = num_boxes
         else:
             # Read chunk from file everytime if not loaded in memory.
             with h5py.File(self.features_h5path, "r") as features_h5:
                 features = features_h5["features"][index]
+                num_boxes = features_h5["num_boxes"][index]
 
-        return features
+        return features, num_boxes
 
     def keys(self) -> List[int]:
         return self._image_ids
 
-    @property
-    def split(self):
-        return self._split

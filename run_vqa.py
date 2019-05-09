@@ -30,6 +30,7 @@ from tqdm import tqdm
 
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 
 from torch.utils.data import DataLoader
 
@@ -53,7 +54,7 @@ def main():
 
     # Required parameters
     # Data files for VQA task.
-    parser.add_argument("--features-h5path", default="data/coco/features_faster_rcnn_x101.h5")
+    parser.add_argument("--features_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/coco/coco_trainval.h5")
     parser.add_argument(
         "--train_file",
         default="data/VQA/training",
@@ -71,7 +72,7 @@ def main():
 
     parser.add_argument(
         "--pretrained_weight",
-        default="save/09-Apr-19-02:42:50-Tue_458475/pytorch_model_10.bin",
+        default="",
         type=str,
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
         "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
@@ -101,13 +102,14 @@ def main():
         "Sequences longer than this will be truncated, and sequences shorter \n"
         "than this will be padded.",
     )
+
     parser.add_argument("--use_location", action="store_true", help="whether use location.")
     parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
     parser.add_argument(
         "--train_batch_size", default=30, type=int, help="Total batch size for training."
     )
     parser.add_argument(
-        "--learning_rate", default=4e-4, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=2e-4, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -117,7 +119,7 @@ def main():
     )
     parser.add_argument(
         "--warmup_proportion",
-        default=0.1,
+        default=0.01,
         type=float,
         help="Proportion of training to perform linear learning rate warmup for. "
         "E.g., 0.1 = 10%% of training.",
@@ -159,11 +161,33 @@ def main():
     parser.add_argument(
         "--from_pretrained", action="store_true", help="Wheter the tensor is from pretrained."
     )
+    parser.add_argument(
+        "--save_name",
+        default='',
+        type=str,
+        help="save name for training.",
+    )
+
     args = parser.parse_args()
 
-    timeStamp = strftime("%d-%b-%y-%X-%a", gmtime())
-    timeStamp += "_{:0>6d}".format(random.randint(0, 10e6))
+    print(args)
+    if args.save_name is not '':
+        timeStamp = args.save_name
+    else:
+        timeStamp = strftime("%d-%b-%y-%X-%a", gmtime())
+        timeStamp += "_{:0>6d}".format(random.randint(0, 10e6))
+    
     savePath = os.path.join(args.output_dir, timeStamp)
+
+    if not os.path.exists(savePath):
+        os.makedirs(savePath)
+    
+    config = BertConfig.from_json_file(args.config_file)
+    # save all the hidden parameters. 
+    with open(os.path.join(savePath, 'command.txt'), 'w') as f:
+        print(args, file=f)  # Python 3.x
+        print('\n', file=f)
+        print(config, file=f)
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -210,21 +234,24 @@ def main():
     num_train_optimization_steps = None
     if args.do_train:
 
-        viz = TBlogger(args.output_dir)
+        viz = TBlogger("logs/" + timeStamp)
 
-        # print("Loading Train Dataset", args.train_file)
-        # train_dataset = CaptionDataset(args.train_file, tokenizer, predict_feature=args.predict_feature,
-        #                                 seq_len=args.max_seq_length, corpus_lines=None, on_memory=args.on_memory)
+        print("Loading Train Dataset", args.train_file)
 
         tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=args.do_lower_case
         )
-        image_features_reader = ImageFeaturesH5Reader(args.features_h5path)
+        image_features_reader_train = ImageFeaturesH5Reader(args.features_h5path, True)
+        image_features_reader_val = ImageFeaturesH5Reader(args.features_h5path, True)
 
         train_dset = VQAClassificationDataset(
-            "train", image_features_reader, tokenizer, dataroot="data/VQA"
+            "train", image_features_reader_train, tokenizer, dataroot="data/VQA"
         )
-        eval_dset = VQAClassificationDataset("val", image_features_reader, tokenizer, dataroot="data/VQA")
+        eval_dset = VQAClassificationDataset("val", image_features_reader_val, tokenizer, dataroot="data/VQA")
+
+        # dictionary = BertDictionary(args)        
+        # train_dset = BertFeatureDataset('train', dictionary, dataroot='data/VQA')
+        # eval_dset = BertFeatureDataset('val', dictionary, dataroot='data/VQA')
 
         num_train_optimization_steps = (
             int(len(train_dset) / args.train_batch_size / args.gradient_accumulation_steps)
@@ -234,8 +261,6 @@ def main():
             num_train_optimization_steps = (
                 num_train_optimization_steps // torch.distributed.get_world_size()
             )
-
-    config = BertConfig.from_json_file(args.config_file)
 
     # num_labels = 3000
     num_labels = train_dset.num_ans_candidates
@@ -284,18 +309,18 @@ def main():
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
                 if key[12:] in bert_weight_name:
-                    lr = args.learning_rate * 0.1
+                    lr = 2e-5
                 else:
                     lr = args.learning_rate
 
                 if any(nd in key for nd in no_decay):
                     optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr, "weight_decay": 0.01}
+                        {"params": [value], "lr": lr}
                     ]
 
                 if not any(nd in key for nd in no_decay):
                     optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr, "weight_decay": 0.0}
+                        {"params": [value], "lr": lr}
                     ]
 
     # set different parameters for vision branch and lanugage branch.
@@ -321,19 +346,21 @@ def main():
 
     else:
         if args.from_pretrained:
-            optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
-            )
+            # optimizer = BertAdam(
+            #     optimizer_grouped_parameters,
+            #     warmup=args.warmup_proportion,
+            #     t_total=num_train_optimization_steps,
+            # )
+            optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
 
         else:
-            optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                lr=args.learning_rate,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
-            )
+            # optimizer = BertAdam(
+            #     optimizer_grouped_parameters,
+            #     lr=args.learning_rate,
+            #     warmup=args.warmup_proportion,
+            #     t_total=num_train_optimization_steps,
+            # )
+            optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
 
     if args.do_train:
         logger.info("***** Running training *****")
@@ -351,7 +378,7 @@ def main():
 
         eval_dataloader = DataLoader(
             eval_dset,
-            shuffle=True,
+            shuffle=False,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
             pin_memory=True,
@@ -379,11 +406,14 @@ def main():
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-                features, spatials, question, target, input_mask, segment_ids = batch
-                pred = model(question, features, spatials, segment_ids, input_mask)
+                features, spatials, image_mask, question, target, input_mask, segment_ids = batch
+                pred = model(question, features, spatials, segment_ids, input_mask, image_mask)
+                # import pdb
+                # pdb.set_trace()
                 loss = instance_bce_with_logits(pred, target)
                 batch_score = compute_score_with_logits(pred, target).sum()
 
+                # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
                 total_loss += loss.item() * features.size(0)
                 train_score += batch_score
 
@@ -395,7 +425,7 @@ def main():
                     optimizer.backward(loss)
                 else:
                     loss.backward()
-
+                # print(loss)
                 # print(tr_loss)
                 viz.linePlot(iterId, loss.item(), "loss", "train")
                 # viz.linePlot(iterId, optimizer.get_lr()[0], 'learning_rate', 'train')
@@ -413,6 +443,8 @@ def main():
                         )
                         for param_group in optimizer.param_groups:
                             param_group["lr"] = lr_this_step
+        
+                    nn.utils.clip_grad_norm_(model.parameters(), 0.25)
 
                     optimizer.step()
                     optimizer.zero_grad()
@@ -425,7 +457,7 @@ def main():
                     timeStamp = strftime("%a %d %b %y %X", gmtime())
 
                     Ep = epochId + nb_tr_steps / float(len(train_dataloader))
-                    printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][LR: %.5g]"
+                    printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g]"
 
                     printInfo = [
                         timeStamp,
@@ -433,7 +465,6 @@ def main():
                         nb_tr_steps,
                         end_t - start_t,
                         loss_tmp,
-                        optimizer.get_lr()[0],
                     ]
 
                     start_t = end_t
@@ -477,9 +508,9 @@ def evaluate(args, model, dataloader):
     num_data = 0
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, question, target, input_mask, segment_ids = batch
+        features, spatials, image_mask, question, target, input_mask, segment_ids = batch
         with torch.no_grad():
-            pred = model(question, features, spatials, segment_ids, input_mask)
+            pred = model(question, features, spatials, segment_ids, input_mask, image_mask)
         batch_score = compute_score_with_logits(pred, target.cuda()).sum()
         score += batch_score
         upper_bound += (target.max(1)[0]).sum()
@@ -491,7 +522,6 @@ def evaluate(args, model, dataloader):
 
 def instance_bce_with_logits(logits, labels):
     assert logits.dim() == 2
-
     loss = F.binary_cross_entropy_with_logits(logits, labels)
     loss *= labels.size(1)
     return loss

@@ -13,10 +13,8 @@ from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reade
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
-
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
-
 
 def _create_entry(question, answer):
     answer.pop("image_id")
@@ -142,9 +140,15 @@ class VQAClassificationDataset(Dataset):
     def __getitem__(self, index):
         entry = self.entries[index]
         image_id = entry["image_id"]
-        features = torch.tensor(self._image_features_reader[image_id])
 
-        # TODO (kd): start using spatials once we have them back.
+        features, num_boxes = self._image_features_reader[image_id]
+        image_mask = [1] * (int(num_boxes))
+
+        while len(image_mask) < 36:
+            image_mask.append(0)
+
+        features = torch.tensor(features)
+        image_mask = torch.tensor(image_mask).long()
         spatials = -1
 
         question = entry["q_token"]
@@ -158,7 +162,7 @@ class VQAClassificationDataset(Dataset):
         if labels is not None:
             target.scatter_(0, labels, scores)
 
-        return features, spatials, question, target, input_mask, segment_ids
+        return features, spatials, image_mask, question, target, input_mask, segment_ids
 
     def __len__(self):
         return len(self.entries)
