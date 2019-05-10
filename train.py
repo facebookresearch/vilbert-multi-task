@@ -445,6 +445,7 @@ def main():
                     batch
                 )
 
+                pdb.set_trace()
                 masked_loss_t, masked_loss_v, next_sentence_loss = model(
                     input_ids,
                     image_feat,

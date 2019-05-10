@@ -266,8 +266,13 @@ class BertPreprocessBatch(object):
         image_target[:num_boxes] = image_target_wp
         image_location[:num_boxes] = image_location_wp
 
-        image_location = copy.deepcopy(image_location)
-        
+        image_location[:,0] = image_location[:,0] / float(image_w)
+        image_location[:,1] = image_location[:,1] / float(image_h)
+        image_location[:,2] = image_location[:,2] / float(image_w)
+        image_location[:,3] = image_location[:,3] / float(image_h)
+
+
+
         if self.predict_feature:
             image_feature = copy.deepcopy(image_feature)
             image_target = copy.deepcopy(image_feature)
@@ -513,7 +518,6 @@ class BertPreprocessBatch(object):
                 # 80% randomly change token to mask token
                 if prob < 0.9:
                     image_feat[i] = 0
-                    image_loc[i] = 0
                 # 10% randomly change token to random token
                 # elif prob < 0.9:
                 # tokens[i] = random.choice(list(tokenizer.vocab.items()))[0]

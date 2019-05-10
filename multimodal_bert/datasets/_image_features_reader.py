@@ -39,6 +39,7 @@ class ImageFeaturesH5Reader(object):
             # If not loaded in memory, then list of None.
         self.features = [None] * len(self._image_ids)
         self.num_boxes = [None] * len(self._image_ids)
+        self.boxes = [None] * len(self._image_ids)
 
     def __len__(self):
         return len(self._image_ids)
@@ -51,20 +52,26 @@ class ImageFeaturesH5Reader(object):
             if self.features[index] is not None:
                 features = self.features[index]
                 num_boxes = self.num_boxes[index]
+                boxes = self.boxes[index]
+
             else:
                 with h5py.File(self.features_h5path, "r") as features_h5:
                     features = features_h5["features"][index]
                     num_boxes = features_h5["num_boxes"][index]
+                    boxes = features_h5["boxes"][index]
 
                     self.features[index] = features
                     self.num_boxes[index] = num_boxes
+                    self.boxes[index] = boxes
+
         else:
             # Read chunk from file everytime if not loaded in memory.
             with h5py.File(self.features_h5path, "r") as features_h5:
                 features = features_h5["features"][index]
                 num_boxes = features_h5["num_boxes"][index]
+                boxes = features_h5["boxes"][index]
 
-        return features, num_boxes
+        return features, num_boxes, boxes
 
     def keys(self) -> List[int]:
         return self._image_ids

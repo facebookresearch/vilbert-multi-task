@@ -22,8 +22,6 @@ def _load_annotations(annotations_jsonpath: str) -> Dict[int, List[Dict[str, Any
     entries = []
 
     for annotation in annotations_json["annotations"]:
-
-        pdb.set_trace()
         entries.append(
             {"caption": annotation["caption"], "foil": annotation["foil"], 'image_id':annotation["image_id"]}
         )
@@ -104,7 +102,7 @@ class FoilClassificationDataset(Dataset):
         entry = self._entries[index]
         image_id = entry["image_id"]
 
-        features, num_boxes = self._image_features_reader[image_id]
+        features, num_boxes, boxes = self._image_features_reader[image_id]
         image_mask = [1] * (int(num_boxes))
 
         while len(image_mask) < 36:

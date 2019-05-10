@@ -39,6 +39,7 @@ from multimodal_bert.datasets import FoilClassificationDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 from multimodal_bert.bert import MultiModalBertForFoilClassification, BertConfig
 from torch.nn import CrossEntropyLoss
+import pdb
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -232,7 +233,7 @@ def main():
             args.bert_model, do_lower_case=args.do_lower_case
         )
 
-        image_features_reader = ImageFeaturesH5Reader(args.features_h5path)
+        image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
         train_dset = FoilClassificationDataset(
             "train", args.instances_train_jsonpath, image_features_reader, tokenizer
         )
@@ -366,7 +367,7 @@ def main():
             shuffle=False,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
-            pin_memory=True,
+            pin_memory=False,
         )
         loss_fct = CrossEntropyLoss(ignore_index=-1)
 
@@ -408,7 +409,6 @@ def main():
                     loss.backward()
 
                 viz.linePlot(iterId, loss.item(), "loss", "train")
-
                 loss_tmp += loss.item()
 
                 nb_tr_examples += captions.size(0)
@@ -432,7 +432,7 @@ def main():
                     end_t = timer()
                     timeStamp = strftime("%a %d %b %y %X", gmtime())
 
-                    Ep = epochId + nb_tr_examples / float(len(train_dset))
+                    Ep = epochId + nb_tr_steps / float(len(train_dataloader))
                     printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g]"
 
                     printInfo = [
@@ -451,13 +451,13 @@ def main():
             train_score = 100 * train_score / len(train_dataloader.dataset)
 
 
-            model.eval()
+            model.train(False)
             eval_loss, eval_score = evaluate(args, model, eval_dataloader)
-            model.train()
+            model.train(True)
 
             logger.info("epoch %d" % (epochId))
             logger.info("\ttrain_loss: %.2f, score: %.2f" % (total_loss, train_score))
-            logger.info("\teval score: %.2f (%.2f)" % (100 * eval_score, 100 * bound))
+            logger.info("\teval_loss: %.2f eval score: %.2f" % (eval_loss, 100 * eval_score))
 
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -486,20 +486,22 @@ def evaluate(args, model, dataloader):
     total_loss = 0
     num_data = 0
     score = 0
+    loss_fct = CrossEntropyLoss(ignore_index=-1)
 
     for batch in iter(dataloader):
         batch = tuple(t.cuda() for t in batch)
         features, spatials, image_mask, captions, target, input_mask, segment_ids = batch
-        pred = model(captions, features, spatials, segment_ids, input_mask, image_mask)
+        with torch.no_grad():
+            pred = model(captions, features, spatials, segment_ids, input_mask, image_mask)
         loss = loss_fct(pred, target)
         _, logits = torch.max(pred, 1)
-        score += (logits == target).sum()
 
-        total_loss += loss.sum()
-        num_data += loss.size(0)
+        score += (logits == target).sum().item()
 
-    return total_loss / num_data, score / num_data
+        total_loss += loss.sum().item()
+        num_data += pred.size(0)
 
+    return total_loss / float(num_data), score / float(num_data)
 
 if __name__ == "__main__":
     main()
