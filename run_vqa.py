@@ -106,7 +106,7 @@ def main():
     parser.add_argument("--use_location", action="store_true", help="whether use location.")
     parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
     parser.add_argument(
-        "--train_batch_size", default=30, type=int, help="Total batch size for training."
+        "--train_batch_size", default=128, type=int, help="Total batch size for training."
     )
     parser.add_argument(
         "--learning_rate", default=2e-4, type=float, help="The initial learning rate for Adam."

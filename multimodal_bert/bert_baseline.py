@@ -451,13 +451,32 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         self.cls = BertPreTrainingHeads(config, self.bert.embeddings.word_embeddings.weight)
         self.apply(self.init_bert_weights)
 
-    def forward(self, input_ids, image_feat, image_target, token_type_ids=None, attention_mask=None, masked_lm_labels=None, next_sentence_label=None):
-        
-
+    def forward(
+        self,
+        input_ids,
+        image_feat,
+        image_target,
+        image_loc,
+        token_type_ids=None,
+        attention_mask=None,
+        image_attention_mask=None,
+        masked_lm_labels=None,
+        image_label=None,
+        next_sentence_label=None,
+    ):
         # in this model, we first embed the images.
 
-        sequence_output, pooled_output = self.bert(input_ids, image_feat, token_type_ids, attention_mask,
-                                                   output_all_encoded_layers=False)
+        sequence_output, pooled_output = self.bert(
+            input_ids,
+            image_feat,
+            image_loc,
+            token_type_ids,
+            attention_mask,
+            image_attention_mask,
+            output_all_encoded_layers=False,
+        )
+
+
         img_prediction_scores, prediction_scores, seq_relationship_score = self.cls(sequence_output, pooled_output)
         
         if masked_lm_labels is not None and next_sentence_label is not None:
@@ -523,8 +542,17 @@ class BertModel(BertPreTrainedModel):
         self.pooler = BertPooler(config)
         self.apply(self.init_bert_weights)
 
-    def forward(self, input_ids, input_imgs, token_type_ids=None, attention_mask=None, output_all_encoded_layers=True):
-        
+    def forward(
+        self,
+        input_txt,
+        input_imgs,
+        image_loc,
+        token_type_ids=None,
+        attention_mask=None,
+        image_attention_mask=None,
+        output_all_encoded_layers=True,
+    ):
+
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
         if token_type_ids is None:
@@ -536,6 +564,7 @@ class BertModel(BertPreTrainedModel):
         # this attention mask is more simple than the triangular masking of causal attention
         # used in OpenAI GPT, we just need to prepare the broadcast dimension here.
         extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
+        extended_image_attention_mask = image_attention_mask.unsqueeze(1).unsqueeze(2)
 
         # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
         # masked positions, this operation will create a tensor which is 0.0 for
@@ -544,6 +573,11 @@ class BertModel(BertPreTrainedModel):
         # effectively the same as removing these entirely.
         extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+
+        extended_image_attention_mask = extended_image_attention_mask.to(
+            dtype=next(self.parameters()).dtype
+        )  # fp16 compatibility
+        extended_image_attention_mask = (1.0 - extended_image_attention_mask) * -10000.0
 
         img_embeding_output = self.image_embeddings(input_imgs, token_type_ids[:,1:37])
         embedding_output = self.embeddings(input_ids, token_type_ids)

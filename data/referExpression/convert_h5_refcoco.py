@@ -27,7 +27,7 @@ from refer import REFER
 # ref_id = ref_ids[np.random.randint(0, len(ref_ids))]
 # ref = refer.Refs[ref_id]
 
-save_path = os.path.join('refercoco.h5')
+save_path = os.path.join('refcoco.h5')
 save_h5 = h5py.File(save_path, "w")
 
 # count = 0
@@ -94,9 +94,8 @@ boxes_h5d = save_h5.create_dataset(
 
 count = 0
 num_file = 1
-name = '/srv/share2/jlu347/bottom-up-attention/feature/coco/coco_resnet101_faster_rcnn_genome.tsv.%d'
+name = '/srv/share2/jlu347/bottom-up-attention/feature/refcoco_unc/refcoco_unc_resnet101_faster_rcnn_genome.tsv.%d'
 infiles = [name % i for i in range(num_file)]
-infiles.append('/srv/share2/jlu347/bottom-up-attention/feature/coco/coco_val_resnet101_faster_rcnn_genome.tsv.0')
 
 for infile in infiles:
     with open(infile) as tsv_in_file:

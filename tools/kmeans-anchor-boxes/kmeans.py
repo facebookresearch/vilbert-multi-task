@@ -96,18 +96,19 @@ def kmeans(boxes, k):
     boxes = torch.from_numpy(boxes).float().cuda()
     clusters = torch.from_numpy(clusters).float().cuda()
     last_clusters = torch.from_numpy(last_clusters).long().cuda()
-
+    count = 0
     while True:
         distances = 1 - iou(boxes, clusters)
 
         _, nearest_clusters = torch.min(distances, 1)
-
-        if (last_clusters == nearest_clusters).sum() == len(last_clusters):
+        tmp = len(last_clusters) - (last_clusters == nearest_clusters).sum() 
+        print(count, tmp)
+        if tmp == 0:
             break
 
         for cluster in range(k):
             clusters[cluster] = torch.mean(boxes[nearest_clusters == cluster], dim=0)
 
         last_clusters = nearest_clusters
-
+        count += 1
     return clusters

@@ -50,7 +50,7 @@ def _load_dataset(dataroot, name):
     return entries
 
 
-class VQAClassificationDataset(Dataset):
+class VMMultipleChoiceDataset(Dataset):
     def __init__(
         self,
         name: str,
@@ -62,11 +62,11 @@ class VQAClassificationDataset(Dataset):
         super().__init__()
         assert name in ["train", "val"]
 
-        ans2label_path = os.path.join(dataroot, "cache", "trainval_ans2label.pkl")
-        label2ans_path = os.path.join(dataroot, "cache", "trainval_label2ans.pkl")
-        self.ans2label = cPickle.load(open(ans2label_path, "rb"))
-        self.label2ans = cPickle.load(open(label2ans_path, "rb"))
-        self.num_ans_candidates = len(self.ans2label)
+        # ans2label_path = os.path.join(dataroot, "cache", "trainval_ans2label.pkl")
+        # label2ans_path = os.path.join(dataroot, "cache", "trainval_label2ans.pkl")
+        # self.ans2label = cPickle.load(open(ans2label_path, "rb"))
+        # self.label2ans = cPickle.load(open(label2ans_path, "rb"))
+        # self.num_ans_candidates = len(self.ans2label)
 
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
@@ -75,7 +75,7 @@ class VQAClassificationDataset(Dataset):
         self.entries = _load_dataset(dataroot, name)
 
         # cache file path data/cache/train_ques
-        ques_cache_path = "data/cache/" + name + "_ques.pkl"
+        madlibs = "data/VisualMadlibs/madlibs_train_v1/"
         if not os.path.exists(ques_cache_path):
             self.tokenize()
             self.tensorize()
@@ -140,16 +140,8 @@ class VQAClassificationDataset(Dataset):
     def __getitem__(self, index):
         entry = self.entries[index]
         image_id = entry["image_id"]
-
-        features, num_boxes, boxes, _ = self._image_features_reader[image_id]
-
-        image_mask = [1] * (int(num_boxes))
-        while len(image_mask) < 37:
-            image_mask.append(0)
-
-        features = torch.tensor(features).float()
-        image_mask = torch.tensor(image_mask).long()
-        spatials = torch.tensor(boxes).float()
+        features = torch.tensor(self._image_features_reader[image_id])
+        spatials = -1
 
         question = entry["q_token"]
         answer = entry["answer"]
@@ -162,7 +154,7 @@ class VQAClassificationDataset(Dataset):
         if labels is not None:
             target.scatter_(0, labels, scores)
 
-        return features, spatials, image_mask, question, target, input_mask, segment_ids
+        return features, spatials, question, target, input_mask, segment_ids
 
     def __len__(self):
         return len(self.entries)

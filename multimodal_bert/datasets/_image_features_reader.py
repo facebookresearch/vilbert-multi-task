@@ -1,6 +1,8 @@
 from typing import List
 import csv
 import h5py
+import numpy as np
+import copy
 
 FIELDNAMES = ['image_id', 'image_w','image_h','num_boxes', 'boxes', 'features', 'cls_prob']
 
@@ -40,6 +42,7 @@ class ImageFeaturesH5Reader(object):
         self.features = [None] * len(self._image_ids)
         self.num_boxes = [None] * len(self._image_ids)
         self.boxes = [None] * len(self._image_ids)
+        self.boxes_ori = [None] * len(self._image_ids)
 
     def __len__(self):
         return len(self._image_ids)
@@ -52,26 +55,75 @@ class ImageFeaturesH5Reader(object):
             if self.features[index] is not None:
                 features = self.features[index]
                 num_boxes = self.num_boxes[index]
-                boxes = self.boxes[index]
+                image_location = self.boxes[index]
+                image_location_ori = self.boxes_ori[index]
 
             else:
                 with h5py.File(self.features_h5path, "r") as features_h5:
+                    num_boxes = int(features_h5["num_boxes"][index]) + 1
+
                     features = features_h5["features"][index]
-                    num_boxes = features_h5["num_boxes"][index]
+                    g_feat = np.sum(features, axis=0) / num_boxes
+                    features = np.concatenate([np.expand_dims(g_feat, axis=0), features], axis=0)
+                    
                     boxes = features_h5["boxes"][index]
+                    image_w = features_h5["image_w"][index]
+                    image_h = features_h5["image_h"][index]
 
                     self.features[index] = features
-                    self.num_boxes[index] = num_boxes
-                    self.boxes[index] = boxes
+
+                    image_location = np.zeros((36, 5), dtype=np.float32)
+                    image_location[:,:4] = boxes
+                    image_location[:,4] = (image_location[:,3] - image_location[:,1]) * (image_location[:,2] - image_location[:,0]) / (float(image_w) * float(image_h))
+
+                    image_location_ori = copy.deepcopy(image_location)
+
+                    image_location[:,0] = image_location[:,0] / float(image_w)
+                    image_location[:,1] = image_location[:,1] / float(image_h)
+                    image_location[:,2] = image_location[:,2] / float(image_w)
+                    image_location[:,3] = image_location[:,3] / float(image_h)
+
+                    g_location = np.array([0,0,1,1,1])
+                    image_location = np.concatenate([np.expand_dims(g_location, axis=0), image_location], axis=0)
+
+                    self.boxes[index] = image_location
+
+                    g_location_ori = np.array([0,0,image_w,image_h,image_w*image_h])
+                    image_location_ori = np.concatenate([np.expand_dims(g_location_ori, axis=0), image_location_ori], axis=0)
+                    self.boxes_ori[index] = image_location_ori
+
+                    self.num_boxes[index] = num_boxes               
 
         else:
             # Read chunk from file everytime if not loaded in memory.
             with h5py.File(self.features_h5path, "r") as features_h5:
                 features = features_h5["features"][index]
-                num_boxes = features_h5["num_boxes"][index]
+                g_feat = np.sum(features, axis=0) / num_boxes
+                features = np.concatenate([np.expand_dims(g_feat, axis=0), features], axis=0)
+                
                 boxes = features_h5["boxes"][index]
+                image_w = features_h5["image_w"][index]
+                image_h = features_h5["image_h"][index]
 
-        return features, num_boxes, boxes
+                image_location = np.zeros((36, 5), dtype=np.float32)
+                image_location[:,:4] = boxes
+                image_location[:,4] = (image_location[:,3] - image_location[:,1]) * (image_location[:,2] - image_location[:,0]) / (float(image_w) * float(image_h))
+
+                image_location_ori = copy.deepcopy(image_location)
+                image_location[:,0] = image_location[:,0] / float(image_w)
+                image_location[:,1] = image_location[:,1] / float(image_h)
+                image_location[:,2] = image_location[:,2] / float(image_w)
+                image_location[:,3] = image_location[:,3] / float(image_h)
+
+                g_location = np.array([0,0,1,1,1])
+                image_location = np.concatenate([np.expand_dims(g_location, axis=0), image_location], axis=0)
+
+                g_location_ori = np.array([0,0,image_w,image_h,image_w*image_h])
+                image_location_ori = np.concatenate([np.expand_dims(g_location_ori, axis=0), image_location_ori], axis=0)
+
+                num_boxes = int(features_h5["num_boxes"][index]) + 1
+
+        return features, num_boxes, image_location, image_location_ori
 
     def keys(self) -> List[int]:
         return self._image_ids

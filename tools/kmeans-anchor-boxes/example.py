@@ -10,6 +10,8 @@ import pdb
 import os
 import sys
 import copy
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 FIELDNAMES = ['image_id', 'image_w','image_h','num_boxes', 'boxes', 'features', 'cls_prob']
 csv.field_size_limit(sys.maxsize)
@@ -43,15 +45,25 @@ def load_dataset(path, num_examples):
                     return np.concatenate(dataset, axis=0)
                 count += 1
 
-num_caps = 1000000
+num_caps = 800000
 corpus_path = '/srv/share2/jlu347/bottom-up-attention/feature/conceptual_caption'
 CLUSTERS = 300
 
-data = load_dataset(corpus_path, num_caps)
-np.save(open('bboxs.npy', 'wb'), data)
 
+# data = load_dataset(corpus_path, num_caps)
+# np.save(open('bboxs.npy', 'wb'), data)
+data = np.load(open('bboxs.npy', 'rb'))
+idx = np.random.randint(len(data), size=num_caps)
+data = data[idx]
 out = kmeans(data, k=CLUSTERS)
 print("Accuracy: {:.2f}%".format(avg_iou(data, out) * 100))
 print("Boxes:\n {}".format(out))
-np.save(open('centers_'+ CLUSTERS + '.npy', 'wb'), out)
+np.save(open('centers_'+ str(CLUSTERS) + '.npy', 'wb'), out.cpu().numpy())
+
+fig,ax = plt.subplots(1)
+rect = patches.Rectangle((50,100),40,30,linewidth=1,edgecolor='r',facecolor='none')
+ax.add_patch(rect)
+plt.savefig('test.jpg')
+
 pdb.set_trace()
+

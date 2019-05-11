@@ -94,9 +94,9 @@ def build_baseline0_newatt(dataset, num_hid):
 
 def build_baseline0_newatt_bert(dataset, num_hid):
     q_emb = BertEmbedding(768, 0.0)
-    v_att = NewAttention(dataset.v_dim, q_emb.num_hid, num_hid)
+    v_att = NewAttention(2048, q_emb.num_hid, num_hid)
     q_net = FCNet([q_emb.num_hid, num_hid])
-    v_net = FCNet([dataset.v_dim, num_hid])
+    v_net = FCNet([2048, num_hid])
     classifier = SimpleClassifier(
         num_hid, num_hid * 2, dataset.num_ans_candidates, 0.5)
     

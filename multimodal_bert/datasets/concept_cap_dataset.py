@@ -101,7 +101,6 @@ class ConceptCapLoaderTrain(object):
         tokenizer,
         seq_len,
         encoding="utf-8",
-        use_location=False,
         predict_feature=False,
         hard_negative=False,
         batch_size=512,
@@ -129,7 +128,6 @@ class ConceptCapLoaderTrain(object):
             36,
             self.num_dataset,
             encoding="utf-8",
-            use_location=use_location,
             predict_feature=predict_feature,
         )
 
@@ -148,6 +146,24 @@ class ConceptCapLoaderTrain(object):
     def __iter__(self):
 
         for batch in self.ds.get_data():
+            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
+            image_loc, image_target, image_label, image_mask = batch
+
+            batch_size = input_ids.shape[0]
+            g_image_feat = np.sum(image_feat, axis=1) / np.sum(image_mask, axis=1, keepdims=True)
+            image_feat = np.concatenate([np.expand_dims(g_image_feat, axis=1), image_feat], axis=1)
+            image_feat = np.array(image_feat, dtype=np.float32)
+
+            g_image_loc = np.repeat(np.array([[0,0,1,1,1]], dtype=np.float32), batch_size, axis=0)
+            image_loc = np.concatenate([np.expand_dims(g_image_loc, axis=1), image_loc], axis=1)
+            
+            image_loc = np.array(image_loc, dtype=np.float32)
+            g_image_mask = np.repeat(np.array([[1]]), batch_size, axis=0)
+            image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
+
+            batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
+            image_loc, image_target, image_label, image_mask)
+
             yield tuple(torch.tensor(data) for data in batch)
 
     def __len__(self):
@@ -182,7 +198,6 @@ class ConceptCapLoaderVal(object):
         tokenizer,
         seq_len,
         encoding="utf-8",
-        use_location=False,
         predict_feature=False,
         batch_size=512,
         shuffle=False,
@@ -208,7 +223,6 @@ class ConceptCapLoaderVal(object):
             36,
             self.num_dataset,
             encoding="utf-8",
-            use_location=use_location,
             predict_feature=predict_feature,
         )
 
@@ -220,9 +234,25 @@ class ConceptCapLoaderVal(object):
         self.num_workers = num_workers
 
     def __iter__(self):
-
-
         for batch in self.ds.get_data():
+            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
+            image_loc, image_target, image_label, image_mask = batch
+
+            batch_size = input_ids.shape[0]
+            g_image_feat = np.sum(image_feat, axis=1) / np.sum(image_mask, axis=1, keepdims=True)
+            image_feat = np.concatenate([np.expand_dims(g_image_feat, axis=1), image_feat], axis=1)
+            image_feat = np.array(image_feat, dtype=np.float32)
+
+            g_image_loc = np.repeat(np.array([[0,0,1,1,1]], dtype=np.float32), batch_size, axis=0)
+            image_loc = np.concatenate([np.expand_dims(g_image_loc, axis=1), image_loc], axis=1)
+            
+            image_loc = np.array(image_loc, dtype=np.float32)
+            g_image_mask = np.repeat(np.array([[1]]), batch_size, axis=0)
+            image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
+
+            batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
+            image_loc, image_target, image_label, image_mask)
+
             yield tuple(torch.tensor(data) for data in batch)
 
     def __len__(self):
@@ -239,7 +269,6 @@ class BertPreprocessBatch(object):
         data_size,
         split="Train",
         encoding="utf-8",
-        use_location=False,
         predict_feature=False,
     ):
 
@@ -248,7 +277,6 @@ class BertPreprocessBatch(object):
         self.region_len = region_len
         self.tokenizer = tokenizer
         self.predict_feature = predict_feature
-        self.use_location = use_location
         self.num_caps = data_size
         self.captions = list(json.load(open(caption_path, 'r')).values())
 
@@ -258,20 +286,20 @@ class BertPreprocessBatch(object):
         
         image_feature = np.zeros((self.region_len, 2048), dtype=np.float32)
         image_target = np.zeros((self.region_len, 1601), dtype=np.float32)
-        image_location = np.zeros((self.region_len, 4), dtype=np.float32)
+        image_location = np.zeros((self.region_len, 5), dtype=np.float32)
 
         num_boxes = int(num_boxes)
 
         image_feature[:num_boxes] = image_feature_wp
         image_target[:num_boxes] = image_target_wp
-        image_location[:num_boxes] = image_location_wp
+        image_location[:num_boxes,:4] = image_location_wp
 
+        image_location[:,4] = (image_location[:,3] - image_location[:,1]) * (image_location[:,2] - image_location[:,0]) / (float(image_w) * float(image_h))
+        
         image_location[:,0] = image_location[:,0] / float(image_w)
         image_location[:,1] = image_location[:,1] / float(image_h)
         image_location[:,2] = image_location[:,2] / float(image_w)
         image_location[:,3] = image_location[:,3] / float(image_h)
-
-
 
         if self.predict_feature:
             image_feature = copy.deepcopy(image_feature)

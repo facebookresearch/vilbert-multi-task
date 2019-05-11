@@ -102,22 +102,20 @@ class FoilClassificationDataset(Dataset):
         entry = self._entries[index]
         image_id = entry["image_id"]
 
-        features, num_boxes, boxes = self._image_features_reader[image_id]
+        features, num_boxes, boxes, _ = self._image_features_reader[image_id]
         image_mask = [1] * (int(num_boxes))
 
-        while len(image_mask) < 36:
+        while len(image_mask) < 37:
             image_mask.append(0)
 
-        features = torch.tensor(features)
+        features = torch.tensor(features).float()
         image_mask = torch.tensor(image_mask).long()
-        spatials = -1
+        spatials = torch.tensor(boxes).float()
 
         caption = entry["token"]
         target = int(entry["foil"])
         input_mask = entry["input_mask"]
         segment_ids = entry["segment_ids"]
-
-        spatials = -1
 
         return features, spatials, image_mask, caption, target, input_mask, segment_ids
 

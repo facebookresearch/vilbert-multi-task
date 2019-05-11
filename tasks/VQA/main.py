@@ -3,11 +3,13 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import numpy as np
-
+from _image_features_reader import ImageFeaturesH5Reader
+from vqa_dataset import VQAClassificationDataset
 from dataset import Dictionary, VQAFeatureDataset, BertDictionary, BertFeatureDataset
 import base_model
 from train import train
 import utils
+from pytorch_pretrained_bert.tokenization import BertTokenizer
 
 
 def parse_args():
@@ -38,13 +40,26 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = True
 
     if args.bert:
-        dictionary = BertDictionary(args)        
-        train_dset = BertFeatureDataset('train', dictionary)
-        eval_dset = BertFeatureDataset('val', dictionary)
+
+        tokenizer = BertTokenizer.from_pretrained(
+            args.bert_model, do_lower_case=args.do_lower_case
+        )
+        image_features_reader_train = ImageFeaturesH5Reader('data/COCO/COCO_train.h5', True)
+        image_features_reader_val = ImageFeaturesH5Reader('data/COCO/COCO_validation.h5', True)
+
+        train_dset = VQAClassificationDataset(
+            "train", image_features_reader_train, tokenizer, dataroot="data/VQA"
+        )
+        eval_dset = VQAClassificationDataset("val", image_features_reader_val, tokenizer, dataroot="data/VQA")
+
+        # dictionary = BertDictionary(args)        
+        # train_dset = BertFeatureDataset('train', dictionary, dataroot='data/VQA')
+        # eval_dset = BertFeatureDataset('val', dictionary, dataroot='data/VQA')
     else:
-        dictionary = Dictionary.load_from_file('data/dictionary.pkl')
-        train_dset = VQAFeatureDataset('train', dictionary)
-        eval_dset = VQAFeatureDataset('val', dictionary)
+        pass
+        # dictionary = Dictionary.load_from_file('data/dictionary.pkl')
+        # train_dset = VQAFeatureDataset('train', dictionary)
+        # eval_dset = VQAFeatureDataset('val', dictionary)
     batch_size = args.batch_size
 
     if args.bert:
@@ -60,6 +75,6 @@ if __name__ == '__main__':
 
     model = nn.DataParallel(model).cuda()
 
-    train_loader = DataLoader(train_dset, batch_size, shuffle=True, num_workers=1)
-    eval_loader =  DataLoader(eval_dset, batch_size, shuffle=True, num_workers=1)
+    train_loader = DataLoader(train_dset, batch_size, shuffle=True, num_workers=10)
+    eval_loader =  DataLoader(eval_dset, batch_size, shuffle=True, num_workers=10)
     train(args, model, train_loader, eval_loader, args.epochs, args.output)

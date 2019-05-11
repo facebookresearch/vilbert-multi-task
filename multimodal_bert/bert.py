@@ -1279,8 +1279,8 @@ class BertModel(BertPreTrainedModel):
                 input_imgs.size(0), input_imgs.size(1)
             ).type_as(input_txt)
 
-        image_attention_mask_first = torch.ones(input_imgs.size(0), 1).type_as(image_attention_mask)
-        image_attention_mask = torch.cat((image_attention_mask_first, image_attention_mask), dim=1)
+        # image_attention_mask_first = torch.ones(input_imgs.size(0), 1).type_as(image_attention_mask)
+        # image_attention_mask = torch.cat((image_attention_mask_first, image_attention_mask), dim=1)
         # We create a 3D attention mask from a 2D tensor mask.
         # Sizes are [batch_size, 1, 1, to_seq_length]
         # So we can broadcast to [batch_size, num_heads, from_seq_length, to_seq_length]
@@ -1333,8 +1333,9 @@ class BertImageEmbeddings(nn.Module):
     """
     def __init__(self, config):
         super(BertImageEmbeddings, self).__init__()
-        self.image_embeddings = nn.Linear(config.v_feature_size, config.v_hidden_size)
-        self.special_token_embeddings = nn.Embedding(1, config.v_hidden_size)
+        # self.image_embeddings = nn.Linear(config.v_feature_size, config.v_hidden_size)
+        self.image_location_embeddings = nn.Linear(5, config.v_hidden_size)
+
         # self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size, padding_idx=0)
         # self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.v_hidden_size, padding_idx=0)
 
@@ -1349,10 +1350,8 @@ class BertImageEmbeddings(nn.Module):
         # position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
         # position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
         # if token_type_ids is None:
-        # token_type_ids = torch.zeros_like(input_ids)
-        input_ids = torch.cat((input_ids.mean(1).unsqueeze(1), input_ids), dim=1)
-
-        embeddings = self.image_embeddings(input_ids)
+        # embeddings = self.image_embeddings(input_ids)
+        loc_embeddings = self.image_location_embeddings(input_loc)
         # special_token = self.special_token_embeddings(
         #     torch.full([batch_size], 0, dtype=torch.long, device=input_ids.device)
         # )
@@ -1360,7 +1359,8 @@ class BertImageEmbeddings(nn.Module):
         # token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
         # embeddings = words_embeddings + position_embeddings + token_type_embeddings
-        embeddings = self.LayerNorm(embeddings+input_ids)
+        
+        embeddings = self.LayerNorm(input_ids+loc_embeddings)
         embeddings = self.dropout(embeddings)
         
         return embeddings
@@ -1377,7 +1377,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         self.cls = BertPreTrainingHeads(
             config, self.bert.embeddings.word_embeddings.weight
         )
-
+        
         self.apply(self.init_bert_weights)
         self.predict_feature = config.predict_feature
         self.loss_fct = CrossEntropyLoss(ignore_index=-1)
@@ -1534,6 +1534,48 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
 
         # Return loss in during training and validation (absent during inference, ofcourse).
         return logits
+
+
+
+class MultiModalBertForReferExpression(BertPreTrainedModel):
+
+    def __init__(self, config, pretrained_weight=None):
+        super(MultiModalBertForReferExpression, self).__init__(config)
+        self.bert = BertModel(config)
+        # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
+        # self.classifier = nn.Linear(config.v_hidden_size, 1)
+        # self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.transform = BertImgPredictionHeadTransform(config)
+        self.decoder = nn.Linear(config.v_hidden_size, 1)
+
+        self.apply(self.init_bert_weights)
+
+    def forward(
+        self,
+        input_txt,
+        input_imgs,
+        image_loc,
+        token_type_ids=None,
+        attention_mask=None,
+        image_attention_mask=None,
+        output_all_encoded_layers=True,
+    ):
+        
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
+            input_txt,
+            input_imgs,
+            image_loc,
+            token_type_ids,
+            attention_mask,
+            image_attention_mask,
+            output_all_encoded_layers=False,
+        )
+
+        sequence_output_v = self.transform(sequence_output_v)
+        logits = self.decoder(sequence_output_v)
+
+        return logits
+
 
 class SimpleClassifier(nn.Module):
     def __init__(self, in_dim, hid_dim, out_dim, dropout):

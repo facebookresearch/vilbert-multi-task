@@ -40,7 +40,9 @@ from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
 from pytorch_pretrained_bert import BertModel
 
 from multimodal_bert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
-from multimodal_bert.bert import BertForMultiModalPreTraining, BertConfig
+from multimodal_bert.bert_baseline import BertForMultiModalPreTraining
+from pytorch_pretrained_bert.modeling import BertConfig
+
 import pdb
 
 logging.basicConfig(
@@ -216,12 +218,10 @@ def main():
     if not os.path.exists(savePath):
         os.makedirs(savePath)
     
-    config = BertConfig.from_json_file(args.config_file)
     # save all the hidden parameters. 
     with open(os.path.join(savePath, 'command.txt'), 'w') as f:
         print(args, file=f)  # Python 3.x
         print('\n', file=f)
-        print(config, file=f)
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device(
@@ -315,8 +315,13 @@ def main():
         config.predict_feature = False
 
     if args.from_pretrained:
-        model = BertForMultiModalPreTraining.from_pretrained(args.pretrained_weight, config)
+        model = BertForMultiModalPreTraining.from_pretrained(args.bert_model)
     else:
+        config = BertConfig(vocab_size_or_config_json_file=30522, hidden_size=768,
+            num_hidden_layers=12, num_attention_heads=12, intermediate_size=3072,
+            attention_probs_dropout_prob=0.1, hidden_act="gelu", hidden_dropout_prob=0.1,
+            initializer_range=0.2, max_position_embeddings=512, type_vocab_size=2)
+
         model = BertForMultiModalPreTraining(config)
 
     if args.fp16:
