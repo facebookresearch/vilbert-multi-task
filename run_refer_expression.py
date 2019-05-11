@@ -403,6 +403,8 @@ def main():
                 # train_score += (logits == target).sum()
                 loss = instance_bce_with_logits(logits.squeeze(2), target.squeeze(2))
 
+                total_loss += loss.item()
+
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
@@ -454,8 +456,9 @@ def main():
             eval_loss, eval_score = evaluate(args, model, eval_dataloader)
             model.train()
 
+            total_loss = total_loss / len(train_dataloader)
             logger.info("epoch %d" % (epochId))
-            logger.info("\ttrain_loss: %.2f, score: %.2f" % (total_loss, total_loss))
+            logger.info("\ttrain_loss: %.2f" % (total_loss))
             logger.info("\teval_loss: %.2f, score: %.2f" % (eval_loss, eval_score))
 
             # Save a trained model
@@ -493,10 +496,14 @@ def evaluate(args, model, dataloader):
         logits = model(captions, features, spatials, segment_ids, input_mask, image_mask)
         loss = instance_bce_with_logits(logits.squeeze(2), target.squeeze(2))
 
-        total_loss += loss.sum()
-        num_data += logits.size(0)
+        _, select_idx = torch.max(logits, dim=1)
+        select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
+        #count the accuracy.
+        score += torch.sum(select_target>0.5).item()
+        total_loss += loss.sum().item()
+        num_data += features.size(0)
 
-    return total_loss / num_data, score / num_data
+    return total_loss / len(dataloader), score / num_data
 
 def instance_bce_with_logits(logits, labels):
     assert logits.dim() == 2

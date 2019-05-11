@@ -65,8 +65,9 @@ class ReferExpressionDataset(Dataset):
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
 
+        self.split = name
         self.refer = REFER(annotations_jsonpath, dataset=task,  splitBy='unc')
-        self.ref_ids = self.refer.getRefIds()
+        self.ref_ids = self.refer.getRefIds(split=name)
         print('%s refs are in split [%s].' % (len(self.ref_ids), name))
 
         self._image_features_reader = image_features_reader
@@ -163,26 +164,34 @@ class ReferExpressionDataset(Dataset):
 
         ref_box = [ref_box[0], ref_box[1], ref_box[0]+ref_box[2], ref_box[1]+ref_box[3]]
         features, num_boxes, boxes, boxes_ori = self._image_features_reader[image_id]
-        gt_features, gt_num_boxes, gt_boxes, gt_boxes_ori = self._gt_image_features_reader[image_id]
-
-        # merge two boxes, and assign the labels. 
-        gt_boxes_ori = gt_boxes_ori[1:gt_num_boxes]
-        gt_boxes = gt_boxes[1:gt_num_boxes]
-        gt_features = gt_features[1:gt_num_boxes]
 
         boxes_ori = boxes_ori[:num_boxes]
         boxes = boxes[:num_boxes]
         features = features[:num_boxes]
 
-        # concatenate the boxes
-        mix_boxes_ori = np.concatenate((boxes_ori, gt_boxes_ori), axis=0)
-        mix_boxes = np.concatenate((boxes, gt_boxes), axis=0)
-        mix_features = np.concatenate((features, gt_features), axis=0)
-        mix_num_boxes = min(int(num_boxes + int(gt_num_boxes) - 1), self.max_region_num)
+        if self.split == 'train':
+            gt_features, gt_num_boxes, gt_boxes, gt_boxes_ori = self._gt_image_features_reader[image_id]
 
-        # given the mix boxes, and ref_box, calculate the overlap. 
-        mix_target = iou(torch.tensor(mix_boxes_ori[:,:4]).float(), torch.tensor([ref_box]).float())
-        mix_target[mix_target<0.5] = 0
+            # merge two boxes, and assign the labels. 
+            gt_boxes_ori = gt_boxes_ori[1:gt_num_boxes]
+            gt_boxes = gt_boxes[1:gt_num_boxes]
+            gt_features = gt_features[1:gt_num_boxes]
+
+            # concatenate the boxes
+            mix_boxes_ori = np.concatenate((boxes_ori, gt_boxes_ori), axis=0)
+            mix_boxes = np.concatenate((boxes, gt_boxes), axis=0)
+            mix_features = np.concatenate((features, gt_features), axis=0)
+            mix_num_boxes = min(int(num_boxes + int(gt_num_boxes) - 1), self.max_region_num)
+            # given the mix boxes, and ref_box, calculate the overlap. 
+            mix_target = iou(torch.tensor(mix_boxes_ori[:,:4]).float(), torch.tensor([ref_box]).float())
+            mix_target[mix_target<0.5] = 0
+
+        else:
+            mix_boxes_ori = boxes_ori
+            mix_boxes = boxes
+            mix_features = features
+            mix_num_boxes = min(int(num_boxes), self.max_region_num)
+            mix_target = iou(torch.tensor(mix_boxes_ori[:,:4]).float(), torch.tensor([ref_box]).float())
 
         image_mask = [1] * (mix_num_boxes)
         while len(image_mask) < self.max_region_num:
@@ -201,6 +210,8 @@ class ReferExpressionDataset(Dataset):
 
         target = torch.zeros((self.max_region_num,1)).float()
         target[:mix_num_boxes] = mix_target
+
+        spatials_ori = torch.tensor(mix_boxes_ori).float()
 
         caption = entry["token"]
         input_mask = entry["input_mask"]
