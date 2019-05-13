@@ -39,7 +39,6 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from multimodal_bert.datasets import ReferExpressionDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
-from multimodal_bert.bert import MultiModalBertForReferExpression, BertConfig
 from torch.nn import CrossEntropyLoss
 
 logging.basicConfig(
@@ -168,8 +167,17 @@ def main():
     parser.add_argument(
         "--continue_training", action="store_true", help="Wheter to continue from training."
     )
+    parser.add_argument(
+        "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+    )
 
     args = parser.parse_args()
+
+    if args.baseline:
+        from pytorch_pretrained_bert.modeling import BertConfig
+        from multimodal_bert.bert import MultiModalBertForReferExpression
+    else:
+        from multimodal_bert.multi_modal_bert import MultiModalBertForReferExpression, BertConfig
 
     # Declare path to save checkpoints.
     print(args)
@@ -259,7 +267,7 @@ def main():
                 num_train_optimization_steps // torch.distributed.get_world_size()
             )
 
-    config = BertConfig.from_json_file(args.config_file)
+    # config = BertConfig.from_json_file(args.config_file)
 
     num_labels = 2
     if args.from_pretrained and not args.continue_training:

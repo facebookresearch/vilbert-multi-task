@@ -40,7 +40,6 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from multimodal_bert.datasets import VQAClassificationDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
-from multimodal_bert.bert import MultiModalBertForVQA, BertConfig
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -168,8 +167,18 @@ def main():
         type=str,
         help="save name for training.",
     )
+    parser.add_argument(
+        "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+    )
 
     args = parser.parse_args()
+
+
+    if args.baseline:
+        from pytorch_pretrained_bert.modeling import BertConfig
+        from multimodal_bert.bert import MultiModalBertForVQA
+    else:
+        from multimodal_bert.multi_modal_bert import MultiModalBertForVQA, BertConfig
 
     print(args)
     if args.save_name is not '':

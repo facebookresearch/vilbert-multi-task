@@ -38,7 +38,6 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from multimodal_bert.datasets import FoilClassificationDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
-from multimodal_bert.bert import MultiModalBertForFoilClassification, BertConfig
 from torch.nn import CrossEntropyLoss
 import pdb
 
@@ -165,8 +164,17 @@ def main():
         type=str,
         help="save name for training.",
     )
+    parser.add_argument(
+        "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+    )
 
     args = parser.parse_args()
+    
+    if args.baseline:
+        from pytorch_pretrained_bert.modeling import BertConfig
+        from multimodal_bert.bert import MultiModalBertForFoilClassification
+    else:
+        from multimodal_bert.multi_modal_bert import MultiModalBertForFoilClassification, BertConfig
 
     # Declare path to save checkpoints.
     print(args)
