@@ -24,6 +24,7 @@ from io import open
 
 from time import gmtime, strftime
 from timeit import default_timer as timer
+from bisect import bisect
 
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -33,7 +34,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
+from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from multimodal_bert.datasets import FoilClassificationDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
@@ -296,7 +297,7 @@ def main():
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
                 if key[12:] in bert_weight_name:
-                    lr = args.learning_rate * 0.1
+                    lr = args.learning_rate
                 else:
                     lr = args.learning_rate
 
@@ -333,12 +334,12 @@ def main():
 
     else:
         if args.from_pretrained:
-            # optimizer = BertAdam(
-            #     optimizer_grouped_parameters,
-            #     warmup=args.warmup_proportion,
-            #     t_total=num_train_optimization_steps,
-            # )
-            optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
+            optimizer = BertAdam(
+                optimizer_grouped_parameters,
+                warmup=args.warmup_proportion,
+                t_total=num_train_optimization_steps,
+            )
+            # optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
 
         else:
             optimizer = BertAdam(
@@ -347,6 +348,9 @@ def main():
                 warmup=args.warmup_proportion,
                 t_total=num_train_optimization_steps,
             )
+
+    # lr_lambda = lambda x: lr_lambda_update(x)
+    # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
     if args.do_train:
         logger.info("***** Running training *****")
@@ -426,6 +430,8 @@ def main():
                     optimizer.zero_grad()
                     global_step += 1
 
+                # lr_scheduler.step(iterId)
+
                 if step % 20 == 0 and step != 0:
                     loss_tmp = loss_tmp / 20.0
 
@@ -503,5 +509,16 @@ def evaluate(args, model, dataloader):
 
     return total_loss / float(num_data), score / float(num_data)
 
+def lr_lambda_update(i_iter):
+    warmup_iterations = 1000
+    warmup_factor = 0.2
+    lr_ratio = 0.1
+    lr_steps = [15000, 18000, 20000, 21000]
+    if i_iter <= warmup_iterations:
+        alpha = float(i_iter) / float(warmup_iterations)
+        return warmup_factor * (1.0 - alpha) + alpha
+    else:
+        idx = bisect([], i_iter)
+        return pow(lr_ratio, idx)
 if __name__ == "__main__":
     main()

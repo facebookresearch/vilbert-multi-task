@@ -1508,6 +1508,7 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.bi_hidden_size, 2)
         self.apply(self.init_bert_weights)
+        # self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def forward(
         self,
@@ -1544,10 +1545,9 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
         # self.classifier = nn.Linear(config.v_hidden_size, 1)
-        # self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.transform = BertImgPredictionHeadTransform(config)
-        self.decoder = nn.Linear(config.v_hidden_size, 1)
-
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        # self.transform = BertImgPredictionHeadTransform(config)
+        self.classifier = nn.Linear(config.v_hidden_size, 1)
         self.apply(self.init_bert_weights)
 
     def forward(
@@ -1571,8 +1571,9 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
             output_all_encoded_layers=False,
         )
 
-        sequence_output_v = self.transform(sequence_output_v)
-        logits = self.decoder(sequence_output_v)
+        # sequence_output_v = self.transform(sequence_output_v)
+
+        logits = self.classifier(self.dropout(sequence_output_v))
 
         return logits
 

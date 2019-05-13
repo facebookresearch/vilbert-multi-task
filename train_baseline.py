@@ -36,13 +36,12 @@ from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 
 from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
+from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 from pytorch_pretrained_bert import BertModel
 
 from multimodal_bert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
 from multimodal_bert.bert_baseline import BertForMultiModalPreTraining
 from pytorch_pretrained_bert.modeling import BertConfig
-
 import pdb
 
 logging.basicConfig(
@@ -307,13 +306,6 @@ def main():
                 num_train_optimization_steps // torch.distributed.get_world_size()
             )
 
-    if args.predict_feature:
-        config.v_target_size = 2048
-        config.predict_feature = True
-    else:
-        config.v_target_size = 1601
-        config.predict_feature = False
-
     if args.from_pretrained:
         model = BertForMultiModalPreTraining.from_pretrained(args.bert_model)
     else:
@@ -436,7 +428,6 @@ def main():
             # iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataset):
                 iterId = startIterID + step + (epochId * len(train_dataset))
-                # batch = iter_dataloader.next()
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
                 input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
@@ -598,10 +589,10 @@ def main():
 
             printFormat = "Evaluation: [Loss: %.5g][Loss_v: %.5g][Loss_t: %.5g][Loss_n: %.5g]"
             printInfo = [
+                eval_total_loss,
                 eval_masked_loss_t,
                 eval_masked_loss_v,
-                eval_next_sentence_loss,
-                eval_total_loss]
+                eval_next_sentence_loss]
 
             print(printFormat % tuple(printInfo))
 

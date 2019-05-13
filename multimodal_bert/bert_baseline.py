@@ -17,7 +17,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 
-from pytorch_pretrained_bert.modeling import BertPreTrainedModel, BertConfig
+from pytorch_pretrained_bert.modeling import BertConfig
 import pdb
 
 # from .file_utils import cached_path
@@ -57,6 +57,208 @@ except ImportError:
             x = (x - u) / torch.sqrt(s + self.variance_epsilon)
             return self.weight * x + self.bias
 
+
+class BertPreTrainedModel(nn.Module):
+    """ An abstract class to handle weights initialization and
+        a simple interface for dowloading and loading pretrained models.
+    """
+
+    def __init__(self, config, *inputs, **kwargs):
+        super(BertPreTrainedModel, self).__init__()
+
+        if not isinstance(config, BertConfig):
+            raise ValueError(
+                "Parameter config in `{}(config)` should be an instance of class `BertConfig`. "
+                "To create a model from a Google pretrained model use "
+                "`model = {}.from_pretrained(PRETRAINED_MODEL_NAME)`".format(
+                    self.__class__.__name__, self.__class__.__name__
+                )
+            )
+
+        self.config = config
+
+    def init_bert_weights(self, module):
+        """ Initialize the weights.
+        """
+        if isinstance(module, (nn.Linear, nn.Embedding)):
+            # Slightly different from the TF version which uses truncated_normal for initialization
+            # cf https://github.com/pytorch/pytorch/pull/5617
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+        elif isinstance(module, BertLayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+        if isinstance(module, nn.Linear) and module.bias is not None:
+            module.bias.data.zero_()
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path,
+        config,
+        state_dict=None,
+        cache_dir=None,
+        from_tf=False,
+        *inputs,
+        **kwargs
+    ):
+        """
+        Instantiate a BertPreTrainedModel from a pre-trained model file or a pytorch state dict.
+        Download and cache the pre-trained model file if needed.
+
+        Params:
+            pretrained_model_name_or_path: either:
+                - a str with the name of a pre-trained model to load selected in the list of:
+                    . `bert-base-uncased`
+                    . `bert-large-uncased`
+                    . `bert-base-cased`
+                    . `bert-large-cased`
+                    . `bert-base-multilingual-uncased`
+                    . `bert-base-multilingual-cased`
+                    . `bert-base-chinese`
+                - a path or url to a pretrained model archive containing:
+                    . `bert_config.json` a configuration file for the model
+                    . `pytorch_model.bin` a PyTorch dump of a BertForPreTraining instance
+                - a path or url to a pretrained model archive containing:
+                    . `bert_config.json` a configuration file for the model
+                    . `model.chkpt` a TensorFlow checkpoint
+            from_tf: should we load the weights from a locally saved TensorFlow checkpoint
+            cache_dir: an optional path to a folder in which the pre-trained models will be cached.
+            state_dict: an optional state dictionnary (collections.OrderedDict object) to use instead of Google pre-trained models
+            *inputs, **kwargs: additional input for the specific Bert class
+                (ex: num_labels for BertForSequenceClassification)
+        """
+        CONFIG_NAME = "bert_config.json"
+        WEIGHTS_NAME = "pytorch_model.bin"
+        TF_WEIGHTS_NAME = "model.ckpt"
+
+        if pretrained_model_name_or_path in PRETRAINED_MODEL_ARCHIVE_MAP:
+            archive_file = PRETRAINED_MODEL_ARCHIVE_MAP[pretrained_model_name_or_path]
+        else:
+            archive_file = pretrained_model_name_or_path
+        # redirect to the cache, if necessary
+        try:
+            resolved_archive_file = cached_path(archive_file, cache_dir=cache_dir)
+        except EnvironmentError:
+            logger.error(
+                "Model name '{}' was not found in model name list ({}). "
+                "We assumed '{}' was a path or url but couldn't find any file "
+                "associated to this path or url.".format(
+                    pretrained_model_name_or_path,
+                    ", ".join(PRETRAINED_MODEL_ARCHIVE_MAP.keys()),
+                    archive_file,
+                )
+            )
+            return None
+
+        if resolved_archive_file == archive_file:
+            logger.info("loading archive file {}".format(archive_file))
+        else:
+            logger.info(
+                "loading archive file {} from cache at {}".format(
+                    archive_file, resolved_archive_file
+                )
+            )
+        tempdir = None
+        if os.path.isdir(resolved_archive_file) or from_tf:
+            serialization_dir = resolved_archive_file
+        elif resolved_archive_file[-3:] == 'bin':
+            serialization_dir = '/'.join(resolved_archive_file.split('/')[:-1])
+            WEIGHTS_NAME = resolved_archive_file.split('/')[-1]
+        else:
+            # Extract archive to temp dir
+            tempdir = tempfile.mkdtemp()
+            logger.info(
+                "extracting archive file {} to temp dir {}".format(
+                    resolved_archive_file, tempdir
+                )
+            )
+            with tarfile.open(resolved_archive_file, "r:gz") as archive:
+                archive.extractall(tempdir)
+            serialization_dir = tempdir
+        # Load config
+        # config_file = os.path.join(serialization_dir, CONFIG_NAME)
+        # config = BertConfig.from_json_file(config_file)
+        logger.info("Model config {}".format(config))
+        # Instantiate model.
+        model = cls(config, *inputs, **kwargs)
+        if state_dict is None and not from_tf:
+            weights_path = os.path.join(serialization_dir, WEIGHTS_NAME)
+            state_dict = torch.load(
+                weights_path,
+                map_location="cpu" if not torch.cuda.is_available() else None,
+            )
+        if tempdir:
+            # Clean up temp dir
+            shutil.rmtree(tempdir)
+        if from_tf:
+            # Directly load from a TensorFlow checkpoint
+            weights_path = os.path.join(serialization_dir, TF_WEIGHTS_NAME)
+            return load_tf_weights_in_bert(model, weights_path)
+        # Load from a PyTorch state_dict
+        old_keys = []
+        new_keys = []
+        for key in state_dict.keys():
+            new_key = None
+            if "gamma" in key:
+                new_key = key.replace("gamma", "weight")
+            if "beta" in key:
+                new_key = key.replace("beta", "bias")
+            if new_key:
+                old_keys.append(key)
+                new_keys.append(new_key)
+        for old_key, new_key in zip(old_keys, new_keys):
+            state_dict[new_key] = state_dict.pop(old_key)
+
+        missing_keys = []
+        unexpected_keys = []
+        error_msgs = []
+        # copy state_dict so _load_from_state_dict can modify it
+        metadata = getattr(state_dict, "_metadata", None)
+        state_dict = state_dict.copy()
+        if metadata is not None:
+            state_dict._metadata = metadata
+
+        def load(module, prefix=""):
+            local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
+            module._load_from_state_dict(
+                state_dict,
+                prefix,
+                local_metadata,
+                True,
+                missing_keys,
+                unexpected_keys,
+                error_msgs,
+            )
+            for name, child in module._modules.items():
+                if child is not None:
+                    load(child, prefix + name + ".")
+
+        start_prefix = ""
+        if not hasattr(model, "bert") and any(
+            s.startswith("bert.") for s in state_dict.keys()
+        ):
+            start_prefix = "bert."
+        load(model, prefix=start_prefix)
+        if len(missing_keys) > 0:
+            logger.info(
+                "Weights of {} not initialized from pretrained model: {}".format(
+                    model.__class__.__name__, missing_keys
+                )
+            )
+        if len(unexpected_keys) > 0:
+            logger.info(
+                "Weights from pretrained model not used in {}: {}".format(
+                    model.__class__.__name__, unexpected_keys
+                )
+            )
+        if len(error_msgs) > 0:
+            raise RuntimeError(
+                "Error(s) in loading state_dict for {}:\n\t{}".format(
+                    model.__class__.__name__, "\n\t".join(error_msgs)
+                )
+            )
+        return model
+
 class BertEmbeddings(nn.Module):
     """Construct the embeddings from word, position and token_type embeddings.
     """
@@ -95,13 +297,14 @@ class BertImageEmbeddings(nn.Module):
         self.image_embeddings = nn.Linear(2048, config.hidden_size)
         # self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size, padding_idx=0)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size, padding_idx=0)
+        self.image_location_embeddings = nn.Linear(5, config.hidden_size)
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, input_ids, token_type_ids=None):
+    def forward(self, input_ids, input_loc, token_type_ids=None):
         seq_length = input_ids.size(1)
         # position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
         # position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
@@ -111,9 +314,10 @@ class BertImageEmbeddings(nn.Module):
         image_embeddings = self.image_embeddings(input_ids)
         # position_embeddings = self.position_embeddings(position_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
+        loc_embeddings = self.image_location_embeddings(input_loc)
 
         # embeddings = words_embeddings + position_embeddings + token_type_embeddings
-        embeddings = image_embeddings + token_type_embeddings
+        embeddings = image_embeddings + token_type_embeddings + loc_embeddings
 
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
@@ -387,8 +591,8 @@ class BertPreTrainingHeads(nn.Module):
 
     def forward(self, sequence_output, pooled_output):
 
-        img_prediction_scores = self.imagePredictions(sequence_output[:,1:37])
-        prediction_scores = self.predictions(sequence_output[:,37:])
+        img_prediction_scores = self.imagePredictions(sequence_output[:,-37:])
+        prediction_scores = self.predictions(sequence_output[:,:-37])
 
         seq_relationship_score = self.seq_relationship(pooled_output)
         return img_prediction_scores, prediction_scores, seq_relationship_score
@@ -451,6 +655,9 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         self.cls = BertPreTrainingHeads(config, self.bert.embeddings.word_embeddings.weight)
         self.apply(self.init_bert_weights)
 
+        self.vis_criterion = nn.KLDivLoss(reduction="none") 
+        self.loss_fct = CrossEntropyLoss(ignore_index=-1)
+
     def forward(
         self,
         input_ids,
@@ -476,24 +683,30 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             output_all_encoded_layers=False,
         )
 
-
-        img_prediction_scores, prediction_scores, seq_relationship_score = self.cls(sequence_output, pooled_output)
-        
+        prediction_scores_v, prediction_scores_t, seq_relationship_score = self.cls(sequence_output, pooled_output)
         if masked_lm_labels is not None and next_sentence_label is not None:
 
-            kld_loss_fct = nn.KLDivLoss(reduction='none')
+            prediction_scores_v = prediction_scores_v[:, 1:]
 
-            img_loss = kld_loss_fct(F.log_softmax(img_prediction_scores, dim=2), image_target)
-            masked_img_loss = torch.sum(img_loss * (masked_lm_labels[:,1:37]==-2).unsqueeze(2).float()) / torch.sum(masked_lm_labels[:,1:37]==-2)
-
-            loss_fct = CrossEntropyLoss(ignore_index=-1)
-            masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), masked_lm_labels[:,37:].contiguous().view(-1))
+            img_loss = self.vis_criterion(
+                F.log_softmax(prediction_scores_v, dim=2), image_target
+            )
+            masked_img_loss = torch.sum(
+                img_loss * (image_label == 1).unsqueeze(2).float()
+            ) / max(torch.sum((image_label == 1)), 0)
             
-            next_sentence_loss = loss_fct(seq_relationship_score.view(-1, 2), next_sentence_label.view(-1))
-            total_loss = masked_lm_loss + next_sentence_loss + masked_img_loss
-            return total_loss
+            masked_lm_loss = self.loss_fct(
+                prediction_scores_t.view(-1, self.config.vocab_size),
+                masked_lm_labels.view(-1),
+            )
+            
+            next_sentence_loss = self.loss_fct(
+                seq_relationship_score.view(-1, 2), next_sentence_label.view(-1)
+            )
+
+            return masked_lm_loss, masked_img_loss, next_sentence_loss
         else:
-            return prediction_scores, seq_relationship_score, img_prediction_scores
+            return prediction_scores, seq_relationship_score, prediction_scores_v
 
 
 class BertModel(BertPreTrainedModel):
@@ -554,9 +767,16 @@ class BertModel(BertPreTrainedModel):
     ):
 
         if attention_mask is None:
-            attention_mask = torch.ones_like(input_ids)
+            attention_mask = torch.ones_like(input_txt)
         if token_type_ids is None:
-            token_type_ids = torch.zeros_like(input_ids)
+            token_type_ids = torch.zeros_like(input_txt)
+        if image_attention_mask is None:
+            image_attention_mask = torch.ones(
+                input_imgs.size(0), input_imgs.size(1)
+            ).type_as(input_txt)
+
+
+        image_token_type_ids = torch.ones(input_imgs.size(0), input_imgs.size(1)).type_as(token_type_ids)
 
         # We create a 3D attention mask from a 2D tensor mask.
         # Sizes are [batch_size, 1, 1, to_seq_length]
@@ -579,12 +799,16 @@ class BertModel(BertPreTrainedModel):
         )  # fp16 compatibility
         extended_image_attention_mask = (1.0 - extended_image_attention_mask) * -10000.0
 
-        img_embeding_output = self.image_embeddings(input_imgs, token_type_ids[:,1:37])
-        embedding_output = self.embeddings(input_ids, token_type_ids)
-        embedding_output[:,1:37] = img_embeding_output 
+        img_embeding_output = self.image_embeddings(input_imgs, image_loc, image_token_type_ids)
+        embedding_output = self.embeddings(input_txt, token_type_ids)
+
+        embedding_output = torch.cat([embedding_output, img_embeding_output], dim=1)
+        extended_attention_mask = torch.cat([extended_attention_mask, extended_image_attention_mask], dim=3)
+
         encoded_layers = self.encoder(embedding_output,
                                       extended_attention_mask,
                                       output_all_encoded_layers=output_all_encoded_layers)
+
         sequence_output = encoded_layers[-1]
         pooled_output = self.pooler(sequence_output)
         if not output_all_encoded_layers:

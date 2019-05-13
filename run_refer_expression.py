@@ -21,6 +21,7 @@ import logging
 import os
 import random
 from io import open
+from bisect import bisect
 
 from time import gmtime, strftime
 from timeit import default_timer as timer
@@ -34,7 +35,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.optimization import BertAdam, warmup_linear
+from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from multimodal_bert.datasets import ReferExpressionDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
@@ -106,7 +107,7 @@ def main():
         "--train_batch_size", default=128, type=int, help="Total batch size for training."
     )
     parser.add_argument(
-        "--learning_rate", default=2e-4, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(   
         "--num_train_epochs",
@@ -163,6 +164,9 @@ def main():
         default='',
         type=str,
         help="save name for training.",
+    )
+    parser.add_argument(
+        "--continue_training", action="store_true", help="Wheter to continue from training."
     )
 
     args = parser.parse_args()
@@ -258,12 +262,17 @@ def main():
     config = BertConfig.from_json_file(args.config_file)
 
     num_labels = 2
-    if args.from_pretrained:
+    if args.from_pretrained and not args.continue_training:
         model = MultiModalBertForReferExpression.from_pretrained(
             args.pretrained_weight, config
         )
     else:
         model = MultiModalBertForReferExpression(config)
+
+    if args.continue_training:
+        print("loading model from %s" %(args.pretrained_weight))
+        checkpoint = torch.load(args.pretrained_weight)
+        model.load_state_dict(checkpoint)
 
     if args.fp16:
         model.half()
@@ -353,6 +362,9 @@ def main():
                 t_total=num_train_optimization_steps,
             )
 
+    # lr_lambda = lambda x: lr_lambda_update(x)
+    # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+
     if args.do_train:
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_dset))
@@ -430,6 +442,8 @@ def main():
                     optimizer.zero_grad()
                     global_step += 1
 
+                # lr_scheduler.step(iterId)
+
                 if step % 20 == 0 and step != 0:
                     loss_tmp = loss_tmp / 20.0
 
@@ -459,7 +473,7 @@ def main():
             total_loss = total_loss / len(train_dataloader)
             logger.info("epoch %d" % (epochId))
             logger.info("\ttrain_loss: %.2f" % (total_loss))
-            logger.info("\teval_loss: %.2f, score: %.2f" % (eval_loss, eval_score))
+            logger.info("\teval_loss: %.2f, score: %.2f" % (eval_loss, 100 * eval_score))
 
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -493,7 +507,8 @@ def evaluate(args, model, dataloader):
     for batch in iter(dataloader):
         batch = tuple(t.cuda() for t in batch)
         features, spatials, image_mask, captions, target, input_mask, segment_ids = batch
-        logits = model(captions, features, spatials, segment_ids, input_mask, image_mask)
+        with torch.no_grad():
+            logits = model(captions, features, spatials, segment_ids, input_mask, image_mask)
         loss = instance_bce_with_logits(logits.squeeze(2), target.squeeze(2))
 
         _, select_idx = torch.max(logits, dim=1)
@@ -510,6 +525,18 @@ def instance_bce_with_logits(logits, labels):
     loss = F.binary_cross_entropy_with_logits(logits, labels)
     loss *= labels.size(1)
     return loss
+
+def lr_lambda_update(i_iter):
+    warmup_iterations = 1000
+    warmup_factor = 0.2
+    lr_ratio = 0.1
+    lr_steps = [15000, 18000, 20000, 21000]
+    if i_iter <= warmup_iterations:
+        alpha = float(i_iter) / float(warmup_iterations)
+        return warmup_factor * (1.0 - alpha) + alpha
+    else:
+        idx = bisect([], i_iter)
+        return pow(lr_ratio, idx)
 
 if __name__ == "__main__":
     main()
