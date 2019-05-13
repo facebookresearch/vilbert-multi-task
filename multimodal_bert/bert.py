@@ -904,15 +904,10 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
             image_attention_mask,
             output_all_encoded_layers=False,
         )
-
         logits = self.classifier(self.dropout(pooled_output))
-
         return logits
 
-
-
 class MultiModalBertForReferExpression(BertPreTrainedModel):
-
     def __init__(self, config, pretrained_weight=None):
         super(MultiModalBertForReferExpression, self).__init__(config)
         self.bert = BertModel(config)
@@ -930,7 +925,7 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
         image_attention_mask=None,
         output_all_encoded_layers=True,
     ):
-    
+
         sequence_output, pooled_output = self.bert(
             input_txt,
             input_imgs,
@@ -940,7 +935,7 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
             image_attention_mask,
             output_all_encoded_layers=False,
         )
-        sequence_output_v = sequence_output[:,-37:]
+        sequence_output_v = sequence_output[:,-50:]
         logits = self.classifier(self.dropout(sequence_output_v))
 
         return logits

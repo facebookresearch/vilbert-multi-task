@@ -32,13 +32,41 @@ def _load_dataset(dataroot, name):
     """Load entries
 
     dataroot: root path of dataset
-    name: 'train', 'val'
+    name: 'train', 'val', 'trainval', 'minsval'
     """
-    question_path = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % name)
-    questions = sorted(json.load(open(question_path))["questions"], key=lambda x: x["question_id"])
-    answer_path = os.path.join(dataroot, "cache", "%s_target.pkl" % name)
-    answers = cPickle.load(open(answer_path, "rb"))
-    answers = sorted(answers, key=lambda x: x["question_id"])
+
+    if name in ['train', 'val']:
+        question_path = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % name)
+        questions = sorted(json.load(open(question_path))["questions"], key=lambda x: x["question_id"])
+        answer_path = os.path.join(dataroot, "cache", "%s_target.pkl" % name)
+        answers = cPickle.load(open(answer_path, "rb"))
+        answers = sorted(answers, key=lambda x: x["question_id"])
+
+    elif name in ['trainval']:
+        question_path_train = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'train')
+        questions_train = sorted(json.load(open(question_path_train))["questions"], key=lambda x: x["question_id"])
+        answer_path_train = os.path.join(dataroot, "cache", "%s_target.pkl" % 'train')
+        answers_train = cPickle.load(open(answer_path_train, "rb"))
+        answers_train = sorted(answers_train, key=lambda x: x["question_id"])
+
+        question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'train')
+        questions_val = sorted(json.load(open(question_path_val))["questions"], key=lambda x: x["question_id"])
+        answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'train')
+        answers_val = cPickle.load(open(answer_path_val, "rb"))
+        answers_val = sorted(answers_val, key=lambda x: x["question_id"])
+
+        questions = questions_train + questions_val[:-1000]
+        answers = answers_train + answers_val[:-1000]
+
+    elif name in ['minsval']:
+        question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'train')
+        questions_val = sorted(json.load(open(question_path_val))["questions"], key=lambda x: x["question_id"])
+        answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'train')
+        answers_val = cPickle.load(open(answer_path_val, "rb"))
+        answers_val = sorted(answers_val, key=lambda x: x["question_id"])        
+
+        questions = questions_val[-1000:]
+        answers = answers_val[-1000:]
 
     assert_eq(len(questions), len(answers))
     entries = []
@@ -79,7 +107,7 @@ class VQAClassificationDataset(Dataset):
         if not os.path.exists(ques_cache_path):
             self.tokenize()
             self.tensorize()
-            # cPickle.dump(self.entries, open(ques_cache_path, 'wb'))
+            cPickle.dump(self.entries, open(ques_cache_path, 'wb'))
         else:
             self.entries = cPickle.load(open(ques_cache_path, "rb"))
 

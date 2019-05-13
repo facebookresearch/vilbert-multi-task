@@ -170,6 +170,10 @@ def main():
     parser.add_argument(
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
     )
+    parser.add_argument(
+        "--split", default='train', type=str, help="train or trainval."
+    )
+
 
     args = parser.parse_args()
 
@@ -254,10 +258,17 @@ def main():
         image_features_reader_train = ImageFeaturesH5Reader(args.features_h5path, True)
         image_features_reader_val = ImageFeaturesH5Reader(args.features_h5path, True)
 
-        train_dset = VQAClassificationDataset(
-            "train", image_features_reader_train, tokenizer, dataroot="data/VQA"
-        )
-        eval_dset = VQAClassificationDataset("val", image_features_reader_val, tokenizer, dataroot="data/VQA")
+
+        if args.split == 'train':
+            train_dset = VQAClassificationDataset(
+                "train", image_features_reader_train, tokenizer, dataroot="data/VQA"
+            )
+            eval_dset = VQAClassificationDataset("val", image_features_reader_val, tokenizer, dataroot="data/VQA")
+        elif args.split == 'trainval':
+            train_dset = VQAClassificationDataset(
+                "trainval", image_features_reader_train, tokenizer, dataroot="data/VQA"
+            )
+            eval_dset = VQAClassificationDataset("minval", image_features_reader_val, tokenizer, dataroot="data/VQA")
 
         # dictionary = BertDictionary(args)        
         # train_dset = BertFeatureDataset('train', dictionary, dataroot='data/VQA')

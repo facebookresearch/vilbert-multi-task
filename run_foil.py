@@ -305,7 +305,7 @@ def main():
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
                 if key[12:] in bert_weight_name:
-                    lr = args.learning_rate
+                    lr = args.learning_rate * 0.1
                 else:
                     lr = args.learning_rate
 
@@ -342,12 +342,12 @@ def main():
 
     else:
         if args.from_pretrained:
-            optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
-            )
-            # optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
+            # optimizer = BertAdam(
+            #     optimizer_grouped_parameters,
+            #     warmup=args.warmup_proportion,
+            #     t_total=num_train_optimization_steps,
+            # )
+            optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
 
         else:
             optimizer = BertAdam(
