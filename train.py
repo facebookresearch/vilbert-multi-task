@@ -40,7 +40,7 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 from pytorch_pretrained_bert import BertModel
 
 from multimodal_bert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
-from multimodal_bert.bert import BertForMultiModalPreTraining, BertConfig
+from multimodal_bert.multi_modal_bert import BertForMultiModalPreTraining, BertConfig
 import pdb
 
 logging.basicConfig(
@@ -201,8 +201,18 @@ def main():
         type=str,
         help="save name for training.",
     )
+    parser.add_argument(
+        "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+    )
 
     args = parser.parse_args()
+
+    if args.baseline:
+        from pytorch_pretrained_bert.modeling import BertConfig
+        from multimodal_bert.bert import BertForMultiModalPreTraining
+    else:
+        from multimodal_bert.multi_modal_bert import BertForMultiModalPreTraining, BertConfig
+
 
     print(args)
     if args.save_name is not '':
