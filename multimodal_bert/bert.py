@@ -850,8 +850,8 @@ class MultiModalBertForVQA(BertPreTrainedModel):
     ):
         
         sequence_output, pooled_output = self.bert(
-            input_ids,
-            image_feat,
+            input_txt,
+            input_imgs,
             image_loc,
             token_type_ids,
             attention_mask,
@@ -896,8 +896,8 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         output_all_encoded_layers=True,
     ):
         sequence_output, pooled_output = self.bert(
-            input_ids,
-            image_feat,
+            input_txt,
+            input_imgs,
             image_loc,
             token_type_ids,
             attention_mask,
@@ -930,10 +930,10 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
         image_attention_mask=None,
         output_all_encoded_layers=True,
     ):
-        
+    
         sequence_output, pooled_output = self.bert(
-            input_ids,
-            image_feat,
+            input_txt,
+            input_imgs,
             image_loc,
             token_type_ids,
             attention_mask,
