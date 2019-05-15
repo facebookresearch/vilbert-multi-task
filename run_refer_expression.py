@@ -110,7 +110,7 @@ def main():
     )
     parser.add_argument(   
         "--num_train_epochs",
-        default=10,
+        default=20,
         type=int,
         help="Total number of training epochs to perform.",
     )
@@ -512,7 +512,7 @@ def evaluate(args, model, dataloader):
     score = 0
     loss_fct = CrossEntropyLoss(ignore_index=-1)
 
-    for batch in iter(dataloader):
+    for batch in dataloader:
         batch = tuple(t.cuda() for t in batch)
         features, spatials, image_mask, captions, target, input_mask, segment_ids = batch
         with torch.no_grad():

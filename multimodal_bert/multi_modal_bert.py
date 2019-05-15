@@ -1351,7 +1351,6 @@ class BertImageEmbeddings(nn.Module):
         # position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
         # if token_type_ids is None:
         # embeddings = self.image_embeddings(input_ids)
-        loc_embeddings = self.image_location_embeddings(input_loc)
         # special_token = self.special_token_embeddings(
         #     torch.full([batch_size], 0, dtype=torch.long, device=input_ids.device)
         # )
@@ -1359,7 +1358,8 @@ class BertImageEmbeddings(nn.Module):
         # token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
         # embeddings = words_embeddings + position_embeddings + token_type_embeddings
-        
+
+        loc_embeddings = self.image_location_embeddings(input_loc)        
         embeddings = self.LayerNorm(input_ids+loc_embeddings)
         embeddings = self.dropout(embeddings)
         

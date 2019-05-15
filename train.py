@@ -135,7 +135,7 @@ def main():
     )
     parser.add_argument(
         "--warmup_proportion",
-        default=0.01,
+        default=0.1,
         type=float,
         help="Proportion of training to perform linear learning rate warmup for. "
         "E.g., 0.1 = 10%% of training.",
@@ -203,6 +203,9 @@ def main():
     )
     parser.add_argument(
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+    )
+    parser.add_argument(
+        "--freeze_text_part", default = 'none', type=str, help="Wheter to use the baseline model (single bert)."
     )
 
     args = parser.parse_args()
@@ -344,6 +347,28 @@ def main():
         # model = torch.nn.parallel.DistributedDataParallel(model)
     model.cuda()
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
+
+    if args.freeze_text_part != 'none':
+        bert_weight_name = json.load(open("config/bert_weight_name.json", "r"))
+        if args.freeze_text_part == 'part':
+            bert_weight_name_filtered = []
+            for name in bert_weight_name:
+                if 'embeddings' in name:
+                    bert_weight_name_filtered.append(name)
+                elif 'encoder' in name:
+                    layer_num = name.split('.')[2]
+                    if int(layer_num) <= config.t_biattention_id[0]:
+                        bert_weight_name_filtered.append(name)
+        elif args.freeze_text_part == 'all':
+            bert_weight_name_filtered = bert_weight_name
+
+        optimizer_grouped_parameters = []
+        for key, value in dict(model.named_parameters()).items():
+            if key[12:] in bert_weight_name_filtered:
+                value.requires_grad = False
+        
+        print("filtered weight")
+        print(bert_weight_name_filtered)
 
     if not args.from_pretrained:
         param_optimizer = list(model.named_parameters())

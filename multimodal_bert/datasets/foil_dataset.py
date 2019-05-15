@@ -6,6 +6,7 @@ import os
 import torch
 from torch.utils.data import Dataset
 import numpy as np
+import _pickle as cPickle
 
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from ._image_features_reader import ImageFeaturesH5Reader
@@ -23,7 +24,7 @@ def _load_annotations(annotations_jsonpath: str) -> Dict[int, List[Dict[str, Any
 
     for annotation in annotations_json["annotations"]:
         entries.append(
-            {"caption": annotation["caption"], "foil": annotation["foil"], 'image_id':annotation["image_id"]}
+            {"caption": annotation["caption"].lower(), "foil": annotation["foil"], 'image_id':annotation["image_id"]}
         )
     return entries
 
@@ -39,7 +40,10 @@ class FoilClassificationDataset(Dataset):
         max_caption_length: int = 20,
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
+        
         self._entries = _load_annotations(annotations_jsonpath)
+        
+
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
 
@@ -47,13 +51,13 @@ class FoilClassificationDataset(Dataset):
         self._max_caption_length = max_caption_length
 
         # cache file path data/cache/train_ques
-        cap_cache_path = "data/cache/" + name + "_foil.pkl"
-        if not os.path.exists(cap_cache_path):
-            self.tokenize()
-            self.tensorize()
-            # cPickle.dump(self.entries, open(ques_cache_path, 'wb'))
-        else:
-            self.entries = cPickle.load(open(ques_cache_path, "rb"))
+        # foil_cache_path = "data/foil/cache/" + name + "_foil.pkl"
+        # if not os.path.exists(foil_cache_path):
+        self.tokenize()
+        self.tensorize()
+            # cPickle.dump(self._entries, open(foil_cache_path, 'wb'))
+        # else:
+            # self._entries = cPickle.load(open(foil_cache_path, "rb"))
 
     def tokenize(self):
         """Tokenizes the captions.
@@ -99,6 +103,7 @@ class FoilClassificationDataset(Dataset):
 
 
     def __getitem__(self, index):
+        
         entry = self._entries[index]
         image_id = entry["image_id"]
 

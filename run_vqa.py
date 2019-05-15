@@ -174,9 +174,7 @@ def main():
         "--split", default='train', type=str, help="train or trainval."
     )
 
-
     args = parser.parse_args()
-
 
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
@@ -538,7 +536,7 @@ def evaluate(args, model, dataloader):
     score = 0
     upper_bound = 0
     num_data = 0
-    for batch in tqdm(iter(dataloader)):
+    for batch in dataloader:
         batch = tuple(t.cuda() for t in batch)
         features, spatials, image_mask, question, target, input_mask, segment_ids = batch
         with torch.no_grad():

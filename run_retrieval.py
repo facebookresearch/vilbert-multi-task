@@ -411,8 +411,8 @@ def main():
         eval_dataloader = DataLoader(
             eval_dset,
             shuffle=False,
-            batch_size=args.train_batch_size,
-            num_workers=100,
+            batch_size=100,
+            num_workers=10,
             pin_memory=True,
         )
 
@@ -433,7 +433,7 @@ def main():
             train_score = 0
             optimizer.zero_grad()
 
-            # iter_dataloader = iter(train_dataloader)
+            iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataloader):
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
@@ -504,14 +504,14 @@ def main():
                     loss_tmp = 0
 
             model.train(False)
-            eval_loss = evaluate(args, model, eval_dataloader)
+            eval_loss = evaluate(args, model, eval_dataloader, loss_fun, len(eval_dset))
             model.train(True)
 
             total_loss = total_loss / len(train_dataloader)
             logger.info("epoch %d" % (epochId))
             logger.info("\ttrain_loss: %.2f" % (total_loss))
             logger.info("\teval_loss: %.2f" % (eval_loss))
-            
+
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
             model_to_save = (
@@ -533,38 +533,46 @@ class TBlogger:
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
 
-def evaluate(args, model, dataloader, loss_fun):
+def evaluate(args, model, dataloader, loss_fun, val_size):
     score = 0
     total_loss = 0
     num_data = 0
+
+    v_feature_total = torch.zeros((val_size, 1024))
+    t_feature_total = torch.zeros((val_size, 1024))
+
+    count = 0
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
         features, spatials, image_mask, caption, input_mask, segment_ids = batch
+        
+        count_end = count + features.size(0)
         with torch.no_grad():
             t_feature, v_feature = model(caption, features, spatials, segment_ids, input_mask, image_mask)
+
+        v_feature_total[count:count_end] = v_feature.cpu()
+        t_feature_total[count:count_end] = t_feature.cpu()
+        count = count_end
 
         total_loss += loss_fun(v_feature, t_feature)
 
         # total_loss += loss_fun(v_feature, t_feature).sum().item()
-        # v_feature = v_feature.cpu().numpy()
-        # t_feature = t_feature.cpu().numpy()
 
-        # r, rt = i2t(v_feature, t_feature, measure=args.measure, return_ranks=True)
-        # ri, rti = t2i(v_feature, t_feature, measure=args.measure, return_ranks=True)
+    v_feature_total = v_feature_total.cpu().numpy()
+    t_feature_total = t_feature_total.cpu().numpy()
+    r, rt = i2t(v_feature_total, t_feature_total, measure=args.measure, return_ranks=True)
+    ri, rti = t2i(v_feature_total, t_feature_total, measure=args.measure, return_ranks=True)
 
-        # ar = (r[0] + r[1] + r[2]) / 3
-        # ari = (ri[0] + ri[1] + ri[2]) / 3
-        # rsum = r[0] + r[1] + r[2] + ri[0] + ri[1] + ri[2]
-        # print("rsum: %.1f" % rsum)
-        # print("Average i2t Recall: %.1f" % ar)
-        # print("Image to text: %.1f %.1f %.1f %.1f %.1f" % r)
-        # print("Average t2i Recall: %.1f" % ari)
-        # print("Text to image: %.1f %.1f %.1f %.1f %.1f" % ri)
+    ar = (r[0] + r[1] + r[2]) / 3
+    ari = (ri[0] + ri[1] + ri[2]) / 3
+    rsum = r[0] + r[1] + r[2] + ri[0] + ri[1] + ri[2]
+    print("rsum: %.1f" % rsum)
+    print("Average i2t Recall: %.1f" % ar)
+    print("Image to text: %.1f %.1f %.1f %.1f %.1f" % r)
+    print("Average t2i Recall: %.1f" % ari)
+    print("Text to image: %.1f %.1f %.1f %.1f %.1f" % ri)
 
-        # batch_score = compute_score_with_logits(pred, target.cuda()).sum()
-        # score += batch_score.item()
-        # upper_bound += (target.max(1)[0]).sum()
-    return total_loss / float(dataloader)
+    return total_loss / float(len(dataloader))
 
 class ContrastiveLoss(nn.Module):
     """
@@ -642,7 +650,7 @@ def i2t(images, captions, npts=None, measure='cosine', return_ranks=False):
     Captions: (5N, K) matrix of captions
     """
     if npts is None:
-        npts = images.shape[0] / 5
+        npts = int(images.shape[0] / 5)
     index_list = []
 
     ranks = numpy.zeros(npts)
@@ -695,7 +703,7 @@ def t2i(images, captions, npts=None, measure='cosine', return_ranks=False):
     Captions: (5N, K) matrix of captions
     """
     if npts is None:
-        npts = images.shape[0] / 5
+        npts = int(images.shape[0] / 5)
     ims = numpy.array([images[i] for i in range(0, len(images), 5)])
 
     ranks = numpy.zeros(5 * npts)

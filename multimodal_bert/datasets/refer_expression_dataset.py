@@ -81,14 +81,14 @@ class ReferExpressionDataset(Dataset):
 
         self.max_region_num = 50
         # cache file path data/cache/train_ques
-        cap_cache_path = "data/cache/" + name + "_" + task + '.pkl'
+        # ref_cache_path = "data/referExpression/cache/" + name + "_" + task + '.pkl'
         
-        if not os.path.exists(cap_cache_path):
-            self.tokenize()
-            self.tensorize()
-            # cPickle.dump(self.entries, open(cap_cache_path, 'wb'))
-        else:
-            self.entries = cPickle.load(open(cap_cache_path, "rb"))
+        # if not os.path.exists(ref_cache_path):
+        self.tokenize()
+        self.tensorize()
+            # cPickle.dump(self.entries, open(ref_cache_path, 'wb'))
+        # else:
+            # self.entries = cPickle.load(open(ref_cache_path, "rb"))
 
     def _load_annotations(self):
 

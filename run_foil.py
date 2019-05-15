@@ -126,7 +126,8 @@ def main():
     )
     parser.add_argument(
         "--do_lower_case",
-        action="store_true",
+        default=True,
+        type=bool,
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument(
@@ -246,6 +247,7 @@ def main():
         train_dset = FoilClassificationDataset(
             "train", args.instances_train_jsonpath, image_features_reader, tokenizer
         )
+
         eval_dset = FoilClassificationDataset(
             "val", args.instances_val_jsonpath, image_features_reader, tokenizer
         )
@@ -305,7 +307,7 @@ def main():
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
                 if key[12:] in bert_weight_name:
-                    lr = args.learning_rate * 0.1
+                    lr = args.learning_rate
                 else:
                     lr = args.learning_rate
 
@@ -342,12 +344,13 @@ def main():
 
     else:
         if args.from_pretrained:
-            # optimizer = BertAdam(
-            #     optimizer_grouped_parameters,
-            #     warmup=args.warmup_proportion,
-            #     t_total=num_train_optimization_steps,
-            # )
-            optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
+            optimizer = BertAdam(
+                optimizer_grouped_parameters,
+                warmup=args.warmup_proportion,
+                t_total=num_train_optimization_steps,
+            )
+
+            # optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
 
         else:
             optimizer = BertAdam(
@@ -376,11 +379,12 @@ def main():
 
         eval_dataloader = DataLoader(
             eval_dset,
-            shuffle=False,
+            shuffle=True,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
-            pin_memory=False,
+            pin_memory=True,
         )
+
         loss_fct = CrossEntropyLoss(ignore_index=-1)
 
         startIterID = 0
@@ -392,8 +396,8 @@ def main():
         start_t = timer()
 
         model.train()
-        # t1 = timer()
-        for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
+
+        for epochId in range(args.num_train_epochs):
             total_loss = 0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
@@ -405,13 +409,12 @@ def main():
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
                 features, spatials, image_mask, captions, target, input_mask, segment_ids = batch
-
                 pred = model(captions, features, spatials, segment_ids, input_mask, image_mask)
+                
                 _, logits = torch.max(pred, 1)
                 train_score += (logits == target).sum()
-
                 loss = loss_fct(pred, target)
-                loss = loss.mean()
+
 
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
@@ -422,6 +425,7 @@ def main():
 
                 viz.linePlot(iterId, loss.item(), "loss", "train")
                 loss_tmp += loss.item()
+                total_loss += loss.item()
 
                 nb_tr_examples += captions.size(0)
                 nb_tr_steps += 1
@@ -463,15 +467,15 @@ def main():
                     loss_tmp = 0
 
             train_score = 100 * train_score / len(train_dataloader.dataset)
+            total_loss = total_loss / len(train_dataloader)
 
-
-            model.train(False)
-            eval_loss, eval_score = evaluate(args, model, eval_dataloader)
-            model.train(True)
+            model.eval()
+            eval_loss, eval_score, eval_foil, eval_ori = evaluate(args, model, eval_dataloader)
+            model.train()
 
             logger.info("epoch %d" % (epochId))
             logger.info("\ttrain_loss: %.2f, score: %.2f" % (total_loss, train_score))
-            logger.info("\teval_loss: %.2f eval score: %.2f" % (eval_loss, 100 * eval_score))
+            logger.info("\teval_loss: %.2f eval score: %.2f, eval foil: %.2f, eval ori: %.2f" % (eval_loss, 100 * eval_score, 100 * eval_foil, 100 * eval_ori))
 
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -500,22 +504,38 @@ def evaluate(args, model, dataloader):
     total_loss = 0
     num_data = 0
     score = 0
+    foil_score = 0
+    ori_score = 0
+    foil_all = 0
+    ori_all = 0
+
     loss_fct = CrossEntropyLoss(ignore_index=-1)
 
-    for batch in iter(dataloader):
+    for i, batch in enumerate(dataloader):
+    # for batch in iter(dataloader):
         batch = tuple(t.cuda() for t in batch)
         features, spatials, image_mask, captions, target, input_mask, segment_ids = batch
         with torch.no_grad():
             pred = model(captions, features, spatials, segment_ids, input_mask, image_mask)
+        
         loss = loss_fct(pred, target)
         _, logits = torch.max(pred, 1)
 
         score += (logits == target).sum().item()
 
-        total_loss += loss.sum().item()
-        num_data += pred.size(0)
 
-    return total_loss / float(num_data), score / float(num_data)
+        foil_score += ((logits==1) & (target==1)).sum().item()
+        ori_score += ((logits==0) & (target==0)).sum().item()
+
+        foil_all += (target==1).sum().item()
+        ori_all += (target==0).sum().item()
+
+        total_loss += loss.item()
+        num_data += pred.size(0)
+        if i % 10 == 0:
+            print(i, end=' ')
+
+    return total_loss / float(len(dataloader)), score / float(num_data), foil_score / float(foil_all), ori_score / float(ori_all)
 
 def lr_lambda_update(i_iter):
     warmup_iterations = 1000

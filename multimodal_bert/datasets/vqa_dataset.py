@@ -88,7 +88,7 @@ class VQAClassificationDataset(Dataset):
         padding_index: int = 0,
     ):
         super().__init__()
-        assert name in ["train", "val"]
+        # assert name in ["train", "val"]
 
         ans2label_path = os.path.join(dataroot, "cache", "trainval_ans2label.pkl")
         label2ans_path = os.path.join(dataroot, "cache", "trainval_label2ans.pkl")
@@ -103,13 +103,13 @@ class VQAClassificationDataset(Dataset):
         self.entries = _load_dataset(dataroot, name)
 
         # cache file path data/cache/train_ques
-        ques_cache_path = "data/cache/" + name + "_ques.pkl"
-        if not os.path.exists(ques_cache_path):
-            self.tokenize()
-            self.tensorize()
-            cPickle.dump(self.entries, open(ques_cache_path, 'wb'))
-        else:
-            self.entries = cPickle.load(open(ques_cache_path, "rb"))
+        # ques_cache_path = "data/VQA/cache/" + name + "_ques.pkl"
+        # if not os.path.exists(ques_cache_path):
+        self.tokenize()
+        self.tensorize()
+            # cPickle.dump(self.entries, open(ques_cache_path, 'wb'))
+        # else:
+            # self.entries = cPickle.load(open(ques_cache_path, "rb"))
 
     def tokenize(self, max_length=16):
         """Tokenizes the questions.
