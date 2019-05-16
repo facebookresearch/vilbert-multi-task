@@ -376,7 +376,7 @@ class BertSelfAttention(nn.Module):
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
-        return context_layer
+        return context_layer, attention_probs
 
 
 class BertSelfOutput(nn.Module):
@@ -400,9 +400,9 @@ class BertAttention(nn.Module):
         self.output = BertSelfOutput(config)
 
     def forward(self, input_tensor, attention_mask):
-        self_output = self.self(input_tensor, attention_mask)
+        self_output, attention_probs = self.self(input_tensor, attention_mask)
         attention_output = self.output(self_output, input_tensor)
-        return attention_output
+        return attention_output, attention_probs
 
 
 class BertIntermediate(nn.Module):
@@ -444,10 +444,10 @@ class BertLayer(nn.Module):
         self.output = BertOutput(config)
 
     def forward(self, hidden_states, attention_mask):
-        attention_output = self.attention(hidden_states, attention_mask)
+        attention_output, attention_probs = self.attention(hidden_states, attention_mask)
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
-        return layer_output
+        return layer_output, attention_probs
 
 
 class BertImageSelfAttention(nn.Module):
@@ -504,7 +504,7 @@ class BertImageSelfAttention(nn.Module):
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
-        return context_layer
+        return context_layer, attention_probs
 
 
 class BertImageSelfOutput(nn.Module):
@@ -528,9 +528,9 @@ class BertImageAttention(nn.Module):
         self.output = BertImageSelfOutput(config)
 
     def forward(self, input_tensor, attention_mask):
-        self_output = self.self(input_tensor, attention_mask)
+        self_output, attention_probs = self.self(input_tensor, attention_mask)
         attention_output = self.output(self_output, input_tensor)
-        return attention_output
+        return attention_output, attention_probs
 
 
 class BertImageIntermediate(nn.Module):
@@ -572,10 +572,10 @@ class BertImageLayer(nn.Module):
         self.output = BertImageOutput(config)
 
     def forward(self, hidden_states, attention_mask):
-        attention_output = self.attention(hidden_states, attention_mask)
+        attention_output, attention_probs = self.attention(hidden_states, attention_mask)
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
-        return layer_output
+        return layer_output, attention_probs
 
 
 class BertBiAttention(nn.Module):
@@ -669,7 +669,7 @@ class BertBiAttention(nn.Module):
         new_context_layer_shape2 = context_layer2.size()[:-2] + (self.all_head_size,)
         context_layer2 = context_layer2.view(*new_context_layer_shape2)
 
-        return context_layer1, context_layer2
+        return context_layer1, context_layer2, (attention_probs1, attention_probs2)
 
 
 class BertBiOutput2(nn.Module):
@@ -761,7 +761,7 @@ class BertConnectionLayer(nn.Module):
 
     def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2):
 
-        bi_output1, bi_output2 = self.biattention(
+        bi_output1, bi_output2, co_attention_probs = self.biattention(
             input_tensor1, attention_mask1, input_tensor2, attention_mask2
         )
 
@@ -773,7 +773,7 @@ class BertConnectionLayer(nn.Module):
         intermediate_output2 = self.t_intermediate(attention_output2)
         layer_output2 = self.t_output(intermediate_output2, attention_output2)
 
-        return layer_output1, layer_output2
+        return layer_output1, layer_output2, co_attention_probs
 
 class BertEncoder(nn.Module):
     def __init__(self, config):
@@ -809,6 +809,7 @@ class BertEncoder(nn.Module):
         txt_attention_mask,
         image_attention_mask,
         output_all_encoded_layers=True,
+        output_all_attention_masks=False,
     ):
 
         v_start = 0
@@ -816,43 +817,60 @@ class BertEncoder(nn.Module):
         count = 0
         all_encoder_layers_t = []
         all_encoder_layers_v = []
+
+        all_attention_mask_t = []
+        all_attnetion_mask_v = []
+        all_attention_mask_c = []
+
         for v_layer_id, t_layer_id in zip(self.v_biattention_id, self.t_biattention_id):
 
             v_end = v_layer_id
             t_end = t_layer_id
             for idx in range(v_start, v_end):
-                image_embedding = self.v_layer[idx](
-                    image_embedding, image_attention_mask
-                )
+                image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
+                
+                if output_all_attention_masks:
+                    all_attnetion_mask_v.append(image_attention_probs)
 
             for idx in range(t_start, t_end):
-                txt_embedding = self.layer[idx](txt_embedding, txt_attention_mask)
+                txt_embedding, txt_attention_probs = self.layer[idx](txt_embedding, txt_attention_mask)
+
+                if output_all_attention_masks:
+                    all_attention_mask_t.append(txt_attention_probs)
 
             # do the bi attention.
-            image_embedding, txt_embedding = self.c_layer[count](
-                image_embedding, image_attention_mask, txt_embedding, txt_attention_mask
-            )
-
+            image_embedding, txt_embedding, co_attention_probs = self.c_layer[count](
+                image_embedding, image_attention_mask, txt_embedding, txt_attention_mask)
+            
+            if output_all_attention_masks:
+                all_attention_mask_c.append(co_attention_probs)
 
             v_start = v_end
             t_start = t_end
             count += 1
+            
             if output_all_encoded_layers:
                 all_encoder_layers_t.append(txt_embedding)
                 all_encoder_layers_v.append(image_embedding)
 
         for idx in range(v_start, len(self.v_layer)):
-            image_embedding = self.v_layer[idx](image_embedding, image_attention_mask)
+            image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
 
+            if output_all_attention_masks:
+                all_attnetion_mask_v.append(image_attention_probs)
+        
         for idx in range(t_start, len(self.layer)):
-            txt_embedding = self.layer[idx](txt_embedding, txt_attention_mask)
+            txt_embedding, txt_attention_probs = self.layer[idx](txt_embedding, txt_attention_mask)
 
+            if output_all_attention_masks:
+                all_attention_mask_t.append(txt_attention_probs)
+        
         # add the end part to finish.
         if not output_all_encoded_layers:
             all_encoder_layers_t.append(txt_embedding)
             all_encoder_layers_v.append(image_embedding)
 
-        return all_encoder_layers_t, all_encoder_layers_v
+        return all_encoder_layers_t, all_encoder_layers_v, (all_attention_mask_t, all_attnetion_mask_v, all_attention_mask_c)
 
 
 class BertTextPooler(nn.Module):
@@ -1269,6 +1287,7 @@ class BertModel(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         output_all_encoded_layers=True,
+        output_all_attention_masks=False,
     ):
         if attention_mask is None:
             attention_mask = torch.ones_like(input_txt)
@@ -1307,12 +1326,13 @@ class BertModel(BertPreTrainedModel):
         embedding_output = self.embeddings(input_txt, token_type_ids)
         v_embedding_output = self.v_embeddings(input_imgs, image_loc)
 
-        encoded_layers_t, encoded_layers_v = self.encoder(
+        encoded_layers_t, encoded_layers_v, all_attention_mask = self.encoder(
             embedding_output,
             v_embedding_output,
             extended_attention_mask,
             extended_image_attention_mask,
             output_all_encoded_layers=output_all_encoded_layers,
+            output_all_attention_masks=output_all_attention_masks,
         )
 
         sequence_output_t = encoded_layers_t[-1]
@@ -1325,7 +1345,7 @@ class BertModel(BertPreTrainedModel):
             encoded_layers_t = encoded_layers_t[-1]
             encoded_layers_v = encoded_layers_v[-1]
 
-        return encoded_layers_t, encoded_layers_v, pooled_output_t, pooled_output_v
+        return encoded_layers_t, encoded_layers_v, pooled_output_t, pooled_output_v, all_attention_mask
 
 
 class BertImageEmbeddings(nn.Module):
@@ -1401,10 +1421,11 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         masked_lm_labels=None,
         image_label=None,
         next_sentence_label=None,
+        output_all_attention_masks=False
     ):
 
         # in this model, we first embed the images.
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, all_attention_mask = self.bert(
             input_ids,
             image_feat,
             image_loc,
@@ -1412,6 +1433,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             attention_mask,
             image_attention_mask,
             output_all_encoded_layers=False,
+            output_all_attention_masks=output_all_attention_masks
         )
 
         prediction_scores_t, prediction_scores_v, seq_relationship_score = self.cls(
@@ -1448,7 +1470,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             return masked_lm_loss, masked_img_loss, next_sentence_loss
             # return total_loss
         else:
-            return prediction_scores_t, prediction_scores_v, seq_relationship_score
+            return prediction_scores_t, prediction_scores_v, seq_relationship_score, all_attention_mask
 
 
 class MultiModalBertForVQA(BertPreTrainedModel):
@@ -1474,7 +1496,7 @@ class MultiModalBertForVQA(BertPreTrainedModel):
         output_all_encoded_layers=True,
     ):
         
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
             input_txt,
             input_imgs,
             image_loc,
@@ -1519,7 +1541,7 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         image_attention_mask=None,
         output_all_encoded_layers=True,
     ):
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
             input_txt,
             input_imgs,
             image_loc,
@@ -1556,7 +1578,7 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
         output_all_encoded_layers=True,
     ):
         
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
             input_txt,
             input_imgs,
             image_loc,
@@ -1592,7 +1614,7 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
         output_all_encoded_layers=True,
     ):
         
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
             input_txt,
             input_imgs,
             image_loc,

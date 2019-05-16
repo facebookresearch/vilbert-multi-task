@@ -469,7 +469,7 @@ def main():
                 # batch = iter_dataloader.next()
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
+                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask, image_ids = (
                     batch
                 )
 
@@ -582,7 +582,7 @@ def main():
             for step, batch in enumerate(validation_dataset):
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
+                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask, image_ids = (
                     batch
                 )
                 
