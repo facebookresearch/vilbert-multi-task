@@ -63,9 +63,10 @@ class COCORetreivalDataset(Dataset):
         if not os.path.exists(cap_cache_path):
             self.tokenize()
             self.tensorize()
-            cPickle.dump(self._entries, open(foil_cache_path, 'wb'))
+            cPickle.dump(self._entries, open(cap_cache_path, 'wb'))
         else:
-            self._entries = cPickle.load(open(foil_cache_path, "rb"))
+            print('loading entries from %s' %(cap_cache_path))
+            self._entries = cPickle.load(open(cap_cache_path, "rb"))
 
     def tokenize(self):
         """Tokenizes the captions.

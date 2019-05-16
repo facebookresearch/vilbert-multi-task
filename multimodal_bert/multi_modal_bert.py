@@ -1599,7 +1599,7 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
         super(MultiModalBertForImageCaptionRetrieval, self).__init__(config)
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
-        # self.classifier = nn.Linear(config.v_hidden_size, 1)
+        self.classifier = nn.Linear(config.bi_hidden_size, 1)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.apply(self.init_bert_weights)
 
@@ -1623,5 +1623,8 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
             image_attention_mask,
             output_all_encoded_layers=False,
         )
+        
+        
+        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
 
-        return pooled_output_t, pooled_output_v
+        return logits

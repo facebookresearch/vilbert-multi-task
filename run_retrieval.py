@@ -55,7 +55,7 @@ def main():
 
     # Required parameters
     # Data files for VQA task.
-    parser.add_argument("--features_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/coco/coco_trainval.h5")
+    parser.add_argument("--features_h5path", default="data/coco/coco_trainval.h5")
     parser.add_argument(
         "--train_file",
         default="data/cocoRetreival/coco/dataset.json",
@@ -178,12 +178,6 @@ def main():
     )
     parser.add_argument('--margin', default=0.2, type=float,
                         help='Rank loss margin.')
-
-    parser.add_argument('--max_violation', action='store_true',
-                        help='Use max instead of sum in the rank loss.')
-
-    parser.add_argument('--measure', default='cosine',
-                        help='Similarity measure used (cosine|order)')
 
     args = parser.parse_args()
 
@@ -392,9 +386,9 @@ def main():
     # lr_lambda = lambda x: lr_lambda_update(x)
     # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
-    loss_fun = ContrastiveLoss(margin=args.margin,
-                                         measure=args.measure,
-                                         max_violation=args.max_violation)
+    criterion = torch.nn.MarginRankingLoss(margin = args.margin)
+
+
     if args.do_train:
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_dset))
@@ -426,7 +420,6 @@ def main():
         start_t = timer()
 
         model.train()
-        # t1 = timer()
         for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
             total_loss = 0
             tr_loss = 0
@@ -439,13 +432,18 @@ def main():
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
                 features, spatials, image_mask, caption, input_mask, segment_ids = batch
-                    
-                pdb.set_trace()
+                
+                features = features.view(-1, features.size(2), features.size(3))
+                spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
+                image_mask = image_mask.view(-1, image_mask.size(2))
+                caption = caption.view(-1, caption.size(2))
+                input_mask = input_mask.view(-1, input_mask.size(2))
+                segment_ids = segment_ids.view(-1, segment_ids.size(2))
 
-                t_feature, v_feature = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-
-                loss = loss_fun(v_feature, t_feature)
-
+                logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
+                logit = logit.view(-1,2)
+                target = logit.new(logit.size(0)).fill_(1)
+                loss = criterion(logit[:,0], logit[:,1], target)
                 # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
                 total_loss += loss.item()
 
@@ -506,7 +504,7 @@ def main():
                     loss_tmp = 0
 
             model.train(False)
-            eval_loss = evaluate(args, model, eval_dataloader, loss_fun, len(eval_dset))
+            eval_loss = evaluate(args, model, eval_dataloader, criterion)
             model.train(True)
 
             total_loss = total_loss / len(train_dataloader)
@@ -535,44 +533,31 @@ class TBlogger:
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
 
-def evaluate(args, model, dataloader, loss_fun, val_size):
+def evaluate(args, model, dataloader, criterion):
     score = 0
     total_loss = 0
     num_data = 0
 
-    v_feature_total = torch.zeros((val_size, 1024))
-    t_feature_total = torch.zeros((val_size, 1024))
-
     count = 0
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, caption, input_mask, segment_ids = batch
-        
-        count_end = count + features.size(0)
+        features, spatials, image_mask, caption, input_mask, segment_ids, image_ids = batch
+    	    
         with torch.no_grad():
-            t_feature, v_feature = model(caption, features, spatials, segment_ids, input_mask, image_mask)
+            features = features.view(-1, features.size(2), features.size(3))
+            spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
+            image_mask = image_mask.view(-1, image_mask.size(2))
+            caption = caption.view(-1, caption.size(2))
+            input_mask = input_mask.view(-1, input_mask.size(2))
+            segment_ids = segment_ids.view(-1, segment_ids.size(2))
 
-        v_feature_total[count:count_end] = v_feature.cpu()
-        t_feature_total[count:count_end] = t_feature.cpu()
-        count = count_end
+            logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
+            logit = logit.view(-1,2)
+            target = logit.new(logit.size(0)).fill_(1)
+            loss = criterion(logit[:,0], logit[:,1], target)
+            # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
+            total_loss += loss.item()
 
-        total_loss += loss_fun(v_feature, t_feature)
-
-        # total_loss += loss_fun(v_feature, t_feature).sum().item()
-
-    v_feature_total = v_feature_total.cpu().numpy()
-    t_feature_total = t_feature_total.cpu().numpy()
-    r, rt = i2t(v_feature_total, t_feature_total, measure=args.measure, return_ranks=True)
-    ri, rti = t2i(v_feature_total, t_feature_total, measure=args.measure, return_ranks=True)
-
-    ar = (r[0] + r[1] + r[2]) / 3
-    ari = (ri[0] + ri[1] + ri[2]) / 3
-    rsum = r[0] + r[1] + r[2] + ri[0] + ri[1] + ri[2]
-    print("rsum: %.1f" % rsum)
-    print("Average i2t Recall: %.1f" % ar)
-    print("Image to text: %.1f %.1f %.1f %.1f %.1f" % r)
-    print("Average t2i Recall: %.1f" % ari)
-    print("Text to image: %.1f %.1f %.1f %.1f %.1f" % ri)
 
     return total_loss / float(len(dataloader))
 
