@@ -147,7 +147,7 @@ class ConceptCapLoaderTrain(object):
 
         for batch in self.ds.get_data():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_label, image_mask = batch
+            image_loc, image_target, image_label, image_mask, image_id = batch
 
             batch_size = input_ids.shape[0]
             g_image_feat = np.sum(image_feat, axis=1) / np.sum(image_mask, axis=1, keepdims=True)
@@ -162,7 +162,7 @@ class ConceptCapLoaderTrain(object):
             image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
 
             batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_label, image_mask)
+            image_loc, image_target, image_label, image_mask, image_id)
 
             yield tuple(torch.tensor(data) for data in batch)
 
@@ -236,7 +236,7 @@ class ConceptCapLoaderVal(object):
     def __iter__(self):
         for batch in self.ds.get_data():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_label, image_mask = batch
+            image_loc, image_target, image_label, image_mask, image_id = batch
 
             batch_size = input_ids.shape[0]
             g_image_feat = np.sum(image_feat, axis=1) / np.sum(image_mask, axis=1, keepdims=True)
@@ -251,7 +251,7 @@ class ConceptCapLoaderVal(object):
             image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
 
             batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_label, image_mask)
+            image_loc, image_target, image_label, image_mask, image_id)
 
             yield tuple(torch.tensor(data) for data in batch)
 
@@ -289,7 +289,6 @@ class BertPreprocessBatch(object):
         image_location = np.zeros((self.region_len, 5), dtype=np.float32)
 
         num_boxes = int(num_boxes)
-
         image_feature[:num_boxes] = image_feature_wp
         image_target[:num_boxes] = image_target_wp
         image_location[:num_boxes,:4] = image_location_wp
@@ -334,6 +333,7 @@ class BertPreprocessBatch(object):
             cur_features.image_target,
             cur_features.image_label,
             cur_features.image_mask,
+            float(image_id),
         )
         return cur_tensors
 
