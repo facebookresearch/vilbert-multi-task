@@ -21,15 +21,21 @@ def _load_annotations(annotations_jsonpath, data_split):
 
     # Build an index which maps image id with a list of caption annotations.
     entries = []
+    imgid2entry = {}
+    count = 0
     for annotation in annotations_json["images"]:
         image_id = annotation['cocoid']
         split = annotation['split']
+        imgid2entry[image_id] = []
         if split in data_split:
             for sentences in annotation['sentences']:
                 entries.append(
                     {"caption": sentences["raw"], 'image_id':image_id}
                 )
-    return entries
+                imgid2entry[image_id].append(count)
+                count += 1
+
+    return entries, imgid2entry
 
 
 class COCORetreivalDataset(Dataset):
@@ -51,12 +57,19 @@ class COCORetreivalDataset(Dataset):
         elif name == 'test':
             data_split == ['test']
 
-        self._entries = _load_annotations(annotations_jsonpath, data_split)
+        self._entries, self.imgid2entry = _load_annotations(annotations_jsonpath, data_split)
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
 
         self._padding_index = padding_index
         self._max_caption_length = max_caption_length
+
+        image_info = cPickle.load(open('data/cocoRetreival/pool_info.pkl', 'rb'))
+        for key, value in image_info.items():
+            setattr(self, key, value)
+
+        self.train_imgId2pool = {imageId:i for i, imageId in enumerate(self.train_image_list)}
+        self.val_imgId2pool = {imageId:i for i, imageId in enumerate(self.val_image_list)}
 
         # cache file path data/cache/train_ques
         cap_cache_path = "data/cocoRetreival/cache/" + name + "_cap.pkl"
@@ -122,7 +135,6 @@ class COCORetreivalDataset(Dataset):
             image_mask.append(0)
 
         features = torch.tensor(features).float()
-
         image_mask = torch.tensor(image_mask).long()
         spatials = torch.tensor(boxes).float()
 
@@ -130,15 +142,51 @@ class COCORetreivalDataset(Dataset):
         input_mask = entry["input_mask"]
         segment_ids = entry["segment_ids"]
 
-        # same feature, grab a random caption.
-        rand_entry = self._entries[np.random.randint(len(self._entries)-1)]
 
-        features = torch.stack((features, features), dim=0)
-        spatials = torch.stack((spatials, spatials), dim=0)
-        image_mask = torch.stack((image_mask, image_mask), dim=0)
-        caption = torch.stack((caption, rand_entry['token']), dim=0)
-        input_mask = torch.stack((input_mask, rand_entry['input_mask']), dim=0)
-        segment_ids = torch.stack((segment_ids, rand_entry['segment_ids']), dim=0)
+        if random.random() > 0.5:
+            rand_img_id_pool = self.train_hard_pool[self.train_imgId2pool[image_id]]
+            rand_pool_i = int(np.random.randint(len(rand_img_id_pool)))
+            pool_img_id = int(rand_img_id_pool[rand_pool_i])
+            img_id = self.train_image_list[pool_img_id]
+
+            if random.random() > 0.5:
+                rand_features, rand_num_boxes, rand_boxes, _ = self._image_features_reader[img_id]
+
+                rand_image_mask = [1] * (int(rand_num_boxes))
+                while len(rand_image_mask) < 37:
+                    rand_image_mask.append(0)
+                rand_features = torch.tensor(rand_features).float()
+                rand_image_mask = torch.tensor(rand_image_mask).long()
+                rand_spatials = torch.tensor(rand_boxes).float()
+
+                rand_caption = caption
+                rand_input_mask = input_mask
+                rand_segment_ids = segment_ids
+            else:
+                rand_entry = self._entries[random.choice(self.imgid2entry[img_id])]
+                rand_caption = rand_entry["token"]
+                rand_input_mask = rand_entry["input_mask"]
+                rand_segment_ids = rand_entry["segment_ids"]
+
+                rand_features = feature
+                rand_image_mask = image_mask
+                rand_spatials = spatials         
+        else:
+            # same feature, grab a random caption.
+            rand_entry = self._entries[np.random.randint(len(self._entries)-1)]
+            rand_caption = rand_entry["token"]
+            rand_input_mask = rand_entry["input_mask"]
+            rand_segment_ids = rand_entry["segment_ids"]
+            rand_features = feature
+            rand_image_mask = image_mask
+            rand_spatials = spatials      
+
+        features = torch.stack((features, rand_features), dim=0)
+        spatials = torch.stack((spatials, rand_spatials), dim=0)
+        image_mask = torch.stack((image_mask, rand_image_mask), dim=0)
+        caption = torch.stack((caption, rand_caption), dim=0)
+        input_mask = torch.stack((input_mask, rand_input_mask), dim=0)
+        segment_ids = torch.stack((segment_ids, rand_segment_ids), dim=0)
 
         return features, spatials, image_mask, caption, input_mask, segment_ids
 
