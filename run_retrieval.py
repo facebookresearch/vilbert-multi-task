@@ -130,7 +130,8 @@ def main():
     )
     parser.add_argument(
         "--do_lower_case",
-        action="store_true",
+        default=True,
+        type=bool,
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument(
@@ -437,9 +438,10 @@ def main():
             for step, batch in enumerate(train_dataloader):
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-
                 features, spatials, image_mask, caption, input_mask, segment_ids = batch
-                
+                    
+                pdb.set_trace()
+
                 t_feature, v_feature = model(caption, features, spatials, segment_ids, input_mask, image_mask)
 
                 loss = loss_fun(v_feature, t_feature)

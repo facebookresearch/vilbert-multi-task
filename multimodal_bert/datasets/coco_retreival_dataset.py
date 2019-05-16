@@ -63,7 +63,7 @@ class COCORetreivalDataset(Dataset):
         if not os.path.exists(cap_cache_path):
             self.tokenize()
             self.tensorize()
-            # cPickle.dump(self._entries, open(foil_cache_path, 'wb'))
+            cPickle.dump(self._entries, open(foil_cache_path, 'wb'))
         else:
             self._entries = cPickle.load(open(foil_cache_path, "rb"))
 
@@ -121,12 +121,23 @@ class COCORetreivalDataset(Dataset):
             image_mask.append(0)
 
         features = torch.tensor(features).float()
+
         image_mask = torch.tensor(image_mask).long()
         spatials = torch.tensor(boxes).float()
 
         caption = entry["token"]
         input_mask = entry["input_mask"]
         segment_ids = entry["segment_ids"]
+
+        # same feature, grab a random caption.
+        rand_entry = self._entries[np.random.randint(len(self._entries)-1)]
+
+        features = torch.stack((features, features), dim=0)
+        spatials = torch.stack((spatials, spatials), dim=0)
+        image_mask = torch.stack((image_mask, image_mask), dim=0)
+        caption = torch.stack((caption, rand_entry['token']), dim=0)
+        input_mask = torch.stack((input_mask, rand_entry['input_mask']), dim=0)
+        segment_ids = torch.stack((segment_ids, rand_entry['segment_ids']), dim=0)
 
         return features, spatials, image_mask, caption, input_mask, segment_ids
 
