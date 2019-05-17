@@ -22,7 +22,7 @@ import os
 import random
 from io import open
 
-import numpy
+import numpy as np
 from time import gmtime, strftime
 from timeit import default_timer as timer
 
@@ -39,7 +39,7 @@ from torch.utils.data import DataLoader
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
-from multimodal_bert.datasets import COCORetreivalDataset
+from multimodal_bert.datasets import COCORetreivalDatasetTrain, COCORetreivalDatasetVal
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 import pdb
 
@@ -58,11 +58,20 @@ def main():
     parser.add_argument("--features_h5path", default="data/coco/coco_trainval.h5")
     parser.add_argument(
         "--train_file",
-        default="data/cocoRetreival/coco/dataset.json",
+        default="data/cocoRetreival/all_data_final_train_set_2014.jsonline",
         type=str,
         # required=True,
         help="The input train corpus.",
     )
+
+    parser.add_argument(
+        "--val_file",
+        default="data/cocoRetreival/all_data_final_val_set0_2014.jsonline",
+        type=str,
+        # required=True,
+        help="The input train corpus.",
+    )
+
     parser.add_argument(
         "--bert_model",
         default="bert-base-uncased",
@@ -114,7 +123,7 @@ def main():
     )
     parser.add_argument(
         "--num_train_epochs",
-        default=15,
+        default=50,
         type=int,
         help="Total number of training epochs to perform.",
     )
@@ -179,6 +188,10 @@ def main():
     parser.add_argument('--margin', default=0.2, type=float,
                         help='Rank loss margin.')
 
+    parser.add_argument(
+        "--evaluate", action="store_true", help="Wheter directly evaluate."
+    )
+
     args = parser.parse_args()
 
     if args.baseline:
@@ -230,19 +243,19 @@ def main():
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
-    # random.seed(args.seed)
-    # np.random.seed(args.seed)
-    # torch.manual_seed(args.seed)
-    # if n_gpu > 0:
-    #     torch.cuda.manual_seed_all(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if n_gpu > 0:
+        torch.cuda.manual_seed_all(args.seed)
 
     if not args.do_train:
         raise ValueError(
             "Training is currently the only implemented execution option. Please set `do_train`."
         )
 
-    # if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-    #     raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
+    if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
+        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -258,19 +271,13 @@ def main():
         tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=args.do_lower_case
         )
-        image_features_reader_train = ImageFeaturesH5Reader(args.features_h5path, True)
-        image_features_reader_val = ImageFeaturesH5Reader(args.features_h5path, True)
+        image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
-        train_dset = COCORetreivalDataset(
-            "train", args.train_file, image_features_reader_train, tokenizer)
-        eval_dset = COCORetreivalDataset("val", args.train_file, image_features_reader_val, tokenizer)
-
-        # dictionary = BertDictionary(args)        
-        # train_dset = BertFeatureDataset('train', dictionary, dataroot='data/VQA')
-        # eval_dset = BertFeatureDataset('val', dictionary, dataroot='data/VQA')
+        train_dset = COCORetreivalDatasetTrain(args.train_file, image_features_reader_train, tokenizer)
+        eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
 
         num_train_optimization_steps = (
-            int(len(train_dset) / args.train_batch_size / args.gradient_accumulation_steps)
+            int(len(eval_dset) / args.train_batch_size / args.gradient_accumulation_steps)
             * args.num_train_epochs
         )
         if args.local_rank != -1:
@@ -362,32 +369,17 @@ def main():
                                                  t_total=num_train_optimization_steps)
     else:
         if args.from_pretrained:
-            # optimizer = BertAdam(
-            #     optimizer_grouped_parameters,
-            #     warmup=args.warmup_proportion,
-            #     t_total=num_train_optimization_steps,
-            # )
             optimizer = BertAdam(optimizer_grouped_parameters,
                                  lr=args.learning_rate,
                                  warmup=args.warmup_proportion,
                                  t_total=num_train_optimization_steps)
         else:
-            # optimizer = BertAdam(
-            #     optimizer_grouped_parameters,
-            #     lr=args.learning_rate,
-            #     warmup=args.warmup_proportion,
-            #     t_total=num_train_optimization_steps,
-            # )
             optimizer = BertAdam(optimizer_grouped_parameters,
                                  lr=args.learning_rate,
                                  warmup=args.warmup_proportion,
                                  t_total=num_train_optimization_steps)
 
-    # lr_lambda = lambda x: lr_lambda_update(x)
-    # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
-
     criterion = torch.nn.MarginRankingLoss(margin = args.margin)
-
 
     if args.do_train:
         logger.info("***** Running training *****")
@@ -406,9 +398,9 @@ def main():
         eval_dataloader = DataLoader(
             eval_dset,
             shuffle=False,
-            batch_size=100,
-            num_workers=10,
-            pin_memory=True,
+            batch_size=args.train_batch_size,
+            num_workers=args.num_workers,
+            pin_memory=False,
         )
 
         startIterID = 0
@@ -418,6 +410,14 @@ def main():
         next_sentence_loss_tmp = 0
         loss_tmp = 0
         start_t = timer()
+
+        if args.evaluate:
+            r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
+            print('finish evaluation, save result to %s' )
+            
+            val_name = args.val_file.split('/')[-1]
+            with open(os.path.join(savePath, val_name + '_result.txt'), 'w') as f:
+                print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr), file=f)
 
         model.train()
         for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
@@ -503,14 +503,10 @@ def main():
 
                     loss_tmp = 0
 
-            model.train(False)
-            eval_loss = evaluate(args, model, eval_dataloader, criterion)
-            model.train(True)
-
+            # r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
             total_loss = total_loss / len(train_dataloader)
             logger.info("epoch %d" % (epochId))
             logger.info("\ttrain_loss: %.2f" % (total_loss))
-            logger.info("\teval_loss: %.2f" % (eval_loss))
 
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -524,7 +520,6 @@ def main():
             if args.do_train:
                 torch.save(model_to_save.state_dict(), output_model_file)
 
-
 class TBlogger:
     def __init__(self, log_dir):
         print("logging file at: " + log_dir)
@@ -533,202 +528,37 @@ class TBlogger:
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
 
-def evaluate(args, model, dataloader, criterion):
+def evaluate(args, model, dataloader):
     score = 0
     total_loss = 0
     num_data = 0
-
     count = 0
+
+    score_matrix = torch.zeros(1000, 5000).cuda()
+    target_matrix = torch.zeros(1000, 5000).cuda()
+    model.eval()
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, caption, input_mask, segment_ids, image_ids = batch
-    	    
+        features, spatials, image_mask, caption, input_mask, segment_ids, target, image_idx, caption_idx = batch
+
         with torch.no_grad():
-            features = features.view(-1, features.size(2), features.size(3))
-            spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
-            image_mask = image_mask.view(-1, image_mask.size(2))
-            caption = caption.view(-1, caption.size(2))
-            input_mask = input_mask.view(-1, input_mask.size(2))
-            segment_ids = segment_ids.view(-1, segment_ids.size(2))
-
             logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-            logit = logit.view(-1,2)
-            target = logit.new(logit.size(0)).fill_(1)
-            loss = criterion(logit[:,0], logit[:,1], target)
-            # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
-            total_loss += loss.item()
+            score_matrix[image_idx, caption_idx] = logit.view(-1)
+            target_matrix[image_idx, caption_idx] = target.float()
 
+    # get the rank over image.
+    _, ind = torch.sort(score_matrix, dim=0)
+    rank = ind.masked_select(target_matrix.byte())
 
-    return total_loss / float(len(dataloader))
+    r1 = 100.0 * torch.sum(rank < 1).item() / 1000
+    r5 = 100.0 * torch.sum(rank < 5).item() / 1000
+    r10 = 100.0 * torch.sum(rank < 10).item() / 1000
 
-class ContrastiveLoss(nn.Module):
-    """
-    Compute contrastive loss
-    """
+    medr = np.floor(rank.median().item() + 1)
+    meanr = rank.float().mean().item() + 1
 
-    def __init__(self, margin=0, measure=False, max_violation=False):
-        super(ContrastiveLoss, self).__init__()
-        self.margin = margin
-        if measure == 'order':
-            self.sim = order_sim
-        else:
-            self.sim = cosine_sim
-
-        self.max_violation = max_violation
-
-    def forward(self, im, s):
-        # compute image-sentence score matrix
-        scores = self.sim(im, s)
-        diagonal = scores.diag().view(im.size(0), 1)
-        d1 = diagonal.expand_as(scores)
-        d2 = diagonal.t().expand_as(scores)
-
-        # compare every diagonal score to scores in its column
-        # caption retrieval
-        cost_s = (self.margin + scores - d1).clamp(min=0)
-        # compare every diagonal score to scores in its row
-        # image retrieval
-        cost_im = (self.margin + scores - d2).clamp(min=0)
-
-        # clear diagonals
-        mask = torch.eye(scores.size(0)) > .5
-        I = mask
-        if torch.cuda.is_available():
-            I = I.cuda()
-        cost_s = cost_s.masked_fill_(I, 0)
-        cost_im = cost_im.masked_fill_(I, 0)
-
-        # keep the maximum violating negative for each query
-        if self.max_violation:
-            cost_s = cost_s.max(1)[0]
-            cost_im = cost_im.max(0)[0]
-
-        return cost_s.sum() + cost_im.sum()
-
-def cosine_sim(im, s):
-    """Cosine similarity between all the image and sentence pairs
-    """
-    return im.mm(s.t())
-
-def order_sim(im, s):
-    """Order embeddings similarity measure $max(0, s-im)$
-    """
-    YmX = (s.unsqueeze(1).expand(s.size(0), im.size(0), s.size(1))
-           - im.unsqueeze(0).expand(s.size(0), im.size(0), s.size(1)))
-    score = -YmX.clamp(min=0).pow(2).sum(2).sqrt().t()
-    return score
-
-def lr_lambda_update(i_iter):
-    warmup_iterations = 1000
-    warmup_factor = 0.2
-    lr_ratio = 0.1
-    lr_steps = [15000, 18000, 20000, 21000]
-    if i_iter <= warmup_iterations:
-        alpha = float(i_iter) / float(warmup_iterations)
-        return warmup_factor * (1.0 - alpha) + alpha
-    else:
-        idx = bisect([], i_iter)
-        return pow(lr_ratio, idx)
-
-def i2t(images, captions, npts=None, measure='cosine', return_ranks=False):
-    """
-    Images->Text (Image Annotation)
-    Images: (5N, K) matrix of images
-    Captions: (5N, K) matrix of captions
-    """
-    if npts is None:
-        npts = int(images.shape[0] / 5)
-    index_list = []
-
-    ranks = numpy.zeros(npts)
-    top1 = numpy.zeros(npts)
-    for index in range(npts):
-
-        # Get query image
-        im = images[5 * index].reshape(1, images.shape[1])
-
-        # Compute scores
-        if measure == 'order':
-            bs = 100
-            if index % bs == 0:
-                mx = min(images.shape[0], 5 * (index + bs))
-                im2 = images[5 * index:mx:5]
-                d2 = order_sim(torch.Tensor(im2).cuda(),
-                               torch.Tensor(captions).cuda())
-                d2 = d2.cpu().numpy()
-            d = d2[index % bs]
-        else:
-            d = numpy.dot(im, captions.T).flatten()
-        inds = numpy.argsort(d)[::-1]
-        index_list.append(inds[0])
-
-        # Score
-        rank = 1e20
-        for i in range(5 * index, 5 * index + 5, 1):
-            tmp = numpy.where(inds == i)[0][0]
-            if tmp < rank:
-                rank = tmp
-        ranks[index] = rank
-        top1[index] = inds[0]
-
-    # Compute metrics
-    r1 = 100.0 * len(numpy.where(ranks < 1)[0]) / len(ranks)
-    r5 = 100.0 * len(numpy.where(ranks < 5)[0]) / len(ranks)
-    r10 = 100.0 * len(numpy.where(ranks < 10)[0]) / len(ranks)
-    medr = numpy.floor(numpy.median(ranks)) + 1
-    meanr = ranks.mean() + 1
-    if return_ranks:
-        return (r1, r5, r10, medr, meanr), (ranks, top1)
-    else:
-        return (r1, r5, r10, medr, meanr)
-
-
-def t2i(images, captions, npts=None, measure='cosine', return_ranks=False):
-    """
-    Text->Images (Image Search)
-    Images: (5N, K) matrix of images
-    Captions: (5N, K) matrix of captions
-    """
-    if npts is None:
-        npts = int(images.shape[0] / 5)
-    ims = numpy.array([images[i] for i in range(0, len(images), 5)])
-
-    ranks = numpy.zeros(5 * npts)
-    top1 = numpy.zeros(5 * npts)
-    for index in range(npts):
-
-        # Get query captions
-        queries = captions[5 * index:5 * index + 5]
-
-        # Compute scores
-        if measure == 'order':
-            bs = 100
-            if 5 * index % bs == 0:
-                mx = min(captions.shape[0], 5 * index + bs)
-                q2 = captions[5 * index:mx]
-                d2 = order_sim(torch.Tensor(ims).cuda(),
-                               torch.Tensor(q2).cuda())
-                d2 = d2.cpu().numpy()
-
-            d = d2[:, (5 * index) % bs:(5 * index) % bs + 5].T
-        else:
-            d = numpy.dot(queries, ims.T)
-        inds = numpy.zeros(d.shape)
-        for i in range(len(inds)):
-            inds[i] = numpy.argsort(d[i])[::-1]
-            ranks[5 * index + i] = numpy.where(inds[i] == index)[0][0]
-            top1[5 * index + i] = inds[i][0]
-
-    # Compute metrics
-    r1 = 100.0 * len(numpy.where(ranks < 1)[0]) / len(ranks)
-    r5 = 100.0 * len(numpy.where(ranks < 5)[0]) / len(ranks)
-    r10 = 100.0 * len(numpy.where(ranks < 10)[0]) / len(ranks)
-    medr = numpy.floor(numpy.median(ranks)) + 1
-    meanr = ranks.mean() + 1
-    if return_ranks:
-        return (r1, r5, r10, medr, meanr), (ranks, top1)
-    else:
-        return (r1, r5, r10, medr, meanr)
+    print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr))
+    return r1, r5, r10, medr, meanr
 
 if __name__ == "__main__":
 
