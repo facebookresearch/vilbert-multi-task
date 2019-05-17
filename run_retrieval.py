@@ -254,9 +254,9 @@ def main():
             "Training is currently the only implemented execution option. Please set `do_train`."
         )
 
-    if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
-
+    # if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
+        # raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
+#
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
@@ -273,7 +273,7 @@ def main():
         )
         image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
-        train_dset = COCORetreivalDatasetTrain(args.train_file, image_features_reader_train, tokenizer)
+        train_dset = COCORetreivalDatasetTrain(args.train_file, image_features_reader, tokenizer)
         eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
 
         num_train_optimization_steps = (

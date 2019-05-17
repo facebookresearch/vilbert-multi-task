@@ -250,8 +250,8 @@ def main():
             "Training is currently the only implemented execution option. Please set `do_train`."
         )
 
-    if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
+    # if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
+    #     raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -259,8 +259,6 @@ def main():
     # train_examples = None
     num_train_optimization_steps = None
     if args.do_train:
-
-        viz = TBlogger("logs/" + timeStamp)
 
         print("Loading Train Dataset", args.train_file)
 
