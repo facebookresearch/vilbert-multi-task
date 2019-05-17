@@ -134,6 +134,12 @@ def main():
         help="Total number of training epochs to perform.",
     )
     parser.add_argument(
+        "--start_epoch",
+        default=0,
+        type=float,
+        help="Total number of training epochs to perform.",
+    )
+    parser.add_argument(
         "--warmup_proportion",
         default=0.1,
         type=float,
@@ -205,7 +211,7 @@ def main():
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
     )
     parser.add_argument(
-        "--freeze_text_part", default = 'none', type=str, help="Wheter to use the baseline model (single bert)."
+        "--freeze_text_part", default = 'none', type=str, choices=['all', 'part', 'none'], help="Wheter to use the baseline model (single bert)."
     )
 
     args = parser.parse_args()
@@ -313,7 +319,7 @@ def main():
                 / args.train_batch_size
                 / args.gradient_accumulation_steps
             )
-            * args.num_train_epochs
+            * (args.num_train_epochs - args.start_epoch)
         )
         if args.local_rank != -1:
             num_train_optimization_steps = (
@@ -406,6 +412,8 @@ def main():
                         {"params": [value], "lr": lr, "weight_decay": 0.0}
                     ]
 
+        print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
+
     # set different parameters for vision branch and lanugage branch.
     if args.fp16:
         try:
@@ -459,7 +467,7 @@ def main():
 
         model.train()
         # t1 = timer()
-        for epochId in trange(int(args.num_train_epochs), desc="Epoch"):
+        for epochId in range(int(args.start_epoch), int(args.num_train_epochs)):
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
 
@@ -476,13 +484,13 @@ def main():
                 masked_loss_t, masked_loss_v, next_sentence_loss = model(
                     input_ids,
                     image_feat,
-                    image_target,
                     image_loc,
                     segment_ids,
                     input_mask,
                     image_mask,
                     lm_label_ids,
                     image_label,
+                    image_target,
                     is_next,
                 )
 

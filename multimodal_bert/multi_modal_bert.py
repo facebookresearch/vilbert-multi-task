@@ -1413,13 +1413,13 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         self,
         input_ids,
         image_feat,
-        image_target,
         image_loc,
         token_type_ids=None,
         attention_mask=None,
         image_attention_mask=None,
         masked_lm_labels=None,
         image_label=None,
+        image_target = None,
         next_sentence_label=None,
         output_all_attention_masks=False
     ):
@@ -1440,7 +1440,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v
         )
 
-        if masked_lm_labels is not None and next_sentence_label is not None:
+        if masked_lm_labels is not None and next_sentence_label is not None and image_target is not None:
 
             # kld_loss_fct = nn.KLDivLoss(reduction='none')
             prediction_scores_v = prediction_scores_v[:, 1:]
