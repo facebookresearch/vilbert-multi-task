@@ -612,7 +612,7 @@ class BertBiAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2):
+    def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask=None):
 
         # for vision input.
         mixed_query_layer1 = self.query1(input_tensor1)
@@ -636,8 +636,10 @@ class BertBiAttention(nn.Module):
         attention_scores1 = torch.matmul(query_layer2, key_layer1.transpose(-1, -2))
         attention_scores1 = attention_scores1 / math.sqrt(self.attention_head_size)
 
+        attention_scores1 = attention_scores1 + attention_mask1 + co_attention_mask.permute(0,1,3,2)
+
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-        attention_scores1 = attention_scores1 + attention_mask1
+        # attention_scores1 = attention_scores1 + co_attention_mask.permute(0,1,3,2)
 
         # Normalize the attention scores to probabilities.
         attention_probs1 = nn.Softmax(dim=-1)(attention_scores1)
@@ -655,7 +657,10 @@ class BertBiAttention(nn.Module):
         attention_scores2 = torch.matmul(query_layer1, key_layer2.transpose(-1, -2))
         attention_scores2 = attention_scores2 / math.sqrt(self.attention_head_size)
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-        attention_scores2 = attention_scores2 + attention_mask2
+        attention_scores2 = attention_scores2 + attention_mask2 + co_attention_mask
+
+        # if co_attention_mask is not None:
+            # attention_scores2 = attention_scores2 + co_attention_mask
 
         # Normalize the attention scores to probabilities.
         attention_probs2 = nn.Softmax(dim=-1)(attention_scores2)
@@ -671,49 +676,9 @@ class BertBiAttention(nn.Module):
 
         return context_layer1, context_layer2, (attention_probs1, attention_probs2)
 
-
-class BertBiOutput2(nn.Module):
+class BertBiOutput(nn.Module):
     def __init__(self, config):
-        super(BertBiOutput2, self).__init__()
-
-        self.dense1 = nn.Linear(config.bi_hidden_size, config.v_hidden_size)
-        self.LayerNorm1 = BertLayerNorm(config.v_hidden_size, eps=1e-12)
-        self.dropout1 = nn.Dropout(config.v_hidden_dropout_prob)
-
-        self.q_dense1 = nn.Linear(config.bi_hidden_size, config.v_hidden_size)
-        self.q_dropout1 = nn.Dropout(config.v_hidden_dropout_prob)
-
-        self.dense2 = nn.Linear(config.bi_hidden_size, config.hidden_size)
-        self.LayerNorm2 = BertLayerNorm(config.hidden_size, eps=1e-12)
-        self.dropout2 = nn.Dropout(config.hidden_dropout_prob)
-
-        self.q_dense2 = nn.Linear(config.bi_hidden_size, config.hidden_size)
-        self.q_dropout2 = nn.Dropout(config.hidden_dropout_prob)
-
-    def forward(self, hidden_states1, input_tensor1, hidden_states2, input_tensor2):
-
-
-        context_state1 = self.dense1(hidden_states1[:,1:])
-        context_state1 = self.dropout1(context_state1)
-
-        query_state1 = self.q_dense1(hidden_states2[:,:1])
-        query_state1 = self.q_dropout1(query_state1)
-
-        context_state2 = self.dense2(hidden_states2[:,1:])
-        context_state2 = self.dropout2(context_state2)
-
-        query_state2 = self.q_dense2(hidden_states1[:,:1])
-        query_state2 = self.q_dropout2(query_state2)
-
-        hidden_states1 = self.LayerNorm1(torch.cat((query_state1, context_state1), dim=1) + input_tensor1)
-        hidden_states2 = self.LayerNorm2(torch.cat((query_state2, context_state2), dim=1) + input_tensor2)
-
-        return hidden_states1, hidden_states2
-
-
-class BertBiOutput1(nn.Module):
-    def __init__(self, config):
-        super(BertBiOutput1, self).__init__()
+        super(BertBiOutput, self).__init__()
 
         self.dense1 = nn.Linear(config.bi_hidden_size, config.v_hidden_size)
         self.LayerNorm1 = BertLayerNorm(config.v_hidden_size, eps=1e-12)
@@ -748,10 +713,7 @@ class BertConnectionLayer(nn.Module):
         super(BertConnectionLayer, self).__init__()
         self.biattention = BertBiAttention(config)
 
-        if config.bi_attention_type == 1:
-            self.biOutput = BertBiOutput1(config)
-        elif config.bi_attention_type==2:
-            self.biOutput = BertBiOutput2(config)
+        self.biOutput = BertBiOutput(config)
 
         self.v_intermediate = BertImageIntermediate(config)
         self.v_output = BertImageOutput(config)
@@ -759,10 +721,10 @@ class BertConnectionLayer(nn.Module):
         self.t_intermediate = BertIntermediate(config)
         self.t_output = BertOutput(config)
 
-    def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2):
+    def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask=None):
 
         bi_output1, bi_output2, co_attention_probs = self.biattention(
-            input_tensor1, attention_mask1, input_tensor2, attention_mask2
+            input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask
         )
 
         attention_output1, attention_output2 = self.biOutput(bi_output2, input_tensor1, bi_output1, input_tensor2)
@@ -808,6 +770,7 @@ class BertEncoder(nn.Module):
         image_embedding,
         txt_attention_mask,
         image_attention_mask,
+        co_attention_mask=None,
         output_all_encoded_layers=True,
         output_all_attention_masks=False,
     ):
@@ -840,7 +803,7 @@ class BertEncoder(nn.Module):
 
             # do the bi attention.
             image_embedding, txt_embedding, co_attention_probs = self.c_layer[count](
-                image_embedding, image_attention_mask, txt_embedding, txt_attention_mask)
+                image_embedding, image_attention_mask, txt_embedding, txt_attention_mask, co_attention_mask)
             
             if output_all_attention_masks:
                 all_attention_mask_c.append(co_attention_probs)
@@ -1286,6 +1249,7 @@ class BertModel(BertPreTrainedModel):
         token_type_ids=None,
         attention_mask=None,
         image_attention_mask=None,
+        co_attention_mask=None,
         output_all_encoded_layers=True,
         output_all_attention_masks=False,
     ):
@@ -1297,6 +1261,16 @@ class BertModel(BertPreTrainedModel):
             image_attention_mask = torch.ones(
                 input_imgs.size(0), input_imgs.size(1)
             ).type_as(input_txt)
+
+        if co_attention_mask is None:
+            token_type_ids = torch.zeros(input_txt.size(0), input_imgs.size(1), input_txt.size(1))           
+
+        extended_co_attention_mask = co_attention_mask.unsqueeze(1)
+        extended_co_attention_mask = extended_co_attention_mask * 10000.0
+
+        extended_co_attention_mask = extended_co_attention_mask.to(
+            dtype=next(self.parameters()).dtype
+        )  # fp16 compatibility
 
         # image_attention_mask_first = torch.ones(input_imgs.size(0), 1).type_as(image_attention_mask)
         # image_attention_mask = torch.cat((image_attention_mask_first, image_attention_mask), dim=1)
@@ -1331,6 +1305,7 @@ class BertModel(BertPreTrainedModel):
             v_embedding_output,
             extended_attention_mask,
             extended_image_attention_mask,
+            extended_co_attention_mask,
             output_all_encoded_layers=output_all_encoded_layers,
             output_all_attention_masks=output_all_attention_masks,
         )
@@ -1554,8 +1529,6 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
         return logits
 
-
-
 class MultiModalBertForReferExpression(BertPreTrainedModel):
 
     def __init__(self, config, pretrained_weight=None):
@@ -1627,4 +1600,51 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
         
         logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
 
+        return logits
+
+
+class MultiModalBertForVCR(BertPreTrainedModel):
+    """Multi-modal BERT for the CVR classification task. This task is trivially similar to binary
+    VQA, where the caption is treated as a "question" and the goal is to answer whether the image
+    and caption match or not.
+
+    This module is composed of the Multi-modal BERT model with a linear layer on top of the pooled
+    outputs from visual and textual BERT.
+
+    Params:
+        `config`: a BertConfig class instance with the configuration to build a new model.
+        `num_labels`: the number of classes for the classifier. Default = 2.
+    """
+
+    def __init__(self, config: BertConfig, num_labels: int = 2):
+        super().__init__(config)
+        self.num_labels = num_labels
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.bi_hidden_size, 1)
+        self.apply(self.init_bert_weights)
+
+    def forward(
+        self,
+        input_txt,
+        input_imgs,
+        image_loc,
+        token_type_ids=None,
+        attention_mask=None,
+        image_attention_mask=None,
+        co_attention_mask=None,
+        output_all_encoded_layers=False,
+    ):
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
+            input_txt,
+            input_imgs,
+            image_loc,
+            token_type_ids,
+            attention_mask,
+            image_attention_mask,
+            co_attention_mask = co_attention_mask,
+            output_all_encoded_layers=output_all_encoded_layers,
+        )
+
+        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
         return logits
