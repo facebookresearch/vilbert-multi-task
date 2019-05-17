@@ -21,26 +21,25 @@ import logging
 import os
 import random
 from io import open
-
 import numpy as np
+
 from time import gmtime, strftime
 from timeit import default_timer as timer
+from bisect import bisect
 
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
-from bisect import bisect
 
 import torch
-import torch.nn.functional as F
-import torch.nn as nn
 
 from torch.utils.data import DataLoader
 
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
-from multimodal_bert.datasets import COCORetreivalDatasetTrain, COCORetreivalDatasetVal
+from multimodal_bert.datasets import VCRDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
+from torch.nn import CrossEntropyLoss
 import pdb
 
 logging.basicConfig(
@@ -50,28 +49,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def main():
     parser = argparse.ArgumentParser()
 
+    # Data files for FOIL task.
+    parser.add_argument("--features_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/VCR/VCR_resnet101_faster_rcnn_genome.h5")
+    parser.add_argument("--features_gt_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/VCR/VCR_gt_resnet101_faster_rcnn_genome.h5")
+
+    parser.add_argument(
+        "--instances-train-jsonpath", default="data/VCR/train.jsonl"
+    )
+    parser.add_argument(
+        "--instances-val-jsonpath", default="data/VCR/test.jsonl"
+    )
+
     # Required parameters
-    # Data files for VQA task.
-    parser.add_argument("--features_h5path", default="data/coco/coco_trainval.h5")
-    parser.add_argument(
-        "--train_file",
-        default="data/cocoRetreival/all_data_final_train_2014.jsonline",
-        type=str,
-        # required=True,
-        help="The input train corpus.",
-    )
-
-    parser.add_argument(
-        "--val_file",
-        default="data/cocoRetreival/all_data_final_val_set0_2014.jsonline",
-        type=str,
-        # required=True,
-        help="The input train corpus.",
-    )
-
     parser.add_argument(
         "--bert_model",
         default="bert-base-uncased",
@@ -92,7 +85,6 @@ def main():
         "--output_dir",
         default="save",
         type=str,
-        # required=True,
         help="The output directory where the model checkpoints will be written.",
     )
 
@@ -100,7 +92,6 @@ def main():
         "--config_file",
         default="config/bert_config.json",
         type=str,
-        # required=True,
         help="The config file which specified the model details.",
     )
     ## Other parameters
@@ -112,18 +103,17 @@ def main():
         "Sequences longer than this will be truncated, and sequences shorter \n"
         "than this will be padded.",
     )
-
     parser.add_argument("--use_location", action="store_true", help="whether use location.")
     parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
     parser.add_argument(
-        "--train_batch_size", default=128, type=int, help="Total batch size for training."
+        "--train_batch_size", default=30, type=int, help="Total batch size for training."
     )
     parser.add_argument(
         "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
-        default=50,
+        default=10,
         type=int,
         help="Total number of training epochs to perform.",
     )
@@ -146,7 +136,6 @@ def main():
     parser.add_argument(
         "--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus"
     )
-    
     parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
     parser.add_argument(
         "--gradient_accumulation_steps",
@@ -182,24 +171,16 @@ def main():
     parser.add_argument(
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
     )
-    parser.add_argument(
-        "--split", default='train', type=str, help="train or trainval."
-    )
-    parser.add_argument('--margin', default=0.2, type=float,
-                        help='Rank loss margin.')
-
-    parser.add_argument(
-        "--evaluate", action="store_true", help="Wheter directly evaluate."
-    )
 
     args = parser.parse_args()
-
+    
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
-        from multimodal_bert.bert import MultiModalBertForImageCaptionRetrieval
+        from multimodal_bert.bert import MultiModalBertForVCR
     else:
-        from multimodal_bert.multi_modal_bert import MultiModalBertForImageCaptionRetrieval, BertConfig
+        from multimodal_bert.multi_modal_bert import MultiModalBertForVCR, BertConfig
 
+    # Declare path to save checkpoints.
     print(args)
     if args.save_name is not '':
         timeStamp = args.save_name
@@ -254,30 +235,30 @@ def main():
             "Training is currently the only implemented execution option. Please set `do_train`."
         )
 
-    # if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-        # raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
-#
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    # train_examples = None
     num_train_optimization_steps = None
     if args.do_train:
 
-        viz = TBlogger("logs/" + timeStamp)
-
-        print("Loading Train Dataset", args.train_file)
-
+        viz = TBlogger("logs", timeStamp)
         tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=args.do_lower_case
         )
-        image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
-        train_dset = COCORetreivalDatasetTrain(args.train_file, image_features_reader, tokenizer)
-        eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
+        image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True, 36)
+        image_features_gt_reader = ImageFeaturesH5Reader(args.features_gt_h5path, True, 81)
+
+        train_dset = VCRDataset(
+            "train", args.instances_train_jsonpath, image_features_reader, image_features_gt_reader, tokenizer
+        )
+
+        train_dset = VCRDataset(
+            "test", args.instances_val_jsonpath, image_features_reader, image_features_gt_reader, tokenizer
+        )
 
         num_train_optimization_steps = (
-            int(len(eval_dset) / args.train_batch_size / args.gradient_accumulation_steps)
+            int(len(train_dset) / args.train_batch_size / args.gradient_accumulation_steps)
             * args.num_train_epochs
         )
         if args.local_rank != -1:
@@ -285,15 +266,15 @@ def main():
                 num_train_optimization_steps // torch.distributed.get_world_size()
             )
 
-    # num_labels = 3000
+    config = BertConfig.from_json_file(args.config_file)
+
+    num_labels = 2
     if args.from_pretrained:
-        model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
-            args.pretrained_weight, config
+        model = MultiModalBertForVCR.from_pretrained(
+            args.pretrained_weight, config, num_labels=num_labels
         )
     else:
-        model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
-            args.bert_model, config
-        )
+        model = MultiModalBertForVCR(config, num_labels)
 
     if args.fp16:
         model.half()
@@ -309,7 +290,7 @@ def main():
         model = torch.nn.DataParallel(model)
 
     model.cuda()
-    # pdb.set_trace()
+
     # Prepare optimizer
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 
@@ -337,12 +318,12 @@ def main():
 
                 if any(nd in key for nd in no_decay):
                     optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr}
+                        {"params": [value], "lr": lr, "weight_decay": 0.01}
                     ]
 
                 if not any(nd in key for nd in no_decay):
                     optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr}
+                        {"params": [value], "lr": lr, "weight_decay": 0.0}
                     ]
 
     # set different parameters for vision branch and lanugage branch.
@@ -365,21 +346,27 @@ def main():
             optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
         else:
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
-            warmup_linear = WarmupLinearSchedule(warmup=args.warmup_proportion,
-                                                 t_total=num_train_optimization_steps)
+
     else:
         if args.from_pretrained:
-            optimizer = BertAdam(optimizer_grouped_parameters,
-                                 lr=args.learning_rate,
-                                 warmup=args.warmup_proportion,
-                                 t_total=num_train_optimization_steps)
-        else:
-            optimizer = BertAdam(optimizer_grouped_parameters,
-                                 lr=args.learning_rate,
-                                 warmup=args.warmup_proportion,
-                                 t_total=num_train_optimization_steps)
+            optimizer = BertAdam(
+                optimizer_grouped_parameters,
+                warmup=args.warmup_proportion,
+                t_total=num_train_optimization_steps,
+            )
 
-    criterion = torch.nn.MarginRankingLoss(margin = args.margin)
+            # optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
+
+        else:
+            optimizer = BertAdam(
+                optimizer_grouped_parameters,
+                lr=args.learning_rate,
+                warmup=args.warmup_proportion,
+                t_total=num_train_optimization_steps,
+            )
+
+    # lr_lambda = lambda x: lr_lambda_update(x)
+    # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
     if args.do_train:
         logger.info("***** Running training *****")
@@ -397,11 +384,13 @@ def main():
 
         eval_dataloader = DataLoader(
             eval_dset,
-            shuffle=False,
+            shuffle=True,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
-            pin_memory=False,
+            pin_memory=True,
         )
+
+        loss_fct = CrossEntropyLoss(ignore_index=-1)
 
         startIterID = 0
         global_step = 0
@@ -410,77 +399,68 @@ def main():
         next_sentence_loss_tmp = 0
         loss_tmp = 0
         start_t = timer()
-
-        if args.evaluate:
-            r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
-            print('finish evaluation, save result to %s' )
-            
-            val_name = args.val_file.split('/')[-1]
-            with open(os.path.join(savePath, val_name + '_result.txt'), 'w') as f:
-                print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr), file=f)
-
+        num_options = 4
         model.train()
-        for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
+
+        for epochId in range(args.num_train_epochs):
             total_loss = 0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
-            train_score = 0
             optimizer.zero_grad()
+            train_score = 0
 
-            iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataloader):
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-                features, spatials, image_mask, caption, input_mask, segment_ids = batch
-                
-                features = features.view(-1, features.size(2), features.size(3))
-                spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
-                image_mask = image_mask.view(-1, image_mask.size(2))
-                caption = caption.view(-1, caption.size(2))
+
+                features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask = batch
+
+                batch_size = features.size(0)
+                max_num_bbox = features.size(1)
+
+                features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
+                spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
+                image_mask = image_mask.unsqueeze(1).expand(batch_size, num_options, max_num_bbox).contiguous().view(-1, max_num_bbox)
+                input_ids = input_ids.view(-1, input_ids.size(2))
                 input_mask = input_mask.view(-1, input_mask.size(2))
                 segment_ids = segment_ids.view(-1, segment_ids.size(2))
+                co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-                logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-                logit = logit.view(-1,2)
-                target = logit.new(logit.size(0)).fill_(1)
-                loss = criterion(logit[:,0], logit[:,1], target)
-                # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
-                total_loss += loss.item()
+                pred = model(input_ids, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)                
+                pred = pred.view(batch_size, num_options)
 
-                if n_gpu > 1:
-                    loss = loss.mean()  # mean() to average on multi-gpu.
+                _, logits = torch.max(pred, 1)
+                train_score += (logits == target).sum()
+                loss = loss_fct(pred, target)
+
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 if args.fp16:
                     optimizer.backward(loss)
                 else:
                     loss.backward()
-                # print(loss)
-                # print(tr_loss)
+
                 viz.linePlot(iterId, loss.item(), "loss", "train")
-                # viz.linePlot(iterId, optimizer.get_lr()[0], 'learning_rate', 'train')
-
                 loss_tmp += loss.item()
+                total_loss += loss.item()
 
-                nb_tr_examples += caption.size(0)
+                nb_tr_examples += input_ids.size(0)
                 nb_tr_steps += 1
                 if (step + 1) % args.gradient_accumulation_steps == 0:
                     if args.fp16:
                         # modify learning rate with special warm up BERT uses
-                        # if args.fp16 is False, BertAdam is used that handles this automatically
                         lr_this_step = args.learning_rate * warmup_linear(
                             global_step / num_train_optimization_steps, args.warmup_proportion
                         )
                         for param_group in optimizer.param_groups:
                             param_group["lr"] = lr_this_step
-        
-                    nn.utils.clip_grad_norm_(model.parameters(), 0.25)
 
                     optimizer.step()
                     optimizer.zero_grad()
                     global_step += 1
 
                 # lr_scheduler.step(iterId)
+
                 if step % 20 == 0 and step != 0:
                     loss_tmp = loss_tmp / 20.0
 
@@ -493,7 +473,7 @@ def main():
                     printInfo = [
                         timeStamp,
                         Ep,
-                        iterId,
+                        nb_tr_steps,
                         end_t - start_t,
                         loss_tmp,
                     ]
@@ -503,10 +483,16 @@ def main():
 
                     loss_tmp = 0
 
-            # r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
+            train_score = 100 * train_score / len(train_dataloader.dataset)
             total_loss = total_loss / len(train_dataloader)
+
+            model.eval()
+            eval_loss, eval_score = evaluate(args, model, eval_dataloader)
+            model.train()
+
             logger.info("epoch %d" % (epochId))
-            logger.info("\ttrain_loss: %.2f" % (total_loss))
+            logger.info("\ttrain_loss: %.2f, score: %.2f" % (total_loss, train_score))
+            logger.info("\teval_loss: %.2f eval score: %.2f" % (eval_loss, 100 * eval_score))
 
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -520,46 +506,71 @@ def main():
             if args.do_train:
                 torch.save(model_to_save.state_dict(), output_model_file)
 
+
 class TBlogger:
-    def __init__(self, log_dir):
+    def __init__(self, log_dir, exp_name):
+        log_dir = log_dir + "/" + exp_name
         print("logging file at: " + log_dir)
         self.logger = SummaryWriter(log_dir=log_dir)
 
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
 
+
 def evaluate(args, model, dataloader):
-    score = 0
     total_loss = 0
     num_data = 0
-    count = 0
+    score = 0
+    foil_score = 0
+    ori_score = 0
+    foil_all = 0
+    ori_all = 0
 
-    score_matrix = torch.zeros(1000, 5000).cuda()
-    target_matrix = torch.zeros(1000, 5000).cuda()
-    model.eval()
-    for batch in tqdm(iter(dataloader)):
+    loss_fct = CrossEntropyLoss(ignore_index=-1)
+
+    for i, batch in enumerate(dataloader):
+    # for batch in iter(dataloader):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, caption, input_mask, segment_ids, target, image_idx, caption_idx = batch
 
+        features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask = batch
+
+        batch_size = features.size(0)
+        max_num_bbox = features.size(1)
+
+        features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
+        spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
+        image_mask = image_mask.unsqueeze(1).expand(batch_size, num_options, max_num_bbox).contiguous().view(-1, max_num_bbox)
+        input_ids = input_ids.view(-1, input_ids.size(2))
+        input_mask = input_mask.view(-1, input_mask.size(2))
+        segment_ids = segment_ids.view(-1, segment_ids.size(2))
+        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
+    
         with torch.no_grad():
-            logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-            score_matrix[image_idx, caption_idx] = logit.view(-1)
-            target_matrix[image_idx, caption_idx] = target.float()
+            pred = model(input_ids, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)                
+            pred = pred.view(batch_size, num_options)
 
-    # get the rank over image.
-    _, ind = torch.sort(score_matrix, dim=0)
-    rank = ind.masked_select(target_matrix.byte())
+        loss = loss_fct(pred, target)
+        _, logits = torch.max(pred, 1)
 
-    r1 = 100.0 * torch.sum(rank < 1).item() / 1000
-    r5 = 100.0 * torch.sum(rank < 5).item() / 1000
-    r10 = 100.0 * torch.sum(rank < 10).item() / 1000
+        score += (logits == target).sum().item()
 
-    medr = np.floor(rank.median().item() + 1)
-    meanr = rank.float().mean().item() + 1
+        total_loss += loss.item()
+        num_data += pred.size(0)
+        if i % 10 == 0:
+            print(i, end=' ')
 
-    print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr))
-    return r1, r5, r10, medr, meanr
+    return total_loss / float(len(dataloader)), score / float(num_data)
 
+def lr_lambda_update(i_iter):
+    warmup_iterations = 1000
+    warmup_factor = 0.2
+    lr_ratio = 0.1
+    lr_steps = [15000, 18000, 20000, 21000]
+    if i_iter <= warmup_iterations:
+        alpha = float(i_iter) / float(warmup_iterations)
+        return warmup_factor * (1.0 - alpha) + alpha
+    else:
+        idx = bisect([], i_iter)
+        return pow(lr_ratio, idx)
 if __name__ == "__main__":
-
     main()

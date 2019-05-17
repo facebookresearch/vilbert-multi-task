@@ -335,11 +335,11 @@ def evaluate(args, model, dataloader):
 
         with torch.no_grad():
             _, _, logit, _ = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-            score_matrix[image_idx, caption_idx] = logit.view(-1)
+            score_matrix[image_idx, caption_idx] = logit[:,0].view(-1)
             target_matrix[image_idx, caption_idx] = target.float()
 
     # get the rank over image.
-    _, ind = torch.sort(score_matrix, dim=0)
+    _, ind = torch.sort(-score_matrix, dim=0) # Note, here, the score higher is better.
     rank = ind.masked_select(target_matrix.byte())
 
     r1 = 100.0 * torch.sum(rank < 1).item() / 1000
