@@ -41,6 +41,7 @@ from pytorch_pretrained_bert import BertModel
 
 from multimodal_bert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
 from multimodal_bert.multi_modal_bert import BertForMultiModalPreTraining, BertConfig
+from parallel.data_parallel import DataParallel
 import pdb
 
 logging.basicConfig(
@@ -349,7 +350,7 @@ def main():
             )
         model = DDP(model)
     elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
+        model = DataParallel(model, use_chuncks=True)
         # model = torch.nn.parallel.DistributedDataParallel(model)
     model.cuda()
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
