@@ -593,20 +593,20 @@ def main():
                 input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask, image_ids = (
                     batch
                 )
-                
+
                 masked_loss_t, masked_loss_v, next_sentence_loss = model(
                     input_ids,
                     image_feat,
-                    image_target,
                     image_loc,
                     segment_ids,
                     input_mask,
                     image_mask,
                     lm_label_ids,
                     image_label,
+                    image_target,
                     is_next,
                 )
-
+                
                 masked_loss_v = masked_loss_v * args.img_weight
                 loss = masked_loss_t + masked_loss_v + next_sentence_loss
 

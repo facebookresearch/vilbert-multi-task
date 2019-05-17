@@ -1262,16 +1262,6 @@ class BertModel(BertPreTrainedModel):
                 input_imgs.size(0), input_imgs.size(1)
             ).type_as(input_txt)
 
-        if co_attention_mask is None:
-            token_type_ids = torch.zeros(input_txt.size(0), input_imgs.size(1), input_txt.size(1))           
-
-        extended_co_attention_mask = co_attention_mask.unsqueeze(1)
-        extended_co_attention_mask = extended_co_attention_mask * 10000.0
-
-        extended_co_attention_mask = extended_co_attention_mask.to(
-            dtype=next(self.parameters()).dtype
-        )  # fp16 compatibility
-
         # image_attention_mask_first = torch.ones(input_imgs.size(0), 1).type_as(image_attention_mask)
         # image_attention_mask = torch.cat((image_attention_mask_first, image_attention_mask), dim=1)
         # We create a 3D attention mask from a 2D tensor mask.
@@ -1296,6 +1286,17 @@ class BertModel(BertPreTrainedModel):
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
         extended_image_attention_mask = (1.0 - extended_image_attention_mask) * -10000.0
+
+        if co_attention_mask is None:
+            co_attention_mask = torch.zeros(input_txt.size(0), input_imgs.size(1), input_txt.size(1)).type_as(extended_image_attention_mask)         
+
+        extended_co_attention_mask = co_attention_mask.unsqueeze(1)
+        extended_co_attention_mask = extended_co_attention_mask * 10000.0
+
+        extended_co_attention_mask = extended_co_attention_mask.to(
+            dtype=next(self.parameters()).dtype
+        )  # fp16 compatibility
+
 
         embedding_output = self.embeddings(input_txt, token_type_ids)
         v_embedding_output = self.v_embeddings(input_imgs, image_loc)

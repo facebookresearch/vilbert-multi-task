@@ -73,8 +73,9 @@ class VCRDataset(Dataset):
 
         self._padding_index = padding_index
         self._max_caption_length = max_caption_length
-        self._max_region_num = 100
+        self._max_region_num = 60
 
+        pdb.set_trace()
         self._names = []
         with open('data/VCR/unisex_names_table.csv') as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
@@ -239,7 +240,7 @@ class VCRDataset(Dataset):
         mix_boxes = np.concatenate((gt_boxes, boxes), axis=0)
         mix_features = np.concatenate((gt_features, features), axis=0)
         mix_num_boxes = min(int(num_boxes + int(gt_num_boxes)), self._max_region_num)
-
+        
         image_mask = [1] * (mix_num_boxes)
         while len(image_mask) < self._max_region_num:
             image_mask.append(0)
@@ -247,8 +248,8 @@ class VCRDataset(Dataset):
         mix_boxes_pad = np.zeros((self._max_region_num, 5))
         mix_features_pad = np.zeros((self._max_region_num, 2048))
 
-        mix_boxes_pad[:mix_num_boxes] = mix_boxes
-        mix_features_pad[:mix_num_boxes] = mix_features
+        mix_boxes_pad[:mix_num_boxes] = mix_boxes[:mix_num_boxes]
+        mix_features_pad[:mix_num_boxes] = mix_features[:mix_num_boxes]
 
         # appending the target feature.
         features = torch.tensor(mix_features_pad).float()

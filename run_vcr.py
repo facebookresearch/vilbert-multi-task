@@ -61,9 +61,9 @@ def main():
         "--instances-train-jsonpath", default="data/VCR/train.jsonl"
     )
     parser.add_argument(
-        "--instances-val-jsonpath", default="data/VCR/test.jsonl"
+        "--instances-val-jsonpath", default="data/VCR/val.jsonl"
     )
-
+    
     # Required parameters
     parser.add_argument(
         "--bert_model",
@@ -97,7 +97,7 @@ def main():
     ## Other parameters
     parser.add_argument(
         "--max_seq_length",
-        default=30,
+        default=40,
         type=int,
         help="The maximum total input sequence length after WordPiece tokenization. \n"
         "Sequences longer than this will be truncated, and sequences shorter \n"
@@ -250,11 +250,22 @@ def main():
         image_features_gt_reader = ImageFeaturesH5Reader(args.features_gt_h5path, True, 81)
 
         train_dset = VCRDataset(
-            "train", args.instances_train_jsonpath, image_features_reader, image_features_gt_reader, tokenizer
+            "train", 
+            args.instances_train_jsonpath, 
+            image_features_reader, 
+            image_features_gt_reader, 
+            tokenizer,
+            max_caption_length=args.max_seq_length,
         )
 
-        train_dset = VCRDataset(
-            "test", args.instances_val_jsonpath, image_features_reader, image_features_gt_reader, tokenizer
+        eval_dset = VCRDataset(
+            "val", 
+            args.instances_val_jsonpath, 
+            image_features_reader, 
+            image_features_gt_reader, 
+            tokenizer,
+            max_caption_length=args.max_seq_length,
+
         )
 
         num_train_optimization_steps = (
@@ -459,8 +470,6 @@ def main():
                     optimizer.zero_grad()
                     global_step += 1
 
-                # lr_scheduler.step(iterId)
-
                 if step % 20 == 0 and step != 0:
                     loss_tmp = loss_tmp / 20.0
 
@@ -525,15 +534,11 @@ def evaluate(args, model, dataloader):
     ori_score = 0
     foil_all = 0
     ori_all = 0
-
     loss_fct = CrossEntropyLoss(ignore_index=-1)
-
     for i, batch in enumerate(dataloader):
     # for batch in iter(dataloader):
         batch = tuple(t.cuda() for t in batch)
-
         features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask = batch
-
         batch_size = features.size(0)
         max_num_bbox = features.size(1)
 
