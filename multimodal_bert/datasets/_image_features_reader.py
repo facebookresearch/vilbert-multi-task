@@ -31,10 +31,11 @@ class ImageFeaturesH5Reader(object):
         RAM - trade-off between speed and memory.
     """
 
-    def __init__(self, features_h5path: str, in_memory: bool = False):
+    def __init__(self, features_h5path: str, in_memory: bool = False, max_num_box: int = 36):
         self.features_h5path = features_h5path
         self._in_memory = in_memory
-        
+        self._max_num_box = max_num_box
+
         with h5py.File(self.features_h5path, "r") as features_h5:
             self._image_ids = list(features_h5["image_ids"])
             # "features" is List[np.ndarray] if the dataset is loaded in-memory
@@ -47,7 +48,7 @@ class ImageFeaturesH5Reader(object):
     def __len__(self):
         return len(self._image_ids)
 
-    def __getitem__(self, image_id: int):
+    def __getitem__(self, image_id):
         index = self._image_ids.index(image_id)
         if self._in_memory:
             # Load features during first epoch, all not loaded together as it
@@ -72,7 +73,7 @@ class ImageFeaturesH5Reader(object):
 
                     self.features[index] = features
 
-                    image_location = np.zeros((36, 5), dtype=np.float32)
+                    image_location = np.zeros((self._max_num_box, 5), dtype=np.float32)
                     image_location[:,:4] = boxes
                     image_location[:,4] = (image_location[:,3] - image_location[:,1]) * (image_location[:,2] - image_location[:,0]) / (float(image_w) * float(image_h))
 
@@ -105,7 +106,7 @@ class ImageFeaturesH5Reader(object):
                 image_w = features_h5["image_w"][index]
                 image_h = features_h5["image_h"][index]
 
-                image_location = np.zeros((36, 5), dtype=np.float32)
+                image_location = np.zeros((self._max_num_box, 5), dtype=np.float32)
                 image_location[:,:4] = boxes
                 image_location[:,4] = (image_location[:,3] - image_location[:,1]) * (image_location[:,2] - image_location[:,0]) / (float(image_w) * float(image_h))
 
