@@ -267,17 +267,8 @@ def main():
         )
         image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
-        train_dset = COCORetreivalDatasetTrain(args.train_file, image_features_reader_train, tokenizer)
         eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
 
-        num_train_optimization_steps = (
-            int(len(eval_dset) / args.train_batch_size / args.gradient_accumulation_steps)
-            * args.num_train_epochs
-        )
-        if args.local_rank != -1:
-            num_train_optimization_steps = (
-                num_train_optimization_steps // torch.distributed.get_world_size()
-            )
 
     # num_labels = 3000
     if args.from_pretrained:
@@ -303,113 +294,31 @@ def main():
         model = torch.nn.DataParallel(model)
 
     model.cuda()
-    # pdb.set_trace()
-    # Prepare optimizer
-    no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
+    logger.info("***** Running training *****")
+    logger.info("  Num examples = %d", len(eval_dset))
+    logger.info("  Batch size = %d", args.train_batch_size)
 
-    if not args.from_pretrained:
-        param_optimizer = list(model.named_parameters())
-        optimizer_grouped_parameters = [
-            {
-                "params": [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-                "weight_decay": 0.01,
-            },
-            {
-                "params": [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
-                "weight_decay": 0.0,
-            },
-        ]
-    else:
-        bert_weight_name = json.load(open("config/bert_weight_name.json", "r"))
-        optimizer_grouped_parameters = []
-        for key, value in dict(model.named_parameters()).items():
-            if value.requires_grad:
-                if key[12:] in bert_weight_name:
-                    lr = args.learning_rate
-                else:
-                    lr = args.learning_rate
+    eval_dataloader = DataLoader(
+        eval_dset,
+        shuffle=False,
+        batch_size=args.train_batch_size,
+        num_workers=args.num_workers,
+        pin_memory=False,
+    )
 
-                if any(nd in key for nd in no_decay):
-                    optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr}
-                    ]
+    startIterID = 0
+    global_step = 0
+    masked_loss_v_tmp = 0
+    masked_loss_t_tmp = 0
+    next_sentence_loss_tmp = 0
+    loss_tmp = 0
 
-                if not any(nd in key for nd in no_decay):
-                    optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr}
-                    ]
-
-    # set different parameters for vision branch and lanugage branch.
-    if args.fp16:
-        try:
-            from apex.optimizers import FP16_Optimizer
-            from apex.optimizers import FusedAdam
-        except ImportError:
-            raise ImportError(
-                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
-            )
-
-        optimizer = FusedAdam(
-            optimizer_grouped_parameters,
-            lr=args.learning_rate,
-            bias_correction=False,
-            max_grad_norm=1.0,
-        )
-        if args.loss_scale == 0:
-            optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
-        else:
-            optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
-            warmup_linear = WarmupLinearSchedule(warmup=args.warmup_proportion,
-                                                 t_total=num_train_optimization_steps)
-    else:
-        if args.from_pretrained:
-            optimizer = BertAdam(optimizer_grouped_parameters,
-                                 lr=args.learning_rate,
-                                 warmup=args.warmup_proportion,
-                                 t_total=num_train_optimization_steps)
-        else:
-            optimizer = BertAdam(optimizer_grouped_parameters,
-                                 lr=args.learning_rate,
-                                 warmup=args.warmup_proportion,
-                                 t_total=num_train_optimization_steps)
-
-    criterion = torch.nn.MarginRankingLoss(margin = args.margin)
-
-    if args.do_train:
-        logger.info("***** Running training *****")
-        logger.info("  Num examples = %d", len(train_dset))
-        logger.info("  Batch size = %d", args.train_batch_size)
-        logger.info("  Num steps = %d", num_train_optimization_steps)
-
-        train_dataloader = DataLoader(
-            train_dset,
-            shuffle=True,
-            batch_size=args.train_batch_size,
-            num_workers=args.num_workers,
-            pin_memory=True,
-        )
-
-        eval_dataloader = DataLoader(
-            eval_dset,
-            shuffle=False,
-            batch_size=args.train_batch_size,
-            num_workers=args.num_workers,
-            pin_memory=False,
-        )
-
-        startIterID = 0
-        global_step = 0
-        masked_loss_v_tmp = 0
-        masked_loss_t_tmp = 0
-        next_sentence_loss_tmp = 0
-        loss_tmp = 0
-
-        r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
-        print('finish evaluation, save result to %s' )
-        
-        val_name = args.val_file.split('/')[-1]
-        with open(os.path.join(savePath, val_name + '_result.txt'), 'w') as f:
-            print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr), file=f)
+    r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
+    print('finish evaluation, save result to %s' )
+    
+    val_name = args.val_file.split('/')[-1]
+    with open(os.path.join(savePath, val_name + '_result.txt'), 'w') as f:
+        print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr), file=f)
 
 def evaluate(args, model, dataloader):
     score = 0
