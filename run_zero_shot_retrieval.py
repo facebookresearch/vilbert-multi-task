@@ -21,6 +21,7 @@ import logging
 import os
 import random
 from io import open
+import sys
 
 import numpy as np
 from time import gmtime, strftime
@@ -42,7 +43,7 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 from multimodal_bert.datasets import COCORetreivalDatasetTrain, COCORetreivalDatasetVal
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 
-from multimodal_bert.multi_modal_bert import BertForMultiModalPreTraining, BertConfig
+from multimodal_bert.multi_modal_bert_fast_retrieval import BertForMultiModalPreTraining, BertConfig
 import pdb
 
 logging.basicConfig(
@@ -301,7 +302,7 @@ def main():
     eval_dataloader = DataLoader(
         eval_dset,
         shuffle=False,
-        batch_size=args.train_batch_size,
+        batch_size=1,
         num_workers=args.num_workers,
         pin_memory=False,
     )
@@ -326,19 +327,31 @@ def evaluate(args, model, dataloader):
     num_data = 0
     count = 0
 
-    score_matrix = torch.zeros(1000, 5000).cuda()
-    target_matrix = torch.zeros(1000, 5000).cuda()
+    score_matrix = np.zeros((5000, 1000))
+    target_matrix = np.zeros((5000, 1000))
     model.eval()
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, caption, input_mask, segment_ids, target, image_idx, caption_idx = batch
+        features, spatials, image_mask, caption, input_mask, segment_ids, target, caption_idx, image_idx = batch
+
+        features = features.squeeze(0)
+        spatials = spatials.squeeze(0)
+        image_mask = image_mask.squeeze(0)
 
         with torch.no_grad():
             _, _, logit, _ = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-            score_matrix[image_idx, caption_idx] = logit[:,0].view(-1)
-            target_matrix[image_idx, caption_idx] = target.float()
+            score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = logit[:,0].view(-1).cpu().numpy()
+            target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.float().cpu().numpy()
+            
+        count += 1
+        sys.stdout.write('%d/%d\r' % (count, 10000))
+        sys.stdout.flush()
 
-    # get the rank over image.
+    # get the rank over image
+
+    score_matrix = torch.Tensor(score_matrix)
+    target_matrix = torch.Tensor(target_matrix)
+
     _, ind = torch.sort(-score_matrix, dim=0) # Note, here, the score higher is better.
     rank = ind.masked_select(target_matrix.byte())
 

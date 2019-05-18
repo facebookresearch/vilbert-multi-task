@@ -11,6 +11,7 @@ import _pickle as cPickle
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from ._image_features_reader import ImageFeaturesH5Reader
 import jsonlines
+import sys
 
 import pdb
 def assert_eq(real, expected):
@@ -187,16 +188,18 @@ def _load_annotationsVal(annotations_jsonpath):
     with jsonlines.open(annotations_jsonpath) as reader:
 
         # Build an index which maps image id with a list of caption annotations.
-        image_entries = []
+        image_entries = {}
         caption_entries = []
         target_entries = {}
 
         for annotation in reader:
             image_id = annotation['id']
-            image_entries.append(image_id)
+            image_entries[image_id] = 1
 
             for sentences in annotation['sentences']:
                 caption_entries.append({"caption": sentences, 'image_id':image_id})
+
+    image_entries = [*image_entries]
 
     return image_entries, caption_entries
 
@@ -228,6 +231,28 @@ class COCORetreivalDatasetVal(Dataset):
         # else:
             # print('loading entries from %s' %(cap_cache_path))
             # self._entries = cPickle.load(open(cap_cache_path, "rb"))
+# 
+        self.features_all = np.zeros((1000, 37, 2048))
+        self.spatials_all = np.zeros((1000, 37, 5))
+        self.image_mask_all = np.zeros((1000, 37))
+
+        for i, image_id in enumerate(self._image_entries):
+            features, num_boxes, boxes, _ = self._image_features_reader[image_id]
+            image_mask = [1] * (int(num_boxes))
+
+            while len(image_mask) < 37:
+                image_mask.append(0)
+
+            self.features_all[i] = features
+            self.image_mask_all[i] = np.array(image_mask)
+            self.spatials_all[i] = boxes
+
+            sys.stdout.write('%d/%d\r' % (i, len(self._image_entries)))
+            sys.stdout.flush()
+
+        self.features_all = torch.Tensor(self.features_all).float()
+        self.image_mask_all = torch.Tensor(self.image_mask_all).long()
+        self.spatials_all = torch.Tensor(self.spatials_all).float()
 
     def tokenize(self):
         """Tokenizes the captions.
@@ -272,34 +297,33 @@ class COCORetreivalDatasetVal(Dataset):
 
     def __getitem__(self, index):
 
-        # we iterate through every image and captions here.
-        image_idx = int(index / len(self._caption_entries))
-        caption_idx = int(index % len(self._caption_entries))
+        # we iterate through every caption here.
+        caption_idx = int(index / 2)
+        image_idx = index % 2
 
-        # pdb.set_trace()
-        entry = self._caption_entries[caption_idx]
-        image_id = self._image_entries[image_idx* 5] # since each image has 5 captions
+        if image_idx == 0:
+            image_entries = self._image_entries[:500]
+            features_all = self.features_all[:500]
+            spatials_all = self.spatials_all[:500]
+            image_mask_all = self.image_mask_all[:500]
 
-        target = 0
-        if image_id == entry["image_id"]:
-            target = 1
+        else:
+            image_entries = self._image_entries[500:]
+            features_all = self.features_all[500:]
+            spatials_all = self.spatials_all[500:]
+            image_mask_all = self.image_mask_all[500:]
 
-        features, num_boxes, boxes, _ = self._image_features_reader[image_id]
-        image_mask = [1] * (int(num_boxes))
-
-        while len(image_mask) < 37:
-            image_mask.append(0)
-
-        features = torch.tensor(features).float()
-        image_mask = torch.tensor(image_mask).long()
-        spatials = torch.tensor(boxes).float()
-
+        entry = self._caption_entries[index]
         caption = entry["token"]
         input_mask = entry["input_mask"]
         segment_ids = entry["segment_ids"]
 
+        target_all = torch.zeros(500)
+        for i, image_id in enumerate(image_entries):
+            if image_id == entry["image_id"]:
+                target_all[i] = 1
 
-        return features, spatials, image_mask, caption, input_mask, segment_ids, target, image_idx, caption_idx
+        return features_all, spatials_all, image_mask_all, caption, input_mask, segment_ids, target_all, caption_idx, image_idx
 
     def __len__(self):
-        return int(len(self._caption_entries) * len(self._image_entries) / 5)
+        return len(self._caption_entries) * 2
