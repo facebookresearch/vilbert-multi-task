@@ -37,6 +37,8 @@ from torch.utils.data import DataLoader
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
+from parallel.data_parallel import DataParallel
+
 from multimodal_bert.datasets import VCRDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 from torch.nn import CrossEntropyLoss
@@ -298,7 +300,7 @@ def main():
             )
         model = DDP(model)
     elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
+        model = DataParallel(model, use_chuncks=True)
 
     model.cuda()
 
@@ -541,6 +543,7 @@ def evaluate(args, model, dataloader):
         features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask = batch
         batch_size = features.size(0)
         max_num_bbox = features.size(1)
+        num_options = 4
 
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
         spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)

@@ -30,7 +30,6 @@ def _load_annotations(annotations_jsonpath):
         for annotation in reader:
             image_id = annotation['id']
             imgid2entry[image_id] = []
-
             for sentences in annotation['sentences']:
                 entries.append({"caption": sentences, 'image_id':image_id})
                 imgid2entry[image_id].append(count)
@@ -51,6 +50,8 @@ class COCORetreivalDatasetTrain(Dataset):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
 
         self._entries, self.imgid2entry = _load_annotations(annotations_jsonpath)
+        self.image_id_list = [*self.imgid2entry]
+
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
 
@@ -126,58 +127,80 @@ class COCORetreivalDatasetTrain(Dataset):
         while len(image_mask) < 37:
             image_mask.append(0)
 
-        features = torch.tensor(features).float()
-        image_mask = torch.tensor(image_mask).long()
-        spatials = torch.tensor(boxes).float()
+        features1 = torch.tensor(features).float()
+        image_mask1 = torch.tensor(image_mask).long()
+        spatials1 = torch.tensor(boxes).float()
 
-        caption = entry["token"]
-        input_mask = entry["input_mask"]
-        segment_ids = entry["segment_ids"]
+        caption1 = entry["token"]
+        input_mask1 = entry["input_mask"]
+        segment_ids1 = entry["segment_ids"]
 
+        # negative samples.
+        # 1: correct one, 2: random caption wrong, 3: random image wrong. 4: hard image wrong.
+        
+        while True:
+            # sample a random image:
+            img_id2 = random.choice(self.image_id_list)
+            if img_id2 != image_id: break
 
-        if random.random() < 0.7:
-            rand_img_id_pool = self.train_hard_pool[self.train_imgId2pool[image_id]]
-            pool_img_idx = int(rand_img_id_pool[np.random.randint(1, len(rand_img_id_pool))])
-            img_id = self.train_image_list[pool_img_idx]
-            if random.random() < 0.5:
-                rand_features, rand_num_boxes, rand_boxes, _ = self._image_features_reader[img_id]
-                rand_image_mask = [1] * (int(rand_num_boxes))
-                while len(rand_image_mask) < 37:
-                    rand_image_mask.append(0)
-                rand_features = torch.tensor(rand_features).float()
-                rand_image_mask = torch.tensor(rand_image_mask).long()
-                rand_spatials = torch.tensor(rand_boxes).float()
+        entry2 = self._entries[random.choice(self.imgid2entry[img_id2])]
 
-                rand_caption = caption
-                rand_input_mask = input_mask
-                rand_segment_ids = segment_ids
-            else:
-                rand_entry = self._entries[random.choice(self.imgid2entry[img_id])]
-                rand_caption = rand_entry["token"]
-                rand_input_mask = rand_entry["input_mask"]
-                rand_segment_ids = rand_entry["segment_ids"]
+        features2 = features1
+        image_mask2 = image_mask1
+        spatials2 = spatials1
+        caption2 = entry2["token"]
+        input_mask2 = entry2["input_mask"]
+        segment_ids2 = entry2["segment_ids"]        
 
-                rand_features = features
-                rand_image_mask = image_mask
-                rand_spatials = spatials         
-        else:
-            # same feature, grab a random caption.
-            rand_entry = self._entries[np.random.randint(len(self._entries)-1)]
-            rand_caption = rand_entry["token"]
-            rand_input_mask = rand_entry["input_mask"]
-            rand_segment_ids = rand_entry["segment_ids"]
-            rand_features = features
-            rand_image_mask = image_mask
-            rand_spatials = spatials      
+        # random image wrong
+        while True:
+            # sample a random image:
+            img_id3 = random.choice(self.image_id_list)
+            if img_id3 != image_id: break        
 
-        features = torch.stack((features, rand_features), dim=0)
-        spatials = torch.stack((spatials, rand_spatials), dim=0)
-        image_mask = torch.stack((image_mask, rand_image_mask), dim=0)
-        caption = torch.stack((caption, rand_caption), dim=0)
-        input_mask = torch.stack((input_mask, rand_input_mask), dim=0)
-        segment_ids = torch.stack((segment_ids, rand_segment_ids), dim=0)
+        features3, num_boxes3, boxes3, _ = self._image_features_reader[img_id3]
+        image_mask3 = [1] * (int(num_boxes3))
 
-        return features, spatials, image_mask, caption, input_mask, segment_ids
+        while len(image_mask3) < 37:
+            image_mask3.append(0)        
+
+        features3 = torch.tensor(features3).float()
+        image_mask3 = torch.tensor(image_mask3).long()
+        spatials3 = torch.tensor(boxes3).float()
+
+        caption3 = caption1
+        input_mask3 = input_mask1
+        segment_ids3 = segment_ids1
+
+        # random hard image.
+        rand_img_id_pool = self.train_hard_pool[self.train_imgId2pool[image_id]]
+        pool_img_idx = int(rand_img_id_pool[np.random.randint(1, len(rand_img_id_pool))])
+        img_id4 = self.train_image_list[pool_img_idx]
+
+        features4, num_boxes4, boxes4, _ = self._image_features_reader[img_id4]
+        image_mask4 = [1] * (int(num_boxes4))
+
+        while len(image_mask4) < 37:
+            image_mask4.append(0)
+        
+        features4 = torch.tensor(features4).float()
+        image_mask4 = torch.tensor(image_mask4).long()
+        spatials4 = torch.tensor(boxes4).float()
+
+        caption4 = caption1
+        input_mask4 = input_mask1
+        segment_ids4 = segment_ids1
+
+        features = torch.stack([features1, features2, features3, features4], dim=0)
+        spatials = torch.stack([spatials1, spatials2, spatials3, spatials4], dim=0)
+        image_mask = torch.stack([image_mask1, image_mask2, image_mask3, image_mask4], dim=0)
+        caption = torch.stack([caption1, caption2, caption3, caption4], dim=0)
+        input_mask = torch.stack([input_mask1, input_mask2, input_mask3, input_mask4], dim=0)
+        segment_ids = torch.stack([segment_ids1, segment_ids2, segment_ids3, segment_ids4], dim=0)
+
+        target = 0
+
+        return features, spatials, image_mask, caption, input_mask, segment_ids, target
 
     def __len__(self):
         return len(self._entries)
@@ -313,7 +336,7 @@ class COCORetreivalDatasetVal(Dataset):
             spatials_all = self.spatials_all[500:]
             image_mask_all = self.image_mask_all[500:]
 
-        entry = self._caption_entries[index]
+        entry = self._caption_entries[caption_idx]
         caption = entry["token"]
         input_mask = entry["input_mask"]
         segment_ids = entry["segment_ids"]

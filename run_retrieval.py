@@ -41,6 +41,8 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from multimodal_bert.datasets import COCORetreivalDatasetTrain, COCORetreivalDatasetVal
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
+from parallel.data_parallel import DataParallel
+
 import pdb
 
 logging.basicConfig(
@@ -59,14 +61,6 @@ def main():
     parser.add_argument(
         "--train_file",
         default="data/cocoRetreival/all_data_final_train_2014.jsonline",
-        type=str,
-        # required=True,
-        help="The input train corpus.",
-    )
-
-    parser.add_argument(
-        "--val_file",
-        default="data/cocoRetreival/all_data_final_val_set0_2014.jsonline",
         type=str,
         # required=True,
         help="The input train corpus.",
@@ -116,14 +110,14 @@ def main():
     parser.add_argument("--use_location", action="store_true", help="whether use location.")
     parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
     parser.add_argument(
-        "--train_batch_size", default=128, type=int, help="Total batch size for training."
+        "--train_batch_size", default=30, type=int, help="Total batch size for training."
     )
     parser.add_argument(
         "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
-        default=50,
+        default=30,
         type=int,
         help="Total number of training epochs to perform.",
     )
@@ -184,12 +178,6 @@ def main():
     )
     parser.add_argument(
         "--split", default='train', type=str, help="train or trainval."
-    )
-    parser.add_argument('--margin', default=0.2, type=float,
-                        help='Rank loss margin.')
-
-    parser.add_argument(
-        "--evaluate", action="store_true", help="Wheter directly evaluate."
     )
 
     args = parser.parse_args()
@@ -274,10 +262,9 @@ def main():
         image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
         train_dset = COCORetreivalDatasetTrain(args.train_file, image_features_reader, tokenizer)
-        eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
 
         num_train_optimization_steps = (
-            int(len(eval_dset) / args.train_batch_size / args.gradient_accumulation_steps)
+            int(len(train_dset) / args.train_batch_size / args.gradient_accumulation_steps)
             * args.num_train_epochs
         )
         if args.local_rank != -1:
@@ -306,7 +293,7 @@ def main():
             )
         model = DDP(model)
     elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
+        model = DataParallel(model, use_chuncks=True)
 
     model.cuda()
     # pdb.set_trace()
@@ -379,7 +366,7 @@ def main():
                                  warmup=args.warmup_proportion,
                                  t_total=num_train_optimization_steps)
 
-    criterion = torch.nn.MarginRankingLoss(margin = args.margin)
+    loss_fct = torch.nn.CrossEntropyLoss()
 
     if args.do_train:
         logger.info("***** Running training *****")
@@ -395,14 +382,6 @@ def main():
             pin_memory=True,
         )
 
-        eval_dataloader = DataLoader(
-            eval_dset,
-            shuffle=False,
-            batch_size=args.train_batch_size,
-            num_workers=args.num_workers,
-            pin_memory=False,
-        )
-
         startIterID = 0
         global_step = 0
         masked_loss_v_tmp = 0
@@ -410,14 +389,6 @@ def main():
         next_sentence_loss_tmp = 0
         loss_tmp = 0
         start_t = timer()
-
-        if args.evaluate:
-            r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
-            print('finish evaluation, save result to %s' )
-            
-            val_name = args.val_file.split('/')[-1]
-            with open(os.path.join(savePath, val_name + '_result.txt'), 'w') as f:
-                print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr), file=f)
 
         model.train()
         for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
@@ -431,7 +402,7 @@ def main():
             for step, batch in enumerate(train_dataloader):
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-                features, spatials, image_mask, caption, input_mask, segment_ids = batch
+                features, spatials, image_mask, caption, input_mask, segment_ids, target = batch
                 
                 features = features.view(-1, features.size(2), features.size(3))
                 spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
@@ -441,9 +412,8 @@ def main():
                 segment_ids = segment_ids.view(-1, segment_ids.size(2))
 
                 logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-                logit = logit.view(-1,2)
-                target = logit.new(logit.size(0)).fill_(1)
-                loss = criterion(logit[:,0], logit[:,1], target)
+                logit = logit.view(-1,4)
+                loss = loss_fct(logit, target)
                 # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
                 total_loss += loss.item()
 
@@ -527,38 +497,6 @@ class TBlogger:
 
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
-
-def evaluate(args, model, dataloader):
-    score = 0
-    total_loss = 0
-    num_data = 0
-    count = 0
-
-    score_matrix = torch.zeros(1000, 5000).cuda()
-    target_matrix = torch.zeros(1000, 5000).cuda()
-    model.eval()
-    for batch in tqdm(iter(dataloader)):
-        batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, caption, input_mask, segment_ids, target, image_idx, caption_idx = batch
-
-        with torch.no_grad():
-            logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-            score_matrix[image_idx, caption_idx] = logit.view(-1)
-            target_matrix[image_idx, caption_idx] = target.float()
-
-    # get the rank over image.
-    _, ind = torch.sort(score_matrix, dim=0)
-    rank = ind.masked_select(target_matrix.byte())
-
-    r1 = 100.0 * torch.sum(rank < 1).item() / 1000
-    r5 = 100.0 * torch.sum(rank < 5).item() / 1000
-    r10 = 100.0 * torch.sum(rank < 10).item() / 1000
-
-    medr = np.floor(rank.median().item() + 1)
-    meanr = rank.float().mean().item() + 1
-
-    print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr))
-    return r1, r5, r10, medr, meanr
 
 if __name__ == "__main__":
 

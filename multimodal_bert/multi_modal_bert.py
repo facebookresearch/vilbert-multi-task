@@ -1329,12 +1329,8 @@ class BertImageEmbeddings(nn.Module):
     """
     def __init__(self, config):
         super(BertImageEmbeddings, self).__init__()
-        # self.image_embeddings = nn.Linear(config.v_feature_size, config.v_hidden_size)
+
         self.image_location_embeddings = nn.Linear(5, config.v_hidden_size)
-
-        # self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size, padding_idx=0)
-        # self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.v_hidden_size, padding_idx=0)
-
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
         self.LayerNorm = BertLayerNorm(config.v_hidden_size, eps=1e-12)
@@ -1605,6 +1601,53 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
 
 
 class MultiModalBertForVCR(BertPreTrainedModel):
+    """Multi-modal BERT for the CVR classification task. This task is trivially similar to binary
+    VQA, where the caption is treated as a "question" and the goal is to answer whether the image
+    and caption match or not.
+
+    This module is composed of the Multi-modal BERT model with a linear layer on top of the pooled
+    outputs from visual and textual BERT.
+
+    Params:
+        `config`: a BertConfig class instance with the configuration to build a new model.
+        `num_labels`: the number of classes for the classifier. Default = 2.
+    """
+
+    def __init__(self, config: BertConfig, num_labels: int = 2):
+        super().__init__(config)
+        self.num_labels = num_labels
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.bi_hidden_size, 1)
+        self.apply(self.init_bert_weights)
+
+    def forward(
+        self,
+        input_txt,
+        input_imgs,
+        image_loc,
+        token_type_ids=None,
+        attention_mask=None,
+        image_attention_mask=None,
+        co_attention_mask=None,
+        output_all_encoded_layers=False,
+    ):
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
+            input_txt,
+            input_imgs,
+            image_loc,
+            token_type_ids,
+            attention_mask,
+            image_attention_mask,
+            co_attention_mask = co_attention_mask,
+            output_all_encoded_layers=output_all_encoded_layers,
+        )
+
+        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
+        return logits
+
+
+class MultiModalBertForVisDial(BertPreTrainedModel):
     """Multi-modal BERT for the CVR classification task. This task is trivially similar to binary
     VQA, where the caption is treated as a "question" and the goal is to answer whether the image
     and caption match or not.

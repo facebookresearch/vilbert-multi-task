@@ -44,6 +44,8 @@ from multimodal_bert.datasets import COCORetreivalDatasetTrain, COCORetreivalDat
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 
 from multimodal_bert.multi_modal_bert_fast_retrieval import BertForMultiModalPreTraining, BertConfig
+from multimodal_bert.multi_modal_bert_fast_retrieval import MultiModalBertForImageCaptionRetrieval
+
 import pdb
 
 logging.basicConfig(
@@ -195,6 +197,10 @@ def main():
         "--evaluate", action="store_true", help="Wheter directly evaluate."
     )
 
+    parser.add_argument(
+        "--zero_shot", action="store_true", help="Wheter directly evaluate."
+    )
+
     args = parser.parse_args()
 
     print(args)
@@ -267,19 +273,24 @@ def main():
             args.bert_model, do_lower_case=args.do_lower_case
         )
         image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
-
         eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
 
-
-    # num_labels = 3000
     if args.from_pretrained:
-        model = BertForMultiModalPreTraining.from_pretrained(
-            args.pretrained_weight, config
-        )
+        if args.zero_shot:
+            model = BertForMultiModalPreTraining.from_pretrained(args.pretrained_weight, config)
+        else:
+            model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
+                args.pretrained_weight, config
+            )
     else:
-        model = BertForMultiModalPreTraining.from_pretrained(
-            args.bert_model, config
-        )
+        if args.zero_shot:
+            model = BertForMultiModalPreTraining.from_pretrained(
+                args.bert_model, config
+            )
+        else:
+            model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
+                args.bert_model, config
+            )            
 
     if args.fp16:
         model.half()
@@ -329,6 +340,7 @@ def evaluate(args, model, dataloader):
 
     score_matrix = np.zeros((5000, 1000))
     target_matrix = np.zeros((5000, 1000))
+    rank_matrix = np.ones((5000)) * 1000
     model.eval()
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
@@ -339,30 +351,41 @@ def evaluate(args, model, dataloader):
         image_mask = image_mask.squeeze(0)
 
         with torch.no_grad():
-            _, _, logit, _ = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-            score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = logit[:,0].view(-1).cpu().numpy()
-            target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.float().cpu().numpy()
-            
+            if args.zero_shot:
+                _, _, logit, _ = model(caption, features, spatials, segment_ids, input_mask, image_mask)
+                score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = torch.softmax(logit, dim=1)[:,0].view(-1).cpu().numpy()
+                target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.float().cpu().numpy()
+            else:
+                logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
+                score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = logit.view(-1).cpu().numpy()
+                target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.float().cpu().numpy()
+                
+            if image_idx.item() == 1:
+                rank = np.where((np.argsort(-score_matrix[caption_idx]) == np.where(target_matrix[caption_idx]==1)[0][0]) == 1)[0][0]
+                rank_matrix[caption_idx] = rank
+
+                rank_matrix_tmp = rank_matrix[:caption_idx+1]
+                r1 = 100.0 * np.sum(rank_matrix_tmp < 1) / len(rank_matrix_tmp)  
+                r5 = 100.0 * np.sum(rank_matrix_tmp < 5) / len(rank_matrix_tmp)
+                r10 = 100.0 * np.sum(rank_matrix_tmp < 10) / len(rank_matrix_tmp)
+
+                medr = np.floor(np.median(rank_matrix_tmp) + 1)
+                meanr = np.mean(rank_matrix_tmp) + 1
+                print("%d Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(count, r1, r5, r10, medr, meanr))
+
+                pdb.set_trace()
         count += 1
-        sys.stdout.write('%d/%d\r' % (count, 10000))
-        sys.stdout.flush()
 
-    # get the rank over image
+    r1 = 100.0 * np.sum(rank_matrix < 1) / len(rank_matrix)
+    r5 = 100.0 * np.sum(rank_matrix < 5) / len(rank_matrix)
+    r10 = 100.0 * np.sum(rank_matrix < 10) / len(rank_matrix)
 
-    score_matrix = torch.Tensor(score_matrix)
-    target_matrix = torch.Tensor(target_matrix)
+    medr = np.floor(np.median(rank_matrix) + 1)
+    meanr = np.mean(rank_matrix) + 1
 
-    _, ind = torch.sort(-score_matrix, dim=0) # Note, here, the score higher is better.
-    rank = ind.masked_select(target_matrix.byte())
-
-    r1 = 100.0 * torch.sum(rank < 1).item() / 1000
-    r5 = 100.0 * torch.sum(rank < 5).item() / 1000
-    r10 = 100.0 * torch.sum(rank < 10).item() / 1000
-
-    medr = np.floor(rank.median().item() + 1)
-    meanr = rank.float().mean().item() + 1
-
-    print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr))
+    print("************************************************")
+    print("Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr))
+    print("************************************************")
     return r1, r5, r10, medr, meanr
 
 if __name__ == "__main__":

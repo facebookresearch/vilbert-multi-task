@@ -34,7 +34,6 @@ def _load_dataset(dataroot, name):
     dataroot: root path of dataset
     name: 'train', 'val', 'trainval', 'minsval'
     """
-
     if name in ['train', 'val']:
         question_path = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % name)
         questions = sorted(json.load(open(question_path))["questions"], key=lambda x: x["question_id"])

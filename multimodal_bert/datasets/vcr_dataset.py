@@ -75,7 +75,6 @@ class VCRDataset(Dataset):
         self._max_caption_length = max_caption_length
         self._max_region_num = 60
 
-        pdb.set_trace()
         self._names = []
         with open('data/VCR/unisex_names_table.csv') as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
