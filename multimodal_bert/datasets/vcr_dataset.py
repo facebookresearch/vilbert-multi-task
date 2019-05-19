@@ -33,7 +33,7 @@ def _converId(img_id):
     return new_id
 
 
-def _load_annotations(annotations_jsonpath):
+def _load_annotationsQ_A(annotations_jsonpath):
     """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
     entries = []
     with open(annotations_jsonpath, 'rb') as f: # opening file in binary(rb) mode    
@@ -51,11 +51,29 @@ def _load_annotations(annotations_jsonpath):
 
     return entries
 
+def _load_annotationsQA_R(annotations_jsonpath):
+    """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
+    entries = []
+    with open(annotations_jsonpath, 'rb') as f: # opening file in binary(rb) mode    
+        for annotation in json_lines.reader(f):
+            # metadata_fn = json.load(open(os.path.join('data/VCR/vcr1images', annotation["metadata_fn"]), 'r'))
+            # det_names = metadata_fn["names"]
+            det_names = ""
+            question = annotation["question"] + ["[SEP]"] + annotation["answer_choices"][annotation['answer_label']]
+            ans_label = annotation["rationale_label"]
+            # img_fn = annotation["img_fn"]
+            img_id = _converId(annotation["img_id"])
+            entries.append(
+                {"question": question, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
+            )
+
+    return entries
 
 class VCRDataset(Dataset):
     def __init__(
         self,
         name: str,
+        task: str,
         annotations_jsonpath: str,
         image_features_reader: ImageFeaturesH5Reader,
         gt_image_features_reader: ImageFeaturesH5Reader,
@@ -64,9 +82,13 @@ class VCRDataset(Dataset):
         max_caption_length: int = 40,
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
-        
-        self._entries = _load_annotations(annotations_jsonpath)
-        
+        if task == 'Q-A':
+            self._entries = _load_annotationsQ_A(annotations_jsonpath)
+        elif task == "QA-R":
+            self._entries = _load_annotationsQA_R(annotations_jsonpath)
+        else:
+            assert False
+
         self._image_features_reader = image_features_reader
         self._gt_image_features_reader = gt_image_features_reader
         self._tokenizer = tokenizer

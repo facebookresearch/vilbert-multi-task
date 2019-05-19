@@ -65,7 +65,11 @@ def main():
     parser.add_argument(
         "--instances-val-jsonpath", default="data/VCR/val.jsonl"
     )
-    
+
+    parser.add_argument(
+        "--task", default="Q-A", type=str, choices=['Q-A', 'QA-R', 'Q-AR'], help="which task to train?"
+    )
+
     # Required parameters
     parser.add_argument(
         "--bert_model",
@@ -174,6 +178,7 @@ def main():
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
     )
 
+
     args = parser.parse_args()
     
     if args.baseline:
@@ -252,7 +257,8 @@ def main():
         image_features_gt_reader = ImageFeaturesH5Reader(args.features_gt_h5path, True, 81)
 
         train_dset = VCRDataset(
-            "train", 
+            "train",
+            args.task,
             args.instances_train_jsonpath, 
             image_features_reader, 
             image_features_gt_reader, 
@@ -262,6 +268,7 @@ def main():
 
         eval_dset = VCRDataset(
             "val", 
+            args.task,
             args.instances_val_jsonpath, 
             image_features_reader, 
             image_features_gt_reader, 
