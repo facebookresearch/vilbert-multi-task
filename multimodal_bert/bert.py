@@ -1009,7 +1009,7 @@ class MultiModalBertForVCR(BertPreTrainedModel):
         co_attention_mask=None,
         output_all_encoded_layers=False,
     ):
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
             input_txt,
             input_imgs,
             image_loc,
@@ -1055,7 +1055,7 @@ class MultiModalBertForVisDial(BertPreTrainedModel):
         co_attention_mask=None,
         output_all_encoded_layers=False,
     ):
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
             input_txt,
             input_imgs,
             image_loc,
