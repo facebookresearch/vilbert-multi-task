@@ -69,6 +69,9 @@ def _load_annotationsQA_R(annotations_jsonpath):
 
     return entries
 
+def _load_annotationsQA_R(annotations_jsonpath):
+    pass
+
 class VCRDataset(Dataset):
     def __init__(
         self,
