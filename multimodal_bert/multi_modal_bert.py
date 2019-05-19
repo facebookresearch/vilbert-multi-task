@@ -162,6 +162,7 @@ class BertConfig(object):
         v_biattention_id=[0, 1],
         t_biattention_id=[10, 11],
         predict_feature=False,
+        fast_mode=False,
     ):
 
         """Constructs BertConfig.
@@ -227,6 +228,7 @@ class BertConfig(object):
             self.bi_hidden_size = bi_hidden_size
             self.bi_num_attention_heads = bi_num_attention_heads
             self.predict_feature = predict_feature
+            self.fast_mode = fast_mode
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -747,6 +749,7 @@ class BertEncoder(nn.Module):
         # Bi-Attention: Given the output of two bertlayer, perform bi-directional
         # attention and add on two layers.
 
+        self.FAST_MODE = config.fast_mode
         self.v_biattention_id = config.v_biattention_id
         self.t_biattention_id = config.t_biattention_id
 
@@ -800,6 +803,11 @@ class BertEncoder(nn.Module):
 
                 if output_all_attention_masks:
                     all_attention_mask_t.append(txt_attention_probs)
+
+            if count == 0 and self.FAST_MODE:
+                txt_embedding = txt_embedding.expand(image_embedding.size(0), txt_embedding.size(1), txt_embedding.size(2))
+                txt_attention_mask = txt_attention_mask.expand(image_embedding.size(0), txt_attention_mask.size(1), txt_attention_mask.size(2), txt_attention_mask.size(3))
+
 
             # do the bi attention.
             image_embedding, txt_embedding, co_attention_probs = self.c_layer[count](

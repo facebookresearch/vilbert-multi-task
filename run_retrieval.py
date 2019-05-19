@@ -379,7 +379,7 @@ def main():
             shuffle=True,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
-            pin_memory=True,
+            pin_memory=False,
         )
 
         startIterID = 0

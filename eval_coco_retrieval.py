@@ -43,8 +43,8 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 from multimodal_bert.datasets import COCORetreivalDatasetTrain, COCORetreivalDatasetVal
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 
-from multimodal_bert.multi_modal_bert_fast_retrieval import BertForMultiModalPreTraining, BertConfig
-from multimodal_bert.multi_modal_bert_fast_retrieval import MultiModalBertForImageCaptionRetrieval
+from multimodal_bert.multi_modal_bert import BertForMultiModalPreTraining, BertConfig
+from multimodal_bert.multi_modal_bert import MultiModalBertForImageCaptionRetrieval
 
 import pdb
 
@@ -59,21 +59,10 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Required parameters
-    # Data files for VQA task.
-    parser.add_argument("--features_h5path", default="data/coco/coco_trainval.h5")
-    parser.add_argument(
-        "--train_file",
-        default="data/cocoRetreival/all_data_final_train_set_2014.jsonline",
-        type=str,
-        # required=True,
-        help="The input train corpus.",
-    )
-
     parser.add_argument(
         "--val_file",
         default="data/cocoRetreival/all_data_final_val_set0_2014.jsonline",
         type=str,
-        # required=True,
         help="The input train corpus.",
     )
 
@@ -95,7 +84,7 @@ def main():
 
     parser.add_argument(
         "--output_dir",
-        default="save",
+        default="result",
         type=str,
         # required=True,
         help="The output directory where the model checkpoints will be written.",
@@ -187,15 +176,6 @@ def main():
     parser.add_argument(
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
     )
-    parser.add_argument(
-        "--split", default='train', type=str, help="train or trainval."
-    )
-    parser.add_argument('--margin', default=0.2, type=float,
-                        help='Rank loss margin.')
-
-    parser.add_argument(
-        "--evaluate", action="store_true", help="Wheter directly evaluate."
-    )
 
     parser.add_argument(
         "--zero_shot", action="store_true", help="Wheter directly evaluate."
@@ -275,6 +255,7 @@ def main():
         image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
         eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
 
+    config.fast_mode = True
     if args.from_pretrained:
         if args.zero_shot:
             model = BertForMultiModalPreTraining.from_pretrained(args.pretrained_weight, config)
@@ -373,14 +354,13 @@ def evaluate(args, model, dataloader):
                 meanr = np.mean(rank_matrix_tmp) + 1
                 print("%d Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(count, r1, r5, r10, medr, meanr))
 
-                pdb.set_trace()
         count += 1
 
     r1 = 100.0 * np.sum(rank_matrix < 1) / len(rank_matrix)
     r5 = 100.0 * np.sum(rank_matrix < 5) / len(rank_matrix)
     r10 = 100.0 * np.sum(rank_matrix < 10) / len(rank_matrix)
 
-    medr = np.floor(np.median(rank_matrix) + 1)
+    medr = np.floor(    np.median(rank_matrix) + 1)
     meanr = np.mean(rank_matrix) + 1
 
     print("************************************************")

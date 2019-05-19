@@ -1009,7 +1009,7 @@ class MultiModalBertForVCR(BertPreTrainedModel):
         co_attention_mask=None,
         output_all_encoded_layers=False,
     ):
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
+        sequence_output, pooled_output = self.bert(
             input_txt,
             input_imgs,
             image_loc,
@@ -1019,7 +1019,7 @@ class MultiModalBertForVCR(BertPreTrainedModel):
             output_all_encoded_layers=output_all_encoded_layers,
         )
 
-        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
+        logits = self.classifier(self.dropout(pooled_output))
         return logits
 
 
@@ -1055,7 +1055,7 @@ class MultiModalBertForVisDial(BertPreTrainedModel):
         co_attention_mask=None,
         output_all_encoded_layers=False,
     ):
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v = self.bert(
+        sequence_output, pooled_output = self.bert(
             input_txt,
             input_imgs,
             image_loc,
@@ -1065,5 +1065,5 @@ class MultiModalBertForVisDial(BertPreTrainedModel):
             output_all_encoded_layers=output_all_encoded_layers,
         )
 
-        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
+        logits = self.classifier(self.dropout(pooled_output))
         return logits

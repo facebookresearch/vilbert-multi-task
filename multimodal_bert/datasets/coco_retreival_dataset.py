@@ -65,14 +65,14 @@ class COCORetreivalDatasetTrain(Dataset):
         self.train_imgId2pool = {imageId:i for i, imageId in enumerate(self.train_image_list)}
 
         # cache file path data/cache/train_ques
-        cap_cache_path = "data/cocoRetreival/cache/train_cap.pkl"
-        if not os.path.exists(cap_cache_path):
-            self.tokenize()
-            self.tensorize()
-            cPickle.dump(self._entries, open(cap_cache_path, 'wb'))
-        else:
-            print('loading entries from %s' %(cap_cache_path))
-            self._entries = cPickle.load(open(cap_cache_path, "rb"))
+        # cap_cache_path = "data/cocoRetreival/cache/train_cap.pkl"
+        # if not os.path.exists(cap_cache_path):
+        self.tokenize()
+        self.tensorize()
+            # cPickle.dump(self._entries, open(cap_cache_path, 'wb'))
+        # else:
+            # print('loading entries from %s' %(cap_cache_path))
+            # self._entries = cPickle.load(open(cap_cache_path, "rb"))
 
     def tokenize(self):
         """Tokenizes the captions.
@@ -172,24 +172,28 @@ class COCORetreivalDatasetTrain(Dataset):
         input_mask3 = input_mask1
         segment_ids3 = segment_ids1
 
-        # random hard image.
+        # random hard caption.
         rand_img_id_pool = self.train_hard_pool[self.train_imgId2pool[image_id]]
         pool_img_idx = int(rand_img_id_pool[np.random.randint(1, len(rand_img_id_pool))])
         img_id4 = self.train_image_list[pool_img_idx]
 
-        features4, num_boxes4, boxes4, _ = self._image_features_reader[img_id4]
-        image_mask4 = [1] * (int(num_boxes4))
 
-        while len(image_mask4) < 37:
-            image_mask4.append(0)
-        
-        features4 = torch.tensor(features4).float()
-        image_mask4 = torch.tensor(image_mask4).long()
-        spatials4 = torch.tensor(boxes4).float()
+        entry4 = self._entries[random.choice(self.imgid2entry[img_id4])]
 
-        caption4 = caption1
-        input_mask4 = input_mask1
-        segment_ids4 = segment_ids1
+        features4 = features1
+        image_mask4 = image_mask1
+        spatials4 = spatials1
+        caption4 = entry4["token"]
+        input_mask4 = entry4["input_mask"]
+        segment_ids4 = entry4["segment_ids"]    
+
+        # features4 = torch.tensor(features4).float()
+        # image_mask4 = torch.tensor(image_mask4).long()
+        # spatials4 = torch.tensor(boxes4).float()
+
+        # caption4 = caption1
+        # input_mask4 = input_mask1
+        # segment_ids4 = segment_ids1
 
         features = torch.stack([features1, features2, features3, features4], dim=0)
         spatials = torch.stack([spatials1, spatials2, spatials3, spatials4], dim=0)

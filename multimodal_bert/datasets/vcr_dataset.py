@@ -83,6 +83,7 @@ class VCRDataset(Dataset):
         tokenizer: BertTokenizer,
         padding_index: int = 0,
         max_caption_length: int = 40,
+        _max_region_num: int = 60
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
         if task == 'Q-A':
@@ -98,7 +99,7 @@ class VCRDataset(Dataset):
 
         self._padding_index = padding_index
         self._max_caption_length = max_caption_length
-        self._max_region_num = 60
+        self._max_region_num = _max_region_num
 
         self._names = []
         with open('data/VCR/unisex_names_table.csv') as csv_file:
