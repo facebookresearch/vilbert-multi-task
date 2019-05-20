@@ -677,7 +677,6 @@ class BertModel(BertPreTrainedModel):
                 input_imgs.size(0), input_imgs.size(1)
             ).type_as(input_txt)
 
-
         image_token_type_ids = torch.ones(input_imgs.size(0), input_imgs.size(1)).type_as(token_type_ids)
 
         # We create a 3D attention mask from a 2D tensor mask.
@@ -702,6 +701,7 @@ class BertModel(BertPreTrainedModel):
         extended_image_attention_mask = (1.0 - extended_image_attention_mask) * -10000.0
 
         img_embeding_output = self.image_embeddings(input_imgs, image_loc, image_token_type_ids)
+        
         embedding_output = self.embeddings(input_txt, token_type_ids)
 
         embedding_output = torch.cat([embedding_output, img_embeding_output], dim=1)
@@ -834,7 +834,7 @@ class MultiModalBertForVQA(BertPreTrainedModel):
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
         self.classifier = nn.Linear(config.hidden_size, num_labels)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
 
         self.apply(self.init_bert_weights)
 
@@ -868,8 +868,8 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
         super(MultiModalBertForImageCaptionRetrieval, self).__init__(config)
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
-        self.classifier = nn.Linear(config.bi_hidden_size, 1)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, 1)
+        self.dropout = nn.Dropout(0.5)
         self.apply(self.init_bert_weights)
 
     def forward(
@@ -882,8 +882,7 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
         image_attention_mask=None,
         output_all_encoded_layers=True,
     ):
-        
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
+        sequence_output, pooled_output = self.bert(
             input_txt,
             input_imgs,
             image_loc,
@@ -892,9 +891,7 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
             image_attention_mask,
             output_all_encoded_layers=False,
         )
-        
-        
-        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
+        logits = self.classifier(self.dropout(pooled_output))
 
         return logits
 
@@ -916,7 +913,7 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(config.hidden_size, 2)
         self.apply(self.init_bert_weights)
         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -947,7 +944,7 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
     def __init__(self, config, pretrained_weight=None):
         super(MultiModalBertForReferExpression, self).__init__(config)
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(config.hidden_size, 1)
         self.apply(self.init_bert_weights)
 
@@ -994,7 +991,7 @@ class MultiModalBertForVCR(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(config.hidden_size, 1)
         self.apply(self.init_bert_weights)
 
@@ -1016,9 +1013,8 @@ class MultiModalBertForVCR(BertPreTrainedModel):
             token_type_ids,
             attention_mask,
             image_attention_mask,
-            output_all_encoded_layers=output_all_encoded_layers,
+            output_all_encoded_layers=False,
         )
-
         logits = self.classifier(self.dropout(pooled_output))
         return logits
 
@@ -1040,7 +1036,7 @@ class MultiModalBertForVisDial(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(config.hidden_size, 1)
         self.apply(self.init_bert_weights)
 

@@ -56,8 +56,8 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Required parameters
-    # Data files for VQA task.
-    parser.add_argument("--features_h5path", default="data/coco/coco_trainval.h5")
+
+    parser.add_argument("--features_h5path", default="/srv/datasets/conceptual_caption/coco/coco_trainval.h5")
     parser.add_argument(
         "--train_file",
         default="data/cocoRetreival/all_data_final_train_2014.jsonline",

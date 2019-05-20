@@ -36,7 +36,7 @@ class ImageFeaturesH5Reader(object):
         self._in_memory = in_memory
         self._max_num_box = max_num_box
 
-        with h5py.File(self.features_h5path, "r") as features_h5:
+        with h5py.File(self.features_h5path, "r", libver='latest', swmr=True) as features_h5:
             self._image_ids = list(features_h5["image_ids"])
             # "features" is List[np.ndarray] if the dataset is loaded in-memory
             # If not loaded in memory, then list of None.

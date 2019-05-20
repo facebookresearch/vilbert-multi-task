@@ -794,10 +794,6 @@ class BertEncoder(nn.Module):
                 if output_all_attention_masks:
                     all_attention_mask_t.append(txt_attention_probs)            
 
-            if count == 0:
-                txt_embedding = txt_embedding.expand(image_embedding.size(0), txt_embedding.size(1), txt_embedding.size(2))
-                txt_attention_mask = txt_attention_mask.expand(image_embedding.size(0), txt_attention_mask.size(1), txt_attention_mask.size(2), txt_attention_mask.size(3))
-
             v_end = v_layer_id
             for idx in range(v_start, v_end):
                 image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)

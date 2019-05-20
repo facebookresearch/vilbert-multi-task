@@ -659,6 +659,8 @@ class BertBiAttention(nn.Module):
         attention_scores2 = torch.matmul(query_layer1, key_layer2.transpose(-1, -2))
         attention_scores2 = attention_scores2 / math.sqrt(self.attention_head_size)
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
+
+        # we can comment this line for single flow. 
         attention_scores2 = attention_scores2 + attention_mask2 + co_attention_mask
 
         # if co_attention_mask is not None:
@@ -1299,7 +1301,7 @@ class BertModel(BertPreTrainedModel):
             co_attention_mask = torch.zeros(input_txt.size(0), input_imgs.size(1), input_txt.size(1)).type_as(extended_image_attention_mask)         
 
         extended_co_attention_mask = co_attention_mask.unsqueeze(1)
-        extended_co_attention_mask = extended_co_attention_mask * 10000.0
+        extended_co_attention_mask = extended_co_attention_mask * 1000000.0
 
         extended_co_attention_mask = extended_co_attention_mask.to(
             dtype=next(self.parameters()).dtype
@@ -1461,7 +1463,7 @@ class MultiModalBertForVQA(BertPreTrainedModel):
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
         self.classifier = nn.Linear(config.bi_hidden_size, num_labels)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
 
         self.apply(self.init_bert_weights)
 
@@ -1507,7 +1509,7 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(config.bi_hidden_size, 2)
         self.apply(self.init_bert_weights)
 
@@ -1541,7 +1543,7 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
         # self.classifier = nn.Linear(config.v_hidden_size, 1)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(config.v_hidden_size, 1)
         self.apply(self.init_bert_weights)
 
@@ -1578,7 +1580,7 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
         self.classifier = nn.Linear(config.bi_hidden_size, 1)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.apply(self.init_bert_weights)
 
     def forward(
@@ -1625,7 +1627,7 @@ class MultiModalBertForVCR(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(config.bi_hidden_size, 1)
         self.apply(self.init_bert_weights)
 
@@ -1672,7 +1674,7 @@ class MultiModalBertForVisDial(BertPreTrainedModel):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(0.5)
         self.classifier = nn.Linear(config.bi_hidden_size, 1)
         self.apply(self.init_bert_weights)
 

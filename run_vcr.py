@@ -56,8 +56,8 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Data files for FOIL task.
-    parser.add_argument("--features_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/VCR/VCR_resnet101_faster_rcnn_genome.h5")
-    parser.add_argument("--features_gt_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/VCR/VCR_gt_resnet101_faster_rcnn_genome.h5")
+    parser.add_argument("--features_h5path", default="/srv/datasets/conceptual_caption/VCR_resnet101_faster_rcnn_genome.h5")
+    parser.add_argument("--features_gt_h5path", default="/srv/datasets/conceptual_caption/VCR_gt_resnet101_faster_rcnn_genome.h5")
 
     parser.add_argument(
         "--instances-train-jsonpath", default="data/VCR/train.jsonl"
@@ -177,7 +177,9 @@ def main():
     parser.add_argument(
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
     )
-
+    parser.add_argument(
+        "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
+    )
 
     args = parser.parse_args()
     
@@ -274,7 +276,6 @@ def main():
             image_features_gt_reader, 
             tokenizer,
             max_caption_length=args.max_seq_length,
-
         )
 
         num_train_optimization_steps = (
@@ -307,7 +308,7 @@ def main():
             )
         model = DDP(model)
     elif n_gpu > 1:
-        model = DataParallel(model, use_chuncks=True)
+        model = DataParallel(model, use_chuncks=args.use_chunk)
 
     model.cuda()
 
@@ -369,13 +370,17 @@ def main():
 
     else:
         if args.from_pretrained:
-            optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
-            )
 
-            # optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
+            if args.baseline:
+                optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
+
+            else:
+                optimizer = BertAdam(
+                    optimizer_grouped_parameters,
+                    warmup=args.warmup_proportion,
+                    t_total=num_train_optimization_steps,
+                )
+
 
         else:
             optimizer = BertAdam(

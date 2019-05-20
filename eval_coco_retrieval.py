@@ -57,6 +57,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--features_h5path", default="data/coco/coco_trainval.h5")
 
     # Required parameters
     parser.add_argument(
@@ -247,7 +248,7 @@ def main():
     num_train_optimization_steps = None
     if args.do_train:
 
-        print("Loading Train Dataset", args.train_file)
+        print("Loading Train Dataset", args.val_file)
 
         tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=args.do_lower_case

@@ -41,6 +41,9 @@ from multimodal_bert.datasets import ReferExpressionDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 from torch.nn import CrossEntropyLoss
 
+from parallel.data_parallel import DataParallel
+
+
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
@@ -171,6 +174,10 @@ def main():
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
     )
 
+    parser.add_argument(
+        "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
+    )
+
     args = parser.parse_args()
 
     if args.baseline:
@@ -293,7 +300,7 @@ def main():
             )
         model = DDP(model)
     elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
+        model = DataParallel(model, use_chuncks=args.use_chunk)
 
     model.cuda()
 
@@ -533,18 +540,6 @@ def instance_bce_with_logits(logits, labels):
     loss = F.binary_cross_entropy_with_logits(logits, labels)
     loss *= labels.size(1)
     return loss
-
-def lr_lambda_update(i_iter):
-    warmup_iterations = 1000
-    warmup_factor = 0.2
-    lr_ratio = 0.1
-    lr_steps = [15000, 18000, 20000, 21000]
-    if i_iter <= warmup_iterations:
-        alpha = float(i_iter) / float(warmup_iterations)
-        return warmup_factor * (1.0 - alpha) + alpha
-    else:
-        idx = bisect([], i_iter)
-        return pow(lr_ratio, idx)
 
 if __name__ == "__main__":
     main()

@@ -40,6 +40,7 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from multimodal_bert.datasets import VQAClassificationDataset
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
+from parallel.data_parallel import DataParallel
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -53,7 +54,7 @@ def main():
 
     # Required parameters
     # Data files for VQA task.
-    parser.add_argument("--features_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/coco/coco_trainval.h5")
+    parser.add_argument("--features_h5path", default="/srv/datasets/conceptual_caption/coco/coco_trainval.h5")
     parser.add_argument(
         "--train_file",
         default="data/VQA/training",
@@ -71,7 +72,7 @@ def main():
 
     parser.add_argument(
         "--pretrained_weight",
-        default="",
+        default="bert-base-uncased",
         type=str,
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
         "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
@@ -128,7 +129,8 @@ def main():
     )
     parser.add_argument(
         "--do_lower_case",
-        action="store_true",
+        default=True,
+        type=bool,
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument(
@@ -174,6 +176,9 @@ def main():
         "--split", default='train', type=str, help="train or trainval."
     )
 
+    parser.add_argument(
+        "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
+    )
     args = parser.parse_args()
 
     if args.baseline:
@@ -267,7 +272,8 @@ def main():
                 "trainval", image_features_reader_train, tokenizer, dataroot="data/VQA"
             )
             eval_dset = VQAClassificationDataset("minval", image_features_reader_val, tokenizer, dataroot="data/VQA")
-
+        else:
+            assert False
         # dictionary = BertDictionary(args)        
         # train_dset = BertFeatureDataset('train', dictionary, dataroot='data/VQA')
         # eval_dset = BertFeatureDataset('val', dictionary, dataroot='data/VQA')
@@ -303,7 +309,7 @@ def main():
             )
         model = DDP(model)
     elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
+        model = DataParallel(model, use_chuncks=args.use_chunk)
 
     model.cuda()
     # pdb.set_trace()
@@ -366,22 +372,11 @@ def main():
                                                  t_total=num_train_optimization_steps)
     else:
         if args.from_pretrained:
-            # optimizer = BertAdam(
-            #     optimizer_grouped_parameters,
-            #     warmup=args.warmup_proportion,
-            #     t_total=num_train_optimization_steps,
-            # )
             optimizer = BertAdam(optimizer_grouped_parameters,
                                  lr=args.learning_rate,
                                  warmup=args.warmup_proportion,
                                  t_total=num_train_optimization_steps)
         else:
-            # optimizer = BertAdam(
-            #     optimizer_grouped_parameters,
-            #     lr=args.learning_rate,
-            #     warmup=args.warmup_proportion,
-            #     t_total=num_train_optimization_steps,
-            # )
             optimizer = BertAdam(optimizer_grouped_parameters,
                                  lr=args.learning_rate,
                                  warmup=args.warmup_proportion,

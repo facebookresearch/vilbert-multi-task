@@ -69,8 +69,6 @@ def _load_annotationsQA_R(annotations_jsonpath):
 
     return entries
 
-def _load_annotationsQA_R(annotations_jsonpath):
-    pass
 
 class VCRDataset(Dataset):
     def __init__(
@@ -292,7 +290,7 @@ class VCRDataset(Dataset):
         for ii, co_attention_idx in enumerate(co_attention_idxs):
             for jj, idx in enumerate(co_attention_idx):
                 if idx != -1:
-                    co_attention_mask[ii, idx, ii] = 1
+                    co_attention_mask[ii, idx, jj] = 1
 
         return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask
 

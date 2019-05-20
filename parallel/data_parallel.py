@@ -111,7 +111,7 @@ class DataParallel(Module):
 
     # TODO: update notes/cuda.rst when this class handles 8+ GPUs well
 
-    def __init__(self, module, device_ids=None, output_device=None, dim=0, use_chuncks=False):
+    def __init__(self, module, device_ids=None, output_device=None, dim=0, use_chuncks=0):
         super(DataParallel, self).__init__()
 
         if not torch.cuda.is_available():
@@ -146,12 +146,12 @@ class DataParallel(Module):
                                    "on device {} (device_ids[0]) but found one of "
                                    "them on device: {}".format(self.src_device_obj, t.device))
 
-        if self.use_chuncks:
+        if self.use_chuncks > 0:
             # we want to assign 0.6 of the batch size to first gpu
             batch_size = inputs[0].size(0)
             chunk_sizes = [0] * len(self.device_ids)
             # first gpu is using only 0.6
-            chunk_sizes[0] = int(((batch_size / len(self.device_ids)) * 0.5))
+            chunk_sizes[0] = int(((batch_size / len(self.device_ids)) * self.use_chuncks))
             rest_batch = batch_size - chunk_sizes[0]
             r_bs = int(rest_batch / (len(self.device_ids)-1))+1
 

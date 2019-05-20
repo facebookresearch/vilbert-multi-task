@@ -34,14 +34,14 @@ def _load_dataset(dataroot, name):
     dataroot: root path of dataset
     name: 'train', 'val', 'trainval', 'minsval'
     """
-    if name in ['train', 'val']:
+    if name == 'train' or name == 'val':
         question_path = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % name)
         questions = sorted(json.load(open(question_path))["questions"], key=lambda x: x["question_id"])
         answer_path = os.path.join(dataroot, "cache", "%s_target.pkl" % name)
         answers = cPickle.load(open(answer_path, "rb"))
         answers = sorted(answers, key=lambda x: x["question_id"])
 
-    elif name in ['trainval']:
+    elif name  == 'trainval':
         question_path_train = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'train')
         questions_train = sorted(json.load(open(question_path_train))["questions"], key=lambda x: x["question_id"])
         answer_path_train = os.path.join(dataroot, "cache", "%s_target.pkl" % 'train')
@@ -57,7 +57,7 @@ def _load_dataset(dataroot, name):
         questions = questions_train + questions_val[:-1000]
         answers = answers_train + answers_val[:-1000]
 
-    elif name in ['minsval']:
+    elif name == 'minval':
         question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'train')
         questions_val = sorted(json.load(open(question_path_val))["questions"], key=lambda x: x["question_id"])
         answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'train')
@@ -120,10 +120,10 @@ class VQAClassificationDataset(Dataset):
             tokens = self._tokenizer.tokenize(entry["question"])
             tokens = ["[CLS]"] + tokens + ["[SEP]"]
 
-            # tokens = [
-            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-            #     for w in sentence_tokens
-            # ]
+            tokens = [
+                self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+                for w in tokens
+            ]
             
             tokens = tokens[:max_length]
             segment_ids = [0] * len(tokens)

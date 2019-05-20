@@ -1,7 +1,7 @@
 {
   "attention_probs_dropout_prob": 0.1,
   "hidden_act": "gelu",
-  "hidden_dropout_prob": 0.1,
+  "hidden_dropout_prob": 0.2,
   "hidden_size": 768,
   "initializer_range": 0.02,
   "intermediate_size": 3072,
@@ -22,8 +22,8 @@
   "bi_attention_type":1,
   "v_attention_probs_dropout_prob":0.1,
   "v_hidden_act":"gelu",
-  "v_hidden_dropout_prob":0.1,
-  "v_initializer_range":0.2,
+  "v_hidden_dropout_prob":0.2,
+  "v_initializer_range":0.02,
   "v_biattention_id":[0, 1, 2, 3],
   "t_biattention_id":[9, 10, 11, 12]
 }
