@@ -258,20 +258,19 @@ def main():
         tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=args.do_lower_case
         )
-        image_features_reader_train = ImageFeaturesH5Reader(args.features_h5path, True)
-        image_features_reader_val = ImageFeaturesH5Reader(args.features_h5path, True)
+        image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
 
         if args.split == 'train':
             train_dset = VQAClassificationDataset(
                 "train", image_features_reader_train, tokenizer, dataroot="data/VQA"
             )
-            eval_dset = VQAClassificationDataset("val", image_features_reader_val, tokenizer, dataroot="data/VQA")
+            eval_dset = VQAClassificationDataset("val", image_features_reader, tokenizer, dataroot="data/VQA")
         elif args.split == 'trainval':
             train_dset = VQAClassificationDataset(
                 "trainval", image_features_reader_train, tokenizer, dataroot="data/VQA"
             )
-            eval_dset = VQAClassificationDataset("minval", image_features_reader_val, tokenizer, dataroot="data/VQA")
+            eval_dset = VQAClassificationDataset("minval", image_features_reader, tokenizer, dataroot="data/VQA")
         else:
             assert False
         # dictionary = BertDictionary(args)        
@@ -429,7 +428,7 @@ def main():
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-                features, spatials, image_mask, question, target, input_mask, segment_ids = batch
+                features, spatials, image_mask, question, target, input_mask, segment_ids, question_ids = batch
                 pred = model(question, features, spatials, segment_ids, input_mask, image_mask)
                 # import pdb
                 # pdb.set_trace()
@@ -533,7 +532,7 @@ def evaluate(args, model, dataloader):
     num_data = 0
     for batch in dataloader:
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, question, target, input_mask, segment_ids = batch
+        features, spatials, image_mask, question, target, input_mask, segment_ids, question_ids = batch
         with torch.no_grad():
             pred = model(question, features, spatials, segment_ids, input_mask, image_mask)
         batch_score = compute_score_with_logits(pred, target.cuda()).sum()

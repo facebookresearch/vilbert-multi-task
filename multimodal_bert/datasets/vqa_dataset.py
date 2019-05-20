@@ -48,9 +48,9 @@ def _load_dataset(dataroot, name):
         answers_train = cPickle.load(open(answer_path_train, "rb"))
         answers_train = sorted(answers_train, key=lambda x: x["question_id"])
 
-        question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'train')
+        question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'val')
         questions_val = sorted(json.load(open(question_path_val))["questions"], key=lambda x: x["question_id"])
-        answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'train')
+        answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'val')
         answers_val = cPickle.load(open(answer_path_val, "rb"))
         answers_val = sorted(answers_val, key=lambda x: x["question_id"])
 
@@ -58,14 +58,24 @@ def _load_dataset(dataroot, name):
         answers = answers_train + answers_val[:-1000]
 
     elif name == 'minval':
-        question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'train')
+        question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'val')
         questions_val = sorted(json.load(open(question_path_val))["questions"], key=lambda x: x["question_id"])
-        answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'train')
+        answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'val')
         answers_val = cPickle.load(open(answer_path_val, "rb"))
         answers_val = sorted(answers_val, key=lambda x: x["question_id"])        
 
         questions = questions_val[-1000:]
         answers = answers_val[-1000:]
+
+    elif name == 'test':
+        question_path_test = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'test')
+        questions_test = sorted(json.load(open(question_path_test))["questions"], key=lambda x: x["question_id"])
+        answer_path_test = os.path.join(dataroot, "cache", "%s_target.pkl" % 'test')
+        answers_test = cPickle.load(open(answer_path_test, "rb"))
+        answers_test = sorted(answers_test, key=lambda x: x["question_id"])        
+
+        questions = questions_test
+        answers = answers_test    
 
     assert_eq(len(questions), len(answers))
     entries = []
@@ -168,7 +178,7 @@ class VQAClassificationDataset(Dataset):
     def __getitem__(self, index):
         entry = self.entries[index]
         image_id = entry["image_id"]
-
+        question_id = entry["question_id"]
         features, num_boxes, boxes, _ = self._image_features_reader[image_id]
 
         image_mask = [1] * (int(num_boxes))
@@ -190,7 +200,7 @@ class VQAClassificationDataset(Dataset):
         if labels is not None:
             target.scatter_(0, labels, scores)
 
-        return features, spatials, image_mask, question, target, input_mask, segment_ids
+        return features, spatials, image_mask, question, target, input_mask, segment_ids, int(question_id)
 
     def __len__(self):
         return len(self.entries)
