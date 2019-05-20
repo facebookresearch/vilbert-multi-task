@@ -263,12 +263,12 @@ def main():
 
         if args.split == 'train':
             train_dset = VQAClassificationDataset(
-                "train", image_features_reader_train, tokenizer, dataroot="data/VQA"
+                "train", image_features_reader, tokenizer, dataroot="data/VQA"
             )
             eval_dset = VQAClassificationDataset("val", image_features_reader, tokenizer, dataroot="data/VQA")
         elif args.split == 'trainval':
             train_dset = VQAClassificationDataset(
-                "trainval", image_features_reader_train, tokenizer, dataroot="data/VQA"
+                "trainval", image_features_reader, tokenizer, dataroot="data/VQA"
             )
             eval_dset = VQAClassificationDataset("minval", image_features_reader, tokenizer, dataroot="data/VQA")
         else:
