@@ -289,7 +289,7 @@ class VCRDataset(Dataset):
 
         for ii, co_attention_idx in enumerate(co_attention_idxs):
             for jj, idx in enumerate(co_attention_idx):
-                if idx != -1:
+                if idx != -1 and idx < self._max_region_num:
                     co_attention_mask[ii, idx, jj] = 1
 
         return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask
