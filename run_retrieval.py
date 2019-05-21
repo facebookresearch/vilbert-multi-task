@@ -179,7 +179,9 @@ def main():
     parser.add_argument(
         "--split", default='train', type=str, help="train or trainval."
     )
-
+    parser.add_argument(
+        "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
+    )
     args = parser.parse_args()
 
     if args.baseline:
@@ -275,11 +277,11 @@ def main():
     # num_labels = 3000
     if args.from_pretrained:
         model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
-            args.pretrained_weight, config
+            args.pretrained_weight, config, dropout_prob=0.2
         )
     else:
         model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
-            args.bert_model, config
+            args.bert_model, config, dropout_prob=0.2
         )
 
     if args.fp16:
@@ -293,7 +295,7 @@ def main():
             )
         model = DDP(model)
     elif n_gpu > 1:
-        model = DataParallel(model, use_chuncks=True)
+        model = DataParallel(model, use_chuncks=args.use_chunk)
 
     model.cuda()
     # pdb.set_trace()

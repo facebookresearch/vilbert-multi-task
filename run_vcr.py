@@ -115,7 +115,7 @@ def main():
         "--train_batch_size", default=30, type=int, help="Total batch size for training."
     )
     parser.add_argument(
-        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=1e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -292,10 +292,10 @@ def main():
     num_labels = 2
     if args.from_pretrained:
         model = MultiModalBertForVCR.from_pretrained(
-            args.pretrained_weight, config, num_labels=num_labels
+            args.pretrained_weight, config, num_labels=num_labels, dropout_prob=0.5
         )
     else:
-        model = MultiModalBertForVCR(config, num_labels)
+        model = MultiModalBertForVCR(config, num_labels, dropout_prob=0.5)
 
     if args.fp16:
         model.half()

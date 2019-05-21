@@ -99,6 +99,8 @@ class ImageFeaturesH5Reader(object):
             # Read chunk from file everytime if not loaded in memory.
             with h5py.File(self.features_h5path, "r") as features_h5:
                 features = features_h5["features"][index]
+                num_boxes = int(features_h5["num_boxes"][index]) + 1
+
                 g_feat = np.sum(features, axis=0) / num_boxes
                 features = np.concatenate([np.expand_dims(g_feat, axis=0), features], axis=0)
                 
@@ -121,8 +123,6 @@ class ImageFeaturesH5Reader(object):
 
                 g_location_ori = np.array([0,0,image_w,image_h,image_w*image_h])
                 image_location_ori = np.concatenate([np.expand_dims(g_location_ori, axis=0), image_location_ori], axis=0)
-
-                num_boxes = int(features_h5["num_boxes"][index]) + 1
 
         return features, num_boxes, image_location, image_location_ori
 

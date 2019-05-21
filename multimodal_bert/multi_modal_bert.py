@@ -1457,13 +1457,13 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
 
 class MultiModalBertForVQA(BertPreTrainedModel):
 
-    def __init__(self, config, num_labels, pretrained_weight=None):
+    def __init__(self, config, num_labels, dropout_prob=0.1):
         super(MultiModalBertForVQA, self).__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
         self.classifier = nn.Linear(config.bi_hidden_size, num_labels)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_prob)
 
         self.apply(self.init_bert_weights)
 
@@ -1505,11 +1505,11 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
         `num_labels`: the number of classes for the classifier. Default = 2.
     """
 
-    def __init__(self, config: BertConfig, num_labels: int = 2):
+    def __init__(self, config, num_labels=2, dropout_prob=0.1):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_prob)
         self.classifier = nn.Linear(config.bi_hidden_size, 2)
         self.apply(self.init_bert_weights)
 
@@ -1538,12 +1538,12 @@ class MultiModalBertForFoilClassification(BertPreTrainedModel):
 
 class MultiModalBertForReferExpression(BertPreTrainedModel):
 
-    def __init__(self, config, pretrained_weight=None):
+    def __init__(self, config, dropout_prob=0.1):
         super(MultiModalBertForReferExpression, self).__init__(config)
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
         # self.classifier = nn.Linear(config.v_hidden_size, 1)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_prob)
         self.classifier = nn.Linear(config.v_hidden_size, 1)
         self.apply(self.init_bert_weights)
 
@@ -1575,12 +1575,12 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
 
 class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
 
-    def __init__(self, config, pretrained_weight=None):
+    def __init__(self, config, dropout_prob=0.1):
         super(MultiModalBertForImageCaptionRetrieval, self).__init__(config)
         self.bert = BertModel(config)
         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
         self.classifier = nn.Linear(config.bi_hidden_size, 1)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_prob)
         self.apply(self.init_bert_weights)
 
     def forward(
@@ -1623,11 +1623,11 @@ class MultiModalBertForVCR(BertPreTrainedModel):
         `num_labels`: the number of classes for the classifier. Default = 2.
     """
 
-    def __init__(self, config: BertConfig, num_labels: int = 2):
+    def __init__(self, config, num_labels=2, dropout_prob=0.1):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_prob)
         self.classifier = nn.Linear(config.bi_hidden_size, 1)
         self.apply(self.init_bert_weights)
 
@@ -1670,11 +1670,11 @@ class MultiModalBertForVisDial(BertPreTrainedModel):
         `num_labels`: the number of classes for the classifier. Default = 2.
     """
 
-    def __init__(self, config: BertConfig, num_labels: int = 2):
+    def __init__(self, config, num_labels=2, dropout_prob=0.1):
         super().__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_prob)
         self.classifier = nn.Linear(config.bi_hidden_size, 1)
         self.apply(self.init_bert_weights)
 

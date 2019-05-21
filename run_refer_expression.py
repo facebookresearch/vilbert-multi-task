@@ -109,7 +109,7 @@ def main():
         "--train_batch_size", default=128, type=int, help="Total batch size for training."
     )
     parser.add_argument(
-        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=1e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(   
         "--num_train_epochs",
@@ -279,10 +279,10 @@ def main():
     num_labels = 2
     if args.from_pretrained and not args.continue_training:
         model = MultiModalBertForReferExpression.from_pretrained(
-            args.pretrained_weight, config
+            args.pretrained_weight, config, dropout_prob=0.5
         )
     else:
-        model = MultiModalBertForReferExpression(config)
+        model = MultiModalBertForReferExpression(config, dropout_prob=0.5)
 
     if args.continue_training:
         print("loading model from %s" %(args.pretrained_weight))

@@ -109,7 +109,7 @@ def main():
         "--train_batch_size", default=128, type=int, help="Total batch size for training."
     )
     parser.add_argument(
-        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=1e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -167,7 +167,7 @@ def main():
         "--save_name",
         default='',
         type=str,
-        help="save name for training.",
+        help="save name for training.", 
     )
     parser.add_argument(
         "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
@@ -179,6 +179,10 @@ def main():
     parser.add_argument(
         "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
     )
+    parser.add_argument(
+        "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
+    )
+
     args = parser.parse_args()
 
     if args.baseline:
@@ -258,7 +262,7 @@ def main():
         tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=args.do_lower_case
         )
-        image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
+        image_features_reader = ImageFeaturesH5Reader(args.features_h5path, args.in_memory)
 
 
         if args.split == 'train':
@@ -290,11 +294,11 @@ def main():
     num_labels = train_dset.num_ans_candidates
     if args.from_pretrained:
         model = MultiModalBertForVQA.from_pretrained(
-            args.pretrained_weight, config, num_labels=num_labels
+            args.pretrained_weight, config, num_labels=num_labels, dropout_prob=0.2
         )
     else:
         model = MultiModalBertForVQA.from_pretrained(
-            args.bert_model, config, num_labels=num_labels
+            args.bert_model, config, num_labels=num_labels, dropout_prob=0.2
         )
 
     if args.fp16:
