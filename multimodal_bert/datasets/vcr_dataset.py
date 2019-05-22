@@ -107,7 +107,7 @@ class VCRDataset(Dataset):
                     self._names.append(row[1])
 
         # cache file path data/cache/train_ques
-        vcr_cache_path = "data/VCR/cache/" + name + '_' + task + "_vcr.pkl"
+        vcr_cache_path = "data/VCR/cache/" + name + '_' + task + "_" + str(max_caption_length) + "_vcr.pkl"
         if not os.path.exists(vcr_cache_path):
             self.tokenize()
             self.tensorize()

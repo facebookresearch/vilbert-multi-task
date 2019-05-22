@@ -109,7 +109,7 @@ def main():
         "--train_batch_size", default=128, type=int, help="Total batch size for training."
     )
     parser.add_argument(
-        "--learning_rate", default=1e-5, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -158,7 +158,7 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=20, help="Number of workers in the dataloader."
+        "--num_workers", type=int, default=15, help="Number of workers in the dataloader."
     )
     parser.add_argument(
         "--from_pretrained", action="store_true", help="Wheter the tensor is from pretrained."
@@ -182,7 +182,9 @@ def main():
     parser.add_argument(
         "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
     )
-
+    parser.add_argument(
+        "--optimizer", default='adam', type=str, help="whether use chunck for parallel training."
+    )
     args = parser.parse_args()
 
     if args.baseline:
@@ -294,11 +296,11 @@ def main():
     num_labels = train_dset.num_ans_candidates
     if args.from_pretrained:
         model = MultiModalBertForVQA.from_pretrained(
-            args.pretrained_weight, config, num_labels=num_labels, dropout_prob=0.2
+            args.pretrained_weight, config, num_labels=num_labels, dropout_prob=0.1
         )
     else:
         model = MultiModalBertForVQA.from_pretrained(
-            args.bert_model, config, num_labels=num_labels, dropout_prob=0.2
+            args.bert_model, config, num_labels=num_labels, dropout_prob=0.1
         )
 
     if args.fp16:
@@ -375,18 +377,26 @@ def main():
                                                  t_total=num_train_optimization_steps)
     else:
         if args.from_pretrained:
-            optimizer = BertAdam(optimizer_grouped_parameters,
+            if args.optimizer == 'adam':
+                optimizer = BertAdam(optimizer_grouped_parameters,
                                  lr=args.learning_rate,
                                  warmup=args.warmup_proportion,
                                  t_total=num_train_optimization_steps)
-        else:
-            optimizer = BertAdam(optimizer_grouped_parameters,
-                                 lr=args.learning_rate,
-                                 warmup=args.warmup_proportion,
-                                 t_total=num_train_optimization_steps)
+            elif args.optimizer == 'admax':
+                optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
 
-    # lr_lambda = lambda x: lr_lambda_update(x)
-    # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+        else:
+            if args.optimizer == 'adam':
+                optimizer = BertAdam(optimizer_grouped_parameters,
+                                 lr=args.learning_rate,
+                                 warmup=args.warmup_proportion,
+                                 t_total=num_train_optimization_steps)
+            elif args.optimizer == 'admax':
+                optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
+    
+    if args.optimizer == 'admax':
+        lr_lambda = lambda x: lr_lambda_update(x)
+        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
     if args.do_train:
         logger.info("***** Running training *****")
@@ -476,7 +486,8 @@ def main():
                     optimizer.zero_grad()
                     global_step += 1
 
-                # lr_scheduler.step(iterId)
+                if args.optimizer == 'admax':
+                    lr_scheduler.step(iterId)
 
                 if step % 20 == 0 and step != 0:
                     loss_tmp = loss_tmp / 20.0

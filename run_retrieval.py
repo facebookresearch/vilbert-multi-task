@@ -67,6 +67,13 @@ def main():
     )
 
     parser.add_argument(
+        "--val_file",
+        default="data/cocoRetreival/all_data_final_val_set0_2014.jsonline",
+        type=str,
+        help="The input train corpus.",
+    )
+
+    parser.add_argument(
         "--bert_model",
         default="bert-base-uncased",
         type=str,
@@ -106,7 +113,12 @@ def main():
         "Sequences longer than this will be truncated, and sequences shorter \n"
         "than this will be padded.",
     )
-
+    parser.add_argument(
+        "--start_epoch",
+        default=0,
+        type=float,
+        help="Total number of training epochs to perform.",
+    )
     parser.add_argument("--use_location", action="store_true", help="whether use location.")
     parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
     parser.add_argument(
@@ -182,6 +194,10 @@ def main():
     parser.add_argument(
         "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
     )
+    parser.add_argument(
+        "--fixed_layer", default=0, type=int, help="up to which layer the language bert is fixed."
+    )
+
     args = parser.parse_args()
 
     if args.baseline:
@@ -204,6 +220,9 @@ def main():
     
     config = BertConfig.from_json_file(args.config_file)
     # save all the hidden parameters. 
+    config.fixed_layer = args.fixed_layer
+    config.in_batch_pairs = True
+
     with open(os.path.join(savePath, 'command.txt'), 'w') as f:
         print(args, file=f)  # Python 3.x
         print('\n', file=f)
@@ -255,19 +274,18 @@ def main():
     if args.do_train:
 
         viz = TBlogger("logs/" + timeStamp)
-
         print("Loading Train Dataset", args.train_file)
-
         tokenizer = BertTokenizer.from_pretrained(
             args.bert_model, do_lower_case=args.do_lower_case
         )
         image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
         train_dset = COCORetreivalDatasetTrain(args.train_file, image_features_reader, tokenizer)
+        eval_dset = COCORetreivalDatasetTrain(args.val_file, image_features_reader, tokenizer)
 
         num_train_optimization_steps = (
             int(len(train_dset) / args.train_batch_size / args.gradient_accumulation_steps)
-            * args.num_train_epochs
+            * (args.num_train_epochs - args.start_epoch)
         )
         if args.local_rank != -1:
             num_train_optimization_steps = (
@@ -381,9 +399,16 @@ def main():
             shuffle=True,
             batch_size=args.train_batch_size,
             num_workers=args.num_workers,
-            pin_memory=False,
+            pin_memory=True,
         )
 
+        eval_dataloader = DataLoader(
+            eval_dset,
+            shuffle=False,
+            batch_size=args.train_batch_size,
+            num_workers=10,
+            pin_memory=False,
+        )
         startIterID = 0
         global_step = 0
         masked_loss_v_tmp = 0
@@ -393,28 +418,23 @@ def main():
         start_t = timer()
 
         model.train()
-        for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
+        for epochId in range(int(args.start_epoch), int(args.num_train_epochs)):
             total_loss = 0
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
             train_score = 0
             optimizer.zero_grad()
 
-            iter_dataloader = iter(train_dataloader)
             for step, batch in enumerate(train_dataloader):
                 iterId = startIterID + step + (epochId * len(train_dataloader))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-                features, spatials, image_mask, caption, input_mask, segment_ids, target = batch
-                
-                features = features.view(-1, features.size(2), features.size(3))
-                spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
-                image_mask = image_mask.view(-1, image_mask.size(2))
-                caption = caption.view(-1, caption.size(2))
-                input_mask = input_mask.view(-1, input_mask.size(2))
-                segment_ids = segment_ids.view(-1, segment_ids.size(2))
+                features, spatials, image_mask, caption, input_mask, segment_ids = batch
 
+                batch_size = features.size(0)
                 logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-                logit = logit.view(-1,4)
+                logit = logit.view(batch_size, batch_size)
+
+                target = torch.arange(batch_size).type_as(segment_ids)
                 loss = loss_fct(logit, target)
                 # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
                 total_loss += loss.item()
@@ -475,10 +495,12 @@ def main():
 
                     loss_tmp = 0
 
-            # r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
+            eval_loss = evaluate(args, model, eval_dataloader)
             total_loss = total_loss / len(train_dataloader)
             logger.info("epoch %d" % (epochId))
             logger.info("\ttrain_loss: %.2f" % (total_loss))
+            logger.info("\teval_loss: %.2f" % (eval_loss))
+
 
             # Save a trained model
             logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -491,6 +513,27 @@ def main():
             output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
             if args.do_train:
                 torch.save(model_to_save.state_dict(), output_model_file)
+
+def evaluate(args, model, dataloader):
+    total_loss = 0
+    loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-1)
+    for i, batch in enumerate(dataloader):
+    # for batch in iter(dataloader):
+        batch = tuple(t.cuda() for t in batch)
+        features, spatials, image_mask, caption, input_mask, segment_ids = batch
+
+        with torch.no_grad():
+            batch_size = features.size(0)
+            logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
+            logit = logit.view(batch_size, batch_size)
+        
+            target = torch.arange(batch_size).type_as(segment_ids)
+            loss = loss_fct(logit, target)
+
+        total_loss += loss.item()
+
+    return total_loss / float(len(dataloader))
+
 
 class TBlogger:
     def __init__(self, log_dir):

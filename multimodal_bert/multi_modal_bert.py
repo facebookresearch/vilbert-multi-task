@@ -163,6 +163,8 @@ class BertConfig(object):
         t_biattention_id=[10, 11],
         predict_feature=False,
         fast_mode=False,
+        fixed_layer=0,
+        in_batch_pairs=False,
     ):
 
         """Constructs BertConfig.
@@ -229,6 +231,9 @@ class BertConfig(object):
             self.bi_num_attention_heads = bi_num_attention_heads
             self.predict_feature = predict_feature
             self.fast_mode = fast_mode
+            self.fixed_layer = fixed_layer
+            self.in_batch_pairs = in_batch_pairs
+
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -324,7 +329,6 @@ class BertEmbeddings(nn.Module):
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
-
 
 class BertSelfAttention(nn.Module):
     def __init__(self, config):
@@ -754,6 +758,8 @@ class BertEncoder(nn.Module):
         self.FAST_MODE = config.fast_mode
         self.v_biattention_id = config.v_biattention_id
         self.t_biattention_id = config.t_biattention_id
+        self.in_batch_pairs = config.in_batch_pairs
+        self.fixed_layer = config.fixed_layer
 
         layer = BertLayer(config)
         v_layer = BertImageLayer(config)
@@ -790,15 +796,28 @@ class BertEncoder(nn.Module):
         all_attnetion_mask_v = []
         all_attention_mask_c = []
 
+        batch_size, num_words, t_hidden_size = txt_embedding.size()
+        _, num_regions, v_hidden_size = image_embedding.size()
+
         for v_layer_id, t_layer_id in zip(self.v_biattention_id, self.t_biattention_id):
 
             v_end = v_layer_id
             t_end = t_layer_id
-            for idx in range(v_start, v_end):
+
+            assert self.fixed_layer < t_end
+
+            for idx in range(v_start, self.fixed_layer):
+                with torch.no_grad():
+                    image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
+                    if output_all_attention_masks:
+                        all_attnetion_mask_v.append(image_attention_probs)
+
+            for idx in range(self.fixed_layer, v_end):
                 image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
                 
                 if output_all_attention_masks:
                     all_attnetion_mask_v.append(image_attention_probs)
+
 
             for idx in range(t_start, t_end):
                 txt_embedding, txt_attention_probs = self.layer[idx](txt_embedding, txt_attention_mask)
@@ -806,10 +825,18 @@ class BertEncoder(nn.Module):
                 if output_all_attention_masks:
                     all_attention_mask_t.append(txt_attention_probs)
 
+            if count == 0 and self.in_batch_pairs:
+                # new batch size is the batch_size ^2
+                image_embedding = image_embedding.unsqueeze(0).expand(batch_size, batch_size, num_regions, v_hidden_size).contiguous().view(batch_size*batch_size, num_regions, v_hidden_size)
+                image_attention_mask = image_attention_mask.unsqueeze(0).expand(batch_size, batch_size, 1, 1, num_regions).contiguous().view(batch_size*batch_size, 1, 1, num_regions)
+
+                txt_embedding = txt_embedding.unsqueeze(1).expand(batch_size, batch_size, num_words, t_hidden_size).contiguous().view(batch_size*batch_size, num_words, t_hidden_size)
+                txt_attention_mask = txt_attention_mask.unsqueeze(1).expand(batch_size, batch_size, 1, 1, num_words).contiguous().view(batch_size*batch_size, 1, 1, num_words)
+                co_attention_mask = co_attention_mask.unsqueeze(1).expand(batch_size, batch_size, 1, num_regions, num_words).contiguous().view(batch_size*batch_size, 1, num_regions, num_words)
+
             if count == 0 and self.FAST_MODE:
                 txt_embedding = txt_embedding.expand(image_embedding.size(0), txt_embedding.size(1), txt_embedding.size(2))
                 txt_attention_mask = txt_attention_mask.expand(image_embedding.size(0), txt_attention_mask.size(1), txt_attention_mask.size(2), txt_attention_mask.size(3))
-
 
             # do the bi attention.
             image_embedding, txt_embedding, co_attention_probs = self.c_layer[count](
@@ -1571,6 +1598,47 @@ class MultiModalBertForReferExpression(BertPreTrainedModel):
         logits = self.classifier(self.dropout(sequence_output_v))
 
         return logits
+
+
+
+# class MultiModalBertForReferExpression(BertPreTrainedModel):
+
+#     def __init__(self, config, dropout_prob=0.1):
+#         super(MultiModalBertForReferExpression, self).__init__(config)
+#         self.bert = BertModel(config)
+#         # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
+#         # self.classifier = nn.Linear(config.v_hidden_size, 1)
+#         # self.dropout = nn.Dropout(config.hidden_dropout_prob)
+#         self.transform = BertImgPredictionHeadTransform(config)
+#         self.decoder = nn.Linear(config.v_hidden_size, 1)
+
+#         self.apply(self.init_bert_weights)
+
+#     def forward(
+#         self,
+#         input_txt,
+#         input_imgs,
+#         image_loc,
+#         token_type_ids=None,
+#         attention_mask=None,
+#         image_attention_mask=None,
+#         output_all_encoded_layers=True,
+#     ):
+        
+#         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
+#             input_txt,
+#             input_imgs,
+#             image_loc,
+#             token_type_ids,
+#             attention_mask,
+#             image_attention_mask,
+#             output_all_encoded_layers=False,
+#         )
+
+#         sequence_output_v = self.transform(sequence_output_v)
+#         logits = self.decoder(sequence_output_v)
+
+#         return logits
 
 
 class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):

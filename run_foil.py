@@ -103,10 +103,10 @@ def main():
     parser.add_argument("--use_location", action="store_true", help="whether use location.")
     parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
     parser.add_argument(
-        "--train_batch_size", default=30, type=int, help="Total batch size for training."
+        "--train_batch_size", default=128, type=int, help="Total batch size for training."
     )
     parser.add_argument(
-        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=1e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -344,24 +344,22 @@ def main():
 
     else:
         if args.from_pretrained:
-            optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
-            )
+            # optimizer = BertAdam(
+            #     optimizer_grouped_parameters,
+            #     warmup=args.warmup_proportion,
+            #     t_total=num_train_optimization_steps,
+            # )
 
-            # optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
+            optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
 
         else:
-            optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                lr=args.learning_rate,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
-            )
-
-    # lr_lambda = lambda x: lr_lambda_update(x)
-    # lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+            # optimizer = BertAdam(
+            #     optimizer_grouped_parameters,
+            #     lr=args.learning_rate,
+            #     warmup=args.warmup_proportion,
+            #     t_total=num_train_optimization_steps,
+            # )
+            optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
 
     if args.do_train:
         logger.info("***** Running training *****")
@@ -379,10 +377,10 @@ def main():
 
         eval_dataloader = DataLoader(
             eval_dset,
-            shuffle=True,
+            shuffle=False,
             batch_size=args.train_batch_size,
-            num_workers=args.num_workers,
-            pin_memory=True,
+            num_workers=10,
+            pin_memory=False,
         )
 
         loss_fct = CrossEntropyLoss(ignore_index=-1)
@@ -442,7 +440,7 @@ def main():
                     optimizer.zero_grad()
                     global_step += 1
 
-                # lr_scheduler.step(iterId)
+                lr_scheduler.step(iterId)
 
                 if step % 20 == 0 and step != 0:
                     loss_tmp = loss_tmp / 20.0

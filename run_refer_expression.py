@@ -262,7 +262,7 @@ def main():
             args.task, "train", args.instances_jsonpath, image_features_reader, gt_image_features_reader, tokenizer
         )
         eval_dset = ReferExpressionDataset(
-            args.task, "val", args.instances_jsonpath, image_features_reader, gt_image_features_reader, tokenizer
+            args.task, "test", args.instances_jsonpath, image_features_reader, gt_image_features_reader, tokenizer
         )
 
         num_train_optimization_steps = (

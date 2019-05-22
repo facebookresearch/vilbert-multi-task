@@ -43,8 +43,6 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 from multimodal_bert.datasets import COCORetreivalDatasetTrain, COCORetreivalDatasetVal
 from multimodal_bert.datasets._image_features_reader import ImageFeaturesH5Reader
 
-from multimodal_bert.multi_modal_bert import BertForMultiModalPreTraining, BertConfig
-from multimodal_bert.multi_modal_bert import MultiModalBertForImageCaptionRetrieval
 
 import pdb
 
@@ -161,7 +159,7 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=20, help="Number of workers in the dataloader."
+        "--num_workers", type=int, default=1, help="Number of workers in the dataloader."
     )
     parser.add_argument(
         "--from_pretrained", action="store_true", help="Wheter the tensor is from pretrained."
@@ -181,6 +179,15 @@ def main():
     )
 
     args = parser.parse_args()
+
+
+    if args.baseline:
+        from pytorch_pretrained_bert.modeling import BertConfig
+        from multimodal_bert.bert import MultiModalBertForImageCaptionRetrieval
+        from multimodal_bert.bert import BertForMultiModalPreTraining
+    else:
+        from multimodal_bert.multi_modal_bert import MultiModalBertForImageCaptionRetrieval, BertConfig
+        from multimodal_bert.multi_modal_bert import BertForMultiModalPreTraining
 
     print(args)
     if args.save_name is not '':
@@ -231,10 +238,6 @@ def main():
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
-    if not args.do_train:
-        raise ValueError(
-            "Training is currently the only implemented execution option. Please set `do_train`."
-        )
 
     # if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
     #     raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
@@ -244,15 +247,14 @@ def main():
 
     # train_examples = None
     num_train_optimization_steps = None
-    if args.do_train:
 
-        print("Loading Train Dataset", args.val_file)
+    print("Loading Train Dataset", args.val_file)
 
-        tokenizer = BertTokenizer.from_pretrained(
-            args.bert_model, do_lower_case=args.do_lower_case
-        )
-        image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
-        eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
+    tokenizer = BertTokenizer.from_pretrained(
+        args.bert_model, do_lower_case=args.do_lower_case
+    )
+    image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
+    eval_dset = COCORetreivalDatasetVal(args.val_file, image_features_reader, tokenizer)
 
     config.fast_mode = True
     if args.from_pretrained:
