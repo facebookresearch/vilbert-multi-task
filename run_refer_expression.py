@@ -279,10 +279,10 @@ def main():
     num_labels = 2
     if args.from_pretrained and not args.continue_training:
         model = MultiModalBertForReferExpression.from_pretrained(
-            args.pretrained_weight, config, dropout_prob=0.5
+            args.pretrained_weight, config, dropout_prob=0.2
         )
     else:
-        model = MultiModalBertForReferExpression(config, dropout_prob=0.5)
+        model = MultiModalBertForReferExpression(config, dropout_prob=0.2)
 
     if args.continue_training:
         print("loading model from %s" %(args.pretrained_weight))
