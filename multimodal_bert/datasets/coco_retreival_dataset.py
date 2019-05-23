@@ -41,6 +41,7 @@ def _load_annotations(annotations_jsonpath):
 class COCORetreivalDatasetTrain(Dataset):
     def __init__(
         self,
+        split: str,
         annotations_jsonpath: str,
         image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
@@ -61,11 +62,10 @@ class COCORetreivalDatasetTrain(Dataset):
         # image_info = cPickle.load(open('data/cocoRetreival/hard_negative.pkl', 'rb'))
         # for key, value in image_info.items():
         #     setattr(self, key, value)
-
         # self.train_imgId2pool = {imageId:i for i, imageId in enumerate(self.train_image_list)}
 
         # cache file path data/cache/train_ques
-        cap_cache_path = "data/cocoRetreival/cache/train_cap.pkl"
+        cap_cache_path = "data/cocoRetreival/cache/train_cap_" + split + ".pkl"
         if not os.path.exists(cap_cache_path):
             self.tokenize()
             self.tensorize()

@@ -170,7 +170,7 @@ def main():
         help="save name for training.", 
     )
     parser.add_argument(
-        "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+        "--mode", default="VilBert", type=str, choices=["VilBert", "Baseline", "Extractor"], help="Wheter to use the baseline model (single bert)."
     )
     parser.add_argument(
         "--split", default='train', type=str, help="train or trainval."
@@ -185,13 +185,18 @@ def main():
     parser.add_argument(
         "--optimizer", default='adam', type=str, help="whether use chunck for parallel training."
     )
+
+
     args = parser.parse_args()
 
-    if args.baseline:
+    if args.mode == "Baseline":
         from pytorch_pretrained_bert.modeling import BertConfig
         from multimodal_bert.bert import MultiModalBertForVQA
-    else:
+    elif args.mode == "VilBert":
         from multimodal_bert.multi_modal_bert import MultiModalBertForVQA, BertConfig
+    elif args.mode == "Extractor":
+        from multimodal_bert.vilBertExtractor import MultiModalBertForVQA
+        from multimodal_bert.multi_modal_bert import BertConfig
 
     print(args)
     if args.save_name is not '':
@@ -320,6 +325,22 @@ def main():
     # pdb.set_trace()
     # Prepare optimizer
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
+
+
+    if args.mode == 'Extractor':
+        bert_weight_name = json.load(open("config/bert_weight_name.json", "r"))
+        bert_weight_name_filtered = []
+        for name in bert_weight_name:
+            if 'bert' in name:
+                bert_weight_name_filtered.append(name)
+
+        optimizer_grouped_parameters = []
+        for key, value in dict(model.named_parameters()).items():
+            if key[12:] in bert_weight_name_filtered:
+                value.requires_grad = False
+        
+        print("filtered weight")
+        print(bert_weight_name_filtered)    
 
     if not args.from_pretrained:
         param_optimizer = list(model.named_parameters())

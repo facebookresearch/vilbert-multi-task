@@ -195,7 +195,10 @@ def main():
         "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
     )
     parser.add_argument(
-        "--fixed_layer", default=0, type=int, help="up to which layer the language bert is fixed."
+        "--fixed_t_layer", default=0, type=int, help="up to which layer the language bert is fixed."
+    )
+    parser.add_argument(
+        "--fixed_v_layer", default=0, type=int, help="up to which layer the language bert is fixed."
     )
 
     args = parser.parse_args()
@@ -220,7 +223,8 @@ def main():
     
     config = BertConfig.from_json_file(args.config_file)
     # save all the hidden parameters. 
-    config.fixed_layer = args.fixed_layer
+    config.fixed_t_layer = args.fixed_t_layer
+    config.fixed_v_layer = args.fixed_v_layer
     config.in_batch_pairs = True
 
     with open(os.path.join(savePath, 'command.txt'), 'w') as f:
@@ -280,8 +284,8 @@ def main():
         )
         image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
-        train_dset = COCORetreivalDatasetTrain(args.train_file, image_features_reader, tokenizer)
-        eval_dset = COCORetreivalDatasetTrain(args.val_file, image_features_reader, tokenizer)
+        train_dset = COCORetreivalDatasetTrain('train', args.train_file, image_features_reader, tokenizer)
+        eval_dset = COCORetreivalDatasetTrain('val0', args.val_file, image_features_reader, tokenizer)
 
         num_train_optimization_steps = (
             int(len(train_dset) / args.train_batch_size / args.gradient_accumulation_steps)
@@ -295,11 +299,11 @@ def main():
     # num_labels = 3000
     if args.from_pretrained:
         model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
-            args.pretrained_weight, config, dropout_prob=0.2
+            args.pretrained_weight, config, dropout_prob=0.5
         )
     else:
         model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
-            args.bert_model, config, dropout_prob=0.2
+            args.bert_model, config, dropout_prob=0.5
         )
 
     if args.fp16:
@@ -386,8 +390,6 @@ def main():
                                  warmup=args.warmup_proportion,
                                  t_total=num_train_optimization_steps)
 
-    loss_fct = torch.nn.CrossEntropyLoss()
-
     if args.do_train:
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_dset))
@@ -431,11 +433,8 @@ def main():
                 features, spatials, image_mask, caption, input_mask, segment_ids = batch
 
                 batch_size = features.size(0)
-                logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-                logit = logit.view(batch_size, batch_size)
-
-                target = torch.arange(batch_size).type_as(segment_ids)
-                loss = loss_fct(logit, target)
+                loss = model(caption, features, spatials, segment_ids, input_mask, image_mask, training=True)
+                loss = loss.mean()                
                 # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
                 total_loss += loss.item()
 
@@ -517,18 +516,15 @@ def main():
 def evaluate(args, model, dataloader):
     total_loss = 0
     loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-1)
-    for i, batch in enumerate(dataloader):
+    for i, batch in enumerate(tqdm(iter(dataloader))):
     # for batch in iter(dataloader):
         batch = tuple(t.cuda() for t in batch)
         features, spatials, image_mask, caption, input_mask, segment_ids = batch
 
         with torch.no_grad():
             batch_size = features.size(0)
-            logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-            logit = logit.view(batch_size, batch_size)
-        
-            target = torch.arange(batch_size).type_as(segment_ids)
-            loss = loss_fct(logit, target)
+            loss = model(caption, features, spatials, segment_ids, input_mask, image_mask, training=True)
+            loss = loss.mean()
 
         total_loss += loss.item()
 

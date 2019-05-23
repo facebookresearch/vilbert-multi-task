@@ -163,7 +163,8 @@ class BertConfig(object):
         t_biattention_id=[10, 11],
         predict_feature=False,
         fast_mode=False,
-        fixed_layer=0,
+        fixed_v_layer=0,
+        fixed_t_layer=0,
         in_batch_pairs=False,
     ):
 
@@ -231,7 +232,9 @@ class BertConfig(object):
             self.bi_num_attention_heads = bi_num_attention_heads
             self.predict_feature = predict_feature
             self.fast_mode = fast_mode
-            self.fixed_layer = fixed_layer
+            self.fixed_v_layer = fixed_v_layer
+            self.fixed_t_layer = fixed_t_layer
+
             self.in_batch_pairs = in_batch_pairs
 
         else:
@@ -759,7 +762,8 @@ class BertEncoder(nn.Module):
         self.v_biattention_id = config.v_biattention_id
         self.t_biattention_id = config.t_biattention_id
         self.in_batch_pairs = config.in_batch_pairs
-        self.fixed_layer = config.fixed_layer
+        self.fixed_t_layer = config.fixed_t_layer
+        self.fixed_v_layer = config.fixed_v_layer
 
         layer = BertLayer(config)
         v_layer = BertImageLayer(config)
@@ -804,24 +808,32 @@ class BertEncoder(nn.Module):
             v_end = v_layer_id
             t_end = t_layer_id
 
-            assert self.fixed_layer < t_end
+            assert self.fixed_t_layer <= t_end
+            assert self.fixed_v_layer <= v_end
 
-            for idx in range(v_start, self.fixed_layer):
+            for idx in range(v_start, self.fixed_v_layer):
                 with torch.no_grad():
                     image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
+                    v_start = self.fixed_v_layer
+
                     if output_all_attention_masks:
                         all_attnetion_mask_v.append(image_attention_probs)
 
-            for idx in range(self.fixed_layer, v_end):
+            for idx in range(v_start, v_end):
                 image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
                 
                 if output_all_attention_masks:
                     all_attnetion_mask_v.append(image_attention_probs)
 
+            for idx in range(t_start, self.fixed_t_layer):
+                with torch.no_grad():
+                    txt_embedding, txt_attention_probs = self.layer[idx](txt_embedding, txt_attention_mask)
+                    t_start = self.fixed_t_layer
+                    if output_all_attention_masks:
+                        all_attention_mask_t.append(txt_attention_probs)
 
             for idx in range(t_start, t_end):
                 txt_embedding, txt_attention_probs = self.layer[idx](txt_embedding, txt_attention_mask)
-
                 if output_all_attention_masks:
                     all_attention_mask_t.append(txt_attention_probs)
 
@@ -1481,7 +1493,6 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         else:
             return prediction_scores_t, prediction_scores_v, seq_relationship_score, all_attention_mask
 
-
 class MultiModalBertForVQA(BertPreTrainedModel):
 
     def __init__(self, config, num_labels, dropout_prob=0.1):
@@ -1517,7 +1528,6 @@ class MultiModalBertForVQA(BertPreTrainedModel):
 
         logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
         return logits
-
 
 class MultiModalBertForFoilClassification(BertPreTrainedModel):
     """Multi-modal BERT for the FOIL classification task. This task is trivially similar to binary
@@ -1650,6 +1660,7 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
         self.classifier = nn.Linear(config.bi_hidden_size, 1)
         self.dropout = nn.Dropout(dropout_prob)
         self.apply(self.init_bert_weights)
+        self.loss_fct = torch.nn.CrossEntropyLoss()
 
     def forward(
         self,
@@ -1660,8 +1671,10 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         output_all_encoded_layers=True,
+        training=False,
     ):
         
+        batch_size = input_txt.size(0)
         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
             input_txt,
             input_imgs,
@@ -1672,11 +1685,14 @@ class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
             output_all_encoded_layers=False,
         )
         
-        
         logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
-
-        return logits
-
+        
+        if training: # return the loss
+            target = torch.arange(batch_size).type_as(input_txt)
+            loss = self.loss_fct(logits.view(batch_size, batch_size), target)
+            return loss
+        else:
+            return logits
 
 class MultiModalBertForVCR(BertPreTrainedModel):
     """Multi-modal BERT for the CVR classification task. This task is trivially similar to binary
@@ -1767,6 +1783,63 @@ class MultiModalBertForVisDial(BertPreTrainedModel):
             co_attention_mask = co_attention_mask,
             output_all_encoded_layers=output_all_encoded_layers,
         )
+
+        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
+        return logits
+
+
+
+class MultiModalBertExtractorForVQA(BertPreTrainedModel):
+    def __init__(self, config, num_labels, dropout_prob=0.1):
+        super(MultiModalBertExtractorForVQA, self).__init__(config)
+        self.num_labels = num_labels
+        self.bert = BertModel(config)
+        # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
+        # self.classifier = nn.Linear(config.bi_hidden_size, num_labels)
+        # self.dropout = nn.Dropout(dropout_prob)
+        self.rnn = rnn_cls(762, 1024, 1, bidirectional=False, dropout=0, batch_first=True)
+        self.apply(self.init_bert_weights)
+
+    def init_hidden(self, batch):
+        # just to get the type of tensor
+        weight = next(self.parameters()).data
+        hid_shape = (self.nlayers * self.ndirections, batch, self.num_hid)
+        if self.rnn_type == 'LSTM':
+            return (Variable(weight.new(*hid_shape).zero_()),
+                    Variable(weight.new(*hid_shape).zero_()))
+        else:
+            return Variable(weight.new(*hid_shape).zero_())
+
+    def forward(
+        self,
+        input_txt,
+        input_imgs,
+        image_loc,
+        token_type_ids=None,
+        attention_mask=None,
+        image_attention_mask=None,
+        output_all_encoded_layers=True,
+    ):
+            
+        with torch.no_grad():
+            sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
+                input_txt,
+                input_imgs,
+                image_loc,
+                token_type_ids,
+                attention_mask,
+                image_attention_mask,
+                output_all_encoded_layers=False,
+            )
+
+        # define a vqa model here.
+        batch = sequence_output_t.size(0)
+        hidden = self.init_hidden(batch)
+
+        self.rnn.flatten_parameters()
+        output, hidden = self.rnn(sequence_output_t, hidden)        
+
+
 
         logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
         return logits
