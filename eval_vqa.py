@@ -55,7 +55,7 @@ def main():
 
     # Required parameters
     # Data files for VQA task.
-    parser.add_argument("--features_h5path", default="data/coco/coco_trainval.h5")
+    parser.add_argument("--features_h5path", default="data/coco/test2015.h5")
     parser.add_argument(
         "--train_file",
         default="data/VQA/training",
@@ -245,6 +245,8 @@ def main():
         eval_dset = VQAClassificationDataset("test", image_features_reader, tokenizer, dataroot="data/VQA")
     elif args.split == 'val':
         eval_dset = VQAClassificationDataset("val", image_features_reader, tokenizer, dataroot="data/VQA")
+    elif args.split == 'test-dev':
+        eval_dset = VQAClassificationDataset("test-dev", image_features_reader, tokenizer, dataroot="data/VQA")
 
     num_labels = eval_dset.num_ans_candidates
     if args.from_pretrained:
@@ -307,20 +309,28 @@ def evaluate(args, model, dataloader):
     score = 0
     upper_bound = 0
     num_data = 0
+    results = []
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
         features, spatials, image_mask, question, target, input_mask, segment_ids, question_id = batch
         with torch.no_grad():
             pred = model(question, features, spatials, segment_ids, input_mask, image_mask)
-        batch_score = compute_score_with_logits(pred, target.cuda()).sum()
-        score += batch_score.item()
-        upper_bound += (target.max(1)[0]).sum()
-        num_data += pred.size(0)
+            logits = torch.max(pred, 1)[1].data  # argmax
 
+            for i in range(logits.size(0)):
+                results.append({'question_id':question_id[i].item(), \
+                        'answer':dataloader.dataset.label2ans[logits[i].item()]})
 
-    score = score / len(dataloader.dataset)
-    upper_bound = upper_bound / len(dataloader.dataset)
-    return score, upper_bound
+        # batch_score = compute_score_with_logits(pred, target.cuda()).sum()
+        # score += batch_score.item()
+        # upper_bound += (target.max(1)[0]).sum()
+        # num_data += pred.size(0)
+
+    json.dump(results, open(args.save_name+'.json','w'))
+
+    # score = score / len(dataloader.dataset)
+    # upper_bound = upper_bound / len(dataloader.dataset)
+    # return score, upper_bound
 
 def instance_bce_with_logits(logits, labels):
     assert logits.dim() == 2
