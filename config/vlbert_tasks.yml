@@ -1,0 +1,96 @@
+TASK0:
+  name: ConceptualCaption
+  type: L-classifier
+  task_id: 0
+  features_h5path: 
+  train_file: 
+  max_seq_length: 30
+  batch_size: 128
+  train_split: train
+  eval_split: val
+TASK1:
+  name: VQA
+  type: VL-classifier
+  loss: BCEWithLogitLoss
+  task_id: 1
+  dataroot: data/VQA
+  features_h5path1: /srv/datasets/conceptual_caption/coco/coco_trainval.h5
+  features_h5path2: ''
+  annotations_jsonpath: ''
+  max_seq_length: 30
+  batch_size: 16
+  train_split: trainval
+  val_split: minval
+TASK2:
+  name: GenomeQA
+  type: VL-classifier
+  task_id: 2
+  features_h5path: /srv/datasets/conceptual_caption/coco/coco_trainval.h5
+  train_file: data/VQA/
+  split: train
+TASK3:
+  name: VisualDialog
+  type: VL-logit
+  task_id: 3
+  features_h5path: /srv/datasets/conceptual_caption/coco/coco_trainval.h5
+  split: train
+TASK4:
+  name: Vissual7w
+  type: VL-logit
+  task_id: 4
+  split: train
+TASK5:
+  name: VCR_QA
+  type: VL-logit
+  task_id: 5
+  split: train
+TASK6:
+  name: VCR_QAR
+  type: VL-logit
+  task_id: 6
+  split: train
+TASK7:
+  name: RetrievalCOCO
+  type: VL-logit
+  task_id: 7
+  split: train
+TASK8:
+  name: RetrievalFlickr30k
+  type: VL-logit
+  task_id: 8
+  split: train
+TASK9:
+  name: RefCOCO
+  type: V-logit
+  task_id: 9
+  split: train
+TASK10:
+  name: RefCOCO_plus
+  type: V-logit
+  task_id: 10
+  split: train
+TASK11:
+  name: Refg
+  type: V-logit
+  task_id: 11
+  split: train
+TASK12:
+  name: DenseCaption
+  type: V-logit
+  task_id: 12
+  split: train
+TASK13:
+  name: Flickr30kGround
+  type: L-logit
+  task_id: 13
+  split: train
+TASK14:
+  name: CocoCaption
+  type: L-classifier
+  task_id: 14
+  split: train
+TASK15:
+  name: Flickr30kCaption
+  type: L-classifier
+  task_id: 15
+  split: train

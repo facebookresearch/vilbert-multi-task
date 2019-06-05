@@ -39,8 +39,8 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 from pytorch_pretrained_bert import BertModel
 
-from multimodal_bert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
-from multimodal_bert.bert import BertForMultiModalPreTraining
+from vilbert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
+from vilbert.basebert import BertForMultiModalPreTraining
 from pytorch_pretrained_bert.modeling import BertConfig
 import pdb
 
@@ -136,7 +136,7 @@ def main():
     )
     parser.add_argument(
         "--warmup_proportion",
-        default=0.01,
+        default=0.1,
         type=float,
         help="Proportion of training to perform linear learning rate warmup for. "
         "E.g., 0.1 = 10%% of training.",
@@ -248,19 +248,16 @@ def main():
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
-    # random.seed(args.seed)
-    # np.random.seed(args.seed)
-    # torch.manual_seed(args.seed)
-    # if n_gpu > 0:
-    #     torch.cuda.manual_seed_all(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if n_gpu > 0:
+        torch.cuda.manual_seed_all(args.seed)
 
     if not args.do_train:
         raise ValueError(
             "Training is currently the only implemented execution option. Please set `do_train`."
         )
-
-    # if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-    #     raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -269,7 +266,6 @@ def main():
         args.bert_model, do_lower_case=args.do_lower_case
     )
 
-    # train_examples = None
     num_train_optimization_steps = None
     if args.do_train:
 
@@ -305,11 +301,8 @@ def main():
             num_train_optimization_steps = (
                 num_train_optimization_steps // torch.distributed.get_world_size()
             )
-
-    config = BertConfig(vocab_size_or_config_json_file=30522, hidden_size=768,
-        num_hidden_layers=12, num_attention_heads=12, intermediate_size=3072,
-        attention_probs_dropout_prob=0.1, hidden_act="gelu", hidden_dropout_prob=0.1,
-        initializer_range=0.2, max_position_embeddings=512, type_vocab_size=2)
+    
+    config = BertConfig.from_json_file(args.config_file)
 
     if args.from_pretrained:
         model = BertForMultiModalPreTraining.from_pretrained(args.bert_model, config)
@@ -349,7 +342,7 @@ def main():
             },
         ]
     else:
-        bert_weight_name = json.load(open("config/bert_weight_name.json", "r"))
+        bert_weight_name = json.load(open("config/" + args.pretrained_weight + "_weight_name.json", "r"))
         optimizer_grouped_parameters = []
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
@@ -430,9 +423,8 @@ def main():
                 iterId = startIterID + step + (epochId * len(train_dataset))
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
-                    batch
-                )
+                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, \
+                    image_target, image_label, image_mask, image_ids = (batch)
 
                 masked_loss_t, masked_loss_v, next_sentence_loss = model(
                     input_ids,
@@ -543,7 +535,7 @@ def main():
             for step, batch in enumerate(validation_dataset):
                 batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
+                input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask, image_ids = (
                     batch
                 )
                 

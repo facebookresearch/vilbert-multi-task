@@ -2,7 +2,6 @@ import os
 import json
 import _pickle as cPickle
 
-# import cPickle
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -26,7 +25,6 @@ def _create_entry(question, answer):
         "answer": answer,
     }
     return entry
-
 
 def _load_dataset(dataroot, name):
     """Load entries
@@ -53,7 +51,6 @@ def _load_dataset(dataroot, name):
         answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'val')
         answers_val = cPickle.load(open(answer_path_val, "rb"))
         answers_val = sorted(answers_val, key=lambda x: x["question_id"])
-
         questions = questions_train + questions_val[:-3000]
         answers = answers_train + answers_val[:-3000]
 
@@ -63,30 +60,15 @@ def _load_dataset(dataroot, name):
         answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % 'val')
         answers_val = cPickle.load(open(answer_path_val, "rb"))
         answers_val = sorted(answers_val, key=lambda x: x["question_id"])        
-
         questions = questions_val[-3000:]
         answers = answers_val[-3000:]
 
     elif name == 'test':
         question_path_test = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2015_questions.json" % 'test')
         questions_test = sorted(json.load(open(question_path_test))["questions"], key=lambda x: x["question_id"])
-        # answer_path_test = os.path.join(dataroot, "cache", "%s_target.pkl" % 'test')
-        # answers_test = cPickle.load(open(answer_path_test, "rb"))
-        # answers_test = sorted(answers_test, key=lambda x: x["question_id"])        
-
         questions = questions_test
-        # answers = answers_test    
-
-    elif name == 'test-dev':
-        question_path_test = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2015_questions.json" % 'test-dev')
-        questions_test = sorted(json.load(open(question_path_test))["questions"], key=lambda x: x["question_id"])
-        # answer_path_test = os.path.join(dataroot, "cache", "%s_target.pkl" % 'test')
-        # answers_test = cPickle.load(open(answer_path_test, "rb"))
-        # answers_test = sorted(answers_test, key=lambda x: x["question_id"])        
-
-        questions = questions_test
-        # answers = answers_test    
-
+    else:
+        assert False, "data split is not recognized."
 
     if 'test' in name:
         entries = []
@@ -99,44 +81,42 @@ def _load_dataset(dataroot, name):
             assert_eq(question["question_id"], answer["question_id"])
             assert_eq(question["image_id"], answer["image_id"])
             entries.append(_create_entry(question, answer))
-
     return entries
 
 
 class VQAClassificationDataset(Dataset):
     def __init__(
         self,
-        name: str,
+        task: str,
+        dataroot: str,
+        annotations_jsonpath: str,
+        split: str,
         image_features_reader: ImageFeaturesH5Reader,
+        gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
-        dataroot="data",
         padding_index: int = 0,
+        max_seq_length: int = 20,
     ):
         super().__init__()
-        # assert name in ["train", "val"]
-
-        self.split = name
-        ans2label_path = os.path.join(dataroot, "cache", "trainval_ans2label.pkl")
-        label2ans_path = os.path.join(dataroot, "cache", "trainval_label2ans.pkl")
+        self.split = split
+        ans2label_path = os.path.join('data', task, "cache", "trainval_ans2label.pkl")
+        label2ans_path = os.path.join('data', task, "cache", "trainval_label2ans.pkl")
         self.ans2label = cPickle.load(open(ans2label_path, "rb"))
         self.label2ans = cPickle.load(open(label2ans_path, "rb"))
-        self.num_ans_candidates = len(self.ans2label)
+        self.num_labels = len(self.ans2label)
 
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
         self._padding_index = padding_index
-
-        self.entries = _load_dataset(dataroot, name)
-
-        # cache file path data/cache/train_ques
-        # ques_cache_path = "data/VQA/cache/" + name + "_ques.pkl"
-        # if not os.path.exists(ques_cache_path):
-        # if not os.path.exists(ques_cache_path):
-        self.tokenize()
-        self.tensorize()
-            # cPickle.dump(self.entries, open(ques_cache_path, 'wb'))
-        # else:
-            # self.entries = cPickle.load(open(ques_cache_path, "rb"))
+        cache_path = os.path.join('data', task, "cache", task + '_' + split + '_' + str(max_seq_length)+'.pkl')
+        if not os.path.exists(cache_path):
+            self.entries = _load_dataset(dataroot, split)
+            self.tokenize()
+            self.tensorize()
+            cPickle.dump(self.entries, open(cache_path, 'wb'))
+        else:
+            print("Loading from %s" %cache_path)
+            self.entries = cPickle.load(open(cache_path, "rb"))
 
     def tokenize(self, max_length=16):
         """Tokenizes the questions.
@@ -212,7 +192,7 @@ class VQAClassificationDataset(Dataset):
         input_mask = entry["q_input_mask"]
         segment_ids = entry["q_segment_ids"]
 
-        target = torch.zeros(self.num_ans_candidates)
+        target = torch.zeros(self.num_labels)
 
         if "test" not in self.split:
             answer = entry["answer"]

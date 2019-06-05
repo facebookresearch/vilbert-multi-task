@@ -16,7 +16,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
-from multimodal_bert.file_utils import cached_path
+from vilbert.file_utils import cached_path
 from pytorch_pretrained_bert.modeling import BertConfig
 import pdb
 

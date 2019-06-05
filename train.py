@@ -299,11 +299,12 @@ def main():
         )
         * (args.num_train_epochs - args.start_epoch)
     )
-    if args.local_rank != -1:
-        num_train_optimization_steps = (
-            num_train_optimization_steps // torch.distributed.get_world_size()
-        )
+    # if args.local_rank != -1:
+    #     num_train_optimization_steps = (
+    #         num_train_optimization_steps // torch.distributed.get_world_size()
+    #     )
 
+    # pdb.set_trace()
     if args.predict_feature:
         config.v_target_size = 2048
         config.predict_feature = True
@@ -534,7 +535,7 @@ def main():
                 timeStamp = strftime("%a %d %b %y %X", gmtime())
 
                 Ep = epochId + nb_tr_steps / float(len(train_dataset))
-                printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][Loss_v: %.5g][Loss_t: %.5g][Loss_n: %.5g][LR: %.5g]"
+                printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][Loss_v: %.5g][Loss_t: %.5g][Loss_n: %.5g][LR: %.8g]"
 
                 printInfo = [
                     timeStamp,
@@ -547,7 +548,7 @@ def main():
                     next_sentence_loss_tmp,
                     optimizer.get_lr()[0],
                 ]
-
+                
                 start_t = end_t
                 print(printFormat % tuple(printInfo))
 
@@ -646,12 +647,11 @@ def main():
             output_model_file = os.path.join(
                 savePath, "pytorch_model_" + str(epochId) + ".bin"
             )
-            model_save = {}
-            model_save['model'] = model_to_save.state_dict()
-            model_save['optimizer'] = optimizer
-            model_save['epoch'] = epochId
-
-            torch.save(model_to_save, output_model_file)
+            # model_save = {}
+            # model_save['model'] = model_to_save.state_dict()
+            # model_save['optimizer'] = optimizer
+            # model_save['epoch'] = epochId
+            torch.save(model_save.state_dict(), output_model_file)
 
 if __name__ == "__main__":
 

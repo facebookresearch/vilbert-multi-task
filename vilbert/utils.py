@@ -1,7 +1,4 @@
 """
-Utilities for working with the local dataset cache.
-This file is adapted from the AllenNLP library at https://github.com/allenai/allennlp
-Copyright by the AllenNLP authors.
 """
 from io import open
 import json
@@ -20,7 +17,7 @@ import requests
 from botocore.exceptions import ClientError
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
-
+import pdb
 
 PYTORCH_PRETRAINED_BERT_CACHE = Path(
     os.getenv("PYTORCH_PRETRAINED_BERT_CACHE", Path.home() / ".pytorch_pretrained_bert")
