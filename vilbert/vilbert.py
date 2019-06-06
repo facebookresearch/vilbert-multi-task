@@ -1490,20 +1490,19 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         else:
             return prediction_scores_t, prediction_scores_v, seq_relationship_score, all_attention_mask
 
-class MultiModalBertForAllTasks(BertPreTrainedModel):
+class VILBertForVLTasks(BertPreTrainedModel):
     def __init__(self, config, num_labels, dropout_prob=0.1):
-        super(MultiModalBertForAllTasks, self).__init__(config)
+        super(VILBertForVLTasks, self).__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(dropout_prob)
-        
-        self.vl_logit = nn.Linear(config.bi_hidden_size, num_labels)
-        self.vl_blogit = nn.Linear(config.bi_hidden_size, 1)
-        
-        self.v_blogit = nn.Linear(config.v_hidden_size, 1)
-        
-        self.l_logit = nn.Linear(config.hidden_size, num_labels)
-        self.l_blogit = nn.Linear(config.hidden_size, 1)
+        # self.cls = BertPreTrainingHeads(
+        #     config, self.bert.embeddings.word_embeddings.weight
+        # )
+        self.vil_prediction = nn.Linear(config.bi_hidden_size, num_labels)
+        # self.vil_logit = nn.Linear(config.bi_hidden_size, 1)
+        # self.vision_logit = nn.Linear(config.v_hidden_size, 1)
+        # self.linguisic_logit = nn.Linear(config.hidden_size, 1)
 
         self.apply(self.init_bert_weights)
 
@@ -1527,110 +1526,24 @@ class MultiModalBertForAllTasks(BertPreTrainedModel):
             output_all_encoded_layers=False,
         )
 
-        vl_logit = self.vl_logit(self.dropout(pooled_output_t * pooled_output_v))
-        vl_blogit = self.vl_blogit(self.dropout(pooled_output_t * pooled_output_v))
-        v_blogit = self.v_blogit(self.dropout(pooled_output_v))
-        l_logit = self.l_logit(self.dropout(pooled_output_t))
-        l_blogit = self.l_blogit(self.dropout(pooled_output_t))
 
-        return vl_logit, vl_blogit, v_blogit, l_logit, l_blogit
-
-
-class MultiModalBertForVLClassifier(BertPreTrainedModel):
-    def __init__(self, config, num_labels, dropout_prob=0.1):
-        super(MultiModalBertForVLClassifier, self).__init__(config)
-        self.num_labels = num_labels
-        self.bert = BertModel(config)
-        self.classifier = nn.Linear(config.bi_hidden_size, num_labels)
-        self.dropout = nn.Dropout(dropout_prob)
-
-        self.apply(self.init_bert_weights)
-
-    def forward(
-        self,
-        input_txt,
-        input_imgs,
-        image_loc,
-        token_type_ids=None,
-        attention_mask=None,
-        image_attention_mask=None,
-        output_all_encoded_layers=True,
-    ):
+        vil_prediction = None
+        vil_logit = None
+        vil_binary_prediction = None 
+        vision_prediction = None
+        vision_logit = None
+        linguisic_prediction = None
+        linguisic_logit = None
         
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
-            input_txt,
-            input_imgs,
-            image_loc,
-            token_type_ids,
-            attention_mask,
-            image_attention_mask,
-            output_all_encoded_layers=False,
-        )
+        # linguisic_prediction, vision_prediction, vil_binary_prediction = self.cls(
+        #     sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v
+        # )
+        vil_prediction = self.vil_prediction(self.dropout(pooled_output_t * pooled_output_v))
+        # vil_logit = self.vil_logit(self.dropout(pooled_output_t * pooled_output_v))
+        # vision_logit = self.vision_logit(self.dropout(sequence_output_v))
+        # linguisic_logit = self.linguisic_logit(self.dropout(sequence_output_t))
 
-        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
-        return logits
 
-class MultiModalBertForVLLogit(BertPreTrainedModel):
-    def __init__(self, config, dropout_prob=0.1):
-        super(MultiModalBertForVLLogit).__init__(config)
-        self.num_labels = num_labels
-        self.bert = BertModel(config)
-        self.dropout = nn.Dropout(dropout_prob)
-        self.classifier = nn.Linear(config.bi_hidden_size, 1)
-        self.apply(self.init_bert_weights)
 
-    def forward(
-        self,
-        input_txt,
-        input_imgs,
-        image_loc,
-        token_type_ids=None,
-        attention_mask=None,
-        image_attention_mask=None,
-        output_all_encoded_layers=True,
-    ):
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
-            input_txt,
-            input_imgs,
-            image_loc,
-            token_type_ids,
-            attention_mask,
-            image_attention_mask,
-            output_all_encoded_layers=False,
-        )
-
-        logits = self.classifier(self.dropout(pooled_output_t * pooled_output_v))
-        return logits
-
-class MultiModalBertForVLogit(BertPreTrainedModel):
-
-    def __init__(self, config, dropout_prob=0.1):
-        super(MultiModalBertForVLogit, self).__init__(config)
-        self.bert = BertModel(config)
-        self.dropout = nn.Dropout(dropout_prob)
-        self.classifier = nn.Linear(config.v_hidden_size, 1)
-        self.apply(self.init_bert_weights)
-
-    def forward(
-        self,
-        input_txt,
-        input_imgs,
-        image_loc,
-        token_type_ids=None,
-        attention_mask=None,
-        image_attention_mask=None,
-        output_all_encoded_layers=True,
-    ):
-        
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
-            input_txt,
-            input_imgs,
-            image_loc,
-            token_type_ids,
-            attention_mask,
-            image_attention_mask,
-            output_all_encoded_layers=False,
-        )
-
-        logits = self.classifier(self.dropout(sequence_output_v))
-        return logits
+        return vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, \
+                    vision_logit, linguisic_prediction, linguisic_logit

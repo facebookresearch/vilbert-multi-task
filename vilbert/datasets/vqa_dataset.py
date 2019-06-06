@@ -1,6 +1,7 @@
 import os
 import json
 import _pickle as cPickle
+import logging
 
 import numpy as np
 import torch
@@ -9,6 +10,7 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 
 from ._image_features_reader import ImageFeaturesH5Reader
 
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
@@ -115,7 +117,7 @@ class VQAClassificationDataset(Dataset):
             self.tensorize()
             cPickle.dump(self.entries, open(cache_path, 'wb'))
         else:
-            print("Loading from %s" %cache_path)
+            logger.info("Loading from %s" %cache_path)
             self.entries = cPickle.load(open(cache_path, "rb"))
 
     def tokenize(self, max_length=16):

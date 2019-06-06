@@ -18,12 +18,10 @@ __all__ = ["FoilClassificationDataset", \
 		   "VisDialDataset", \
 		   "ConceptCapLoaderRetrieval"]
 
-DatasetMapTrain = {'ConceptualCaption': ConceptCapLoaderTrain,
-				   'VQA': VQAClassificationDataset,
-				   'Foil': FoilClassificationDataset, 
+DatasetMapTrain = {'TASK0': ConceptCapLoaderTrain,
+				   'TASK1': VQAClassificationDataset,
 				   }		
 
-DatasetMapVal = {'ConceptualCaption': ConceptCapLoaderVal,
-				 'VQA': VQAClassificationDataset,
-				 'Foil': FoilClassificationDataset, 
+DatasetMapVal = {'TASK0': ConceptCapLoaderVal,
+				 'TASK1': VQAClassificationDataset,
 				}

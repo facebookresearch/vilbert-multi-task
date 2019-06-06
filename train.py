@@ -225,9 +225,7 @@ def main():
         print('\n', file=f)
         print(config, file=f)
 
-    
     bert_weight_name = json.load(open("config/" + args.from_pretrained + "_weight_name.json", "r"))
-
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device(
             "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"

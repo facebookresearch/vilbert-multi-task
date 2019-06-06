@@ -6,9 +6,6 @@ import random
 from io import open
 import numpy as np
 
-from time import gmtime, strftime
-from timeit import default_timer as timer
-
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from bisect import bisect
@@ -25,19 +22,9 @@ from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from parallel.parallel import DataParallelModel, DataParallelCriterion
 from vilbert.vilbert import BertConfig
-from vilbert.task_utils import LoadDatasets, LoadModels, ForwardModels
-from vilbert.vilbert import MultiModalBertForVLClassifier,MultiModalBertForVLLogit, \
-                            MultiModalBertForVLogit, MultiModalBertForAllTasks
-
-
-ModelMap = {'ALL-tasks': MultiModalBertForAllTasks,
-            'VL-classifier': MultiModalBertForVLClassifier,
-            'VL-logit': MultiModalBertForVLLogit,
-            'V-logit': MultiModalBertForVLogit,
-            }
-
-LossMap = {'BCEWithLogitLoss': nn.BCEWithLogitsLoss(reduction='mean'),
-                }
+from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
+from vilbert.vilbert import VILBertForVLTasks
+import vilbert.utils as utils
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -145,6 +132,10 @@ def main():
     parser.add_argument(
         "--tasks", default='', type=str, help="1-2-3... training task separate by -"
     )
+    parser.add_argument(
+        "--freeze", default = 0, type=int, 
+        help="till which layer of textual stream of vilbert need to fixed."
+    )
 
     args = parser.parse_args()
     with open('config/vlbert_tasks.yml', 'r') as f:
@@ -154,13 +145,13 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     
-    task_ids = args.tasks.split('-')
-    task_batch_size, task_num_iters, task_names, task_datasets_train, task_datasets_val, \
-            task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, task_ids)
+    task_batch_size, task_num_iters, task_names, task_ids, task_datasets_train, task_datasets_val, \
+            task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
 
-    timeStamp = '-'.join(task_names) + '_' + args.bert_model 
+    timeStamp = '-'.join(task_names) + '_' + args.bert_model     
+    tbLogger = utils.tbLogger("logs/" + timeStamp, task_names, task_ids)
+
     savePath = os.path.join(args.output_dir, timeStamp)
-
     if not os.path.exists(savePath):
         os.makedirs(savePath)
 
@@ -170,6 +161,8 @@ def main():
         print(args, file=f)  # Python 3.x
         print('\n', file=f)
         print(config, file=f)
+
+    bert_weight_name = json.load(open("config/" + args.bert_model + "_weight_name.json", "r"))
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -190,32 +183,28 @@ def main():
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
-    if args.gradient_accumulation_steps < 1:
-        raise ValueError(
-            "Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-                args.gradient_accumulation_steps
-            )
-        )
-
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    num_train_optimization_steps = None
-    viz = TBlogger("logs/" + timeStamp)
-
-    num_train_optimization_steps = (
-        max([len(dataloader) for dataloader in task_dataloader_train.values()])* args.num_train_epochs
-    )
-
+    num_train_optimization_steps = max([len(dataloader) for dataloader in task_dataloader_train.values()])* args.num_train_epochs
+    
     if args.local_rank != -1:
         num_train_optimization_steps = (
             num_train_optimization_steps // torch.distributed.get_world_size()
         )
 
-    model, loss_funs = LoadModels(args, task_cfg, task_ids, task_datasets_train, ModelMap, LossMap, config)
+    num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
-    if args.fp16:
-        model.half()
+    if args.from_pretrained:
+        model = VILBertForVLTasks.from_pretrained(
+            args.from_pretrained, config, num_labels=num_labels
+        )
+    else:
+        model = VILBertForVLTasks(
+            args.bert_model, config, num_labels=num_labels)
+
+    task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
+
     if args.local_rank != -1:
         try:
             from apex.parallel import DistributedDataParallel as DDP
@@ -229,176 +218,110 @@ def main():
         criterion = DataParallelCriterion(criterion)
 
     model.cuda()
-
-    # Prepare optimizer
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 
-    param_optimizer = list(model.named_parameters())
-    optimizer_grouped_parameters = [
-        {
-            "params": [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
-            "weight_decay": 0.01,
-        },
-        {
-            "params": [p for n, p in param_optimizer if any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
-        },
-    ]
+    if args.freeze != -1:
+        bert_weight_name_filtered = []
+        for name in bert_weight_name:
+            if 'embeddings' in name:
+                bert_weight_name_filtered.append(name)
+            elif 'encoder' in name:
+                layer_num = name.split('.')[2]
+                if int(layer_num) <= args.freeze:
+                    bert_weight_name_filtered.append(name)
 
-    # set different parameters for vision branch and lanugage branch.
-    if args.fp16:
-        try:
-            from apex.optimizers import FP16_Optimizer
-            from apex.optimizers import FusedAdam
-        except ImportError:
-            raise ImportError(
-                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
-            )
+        optimizer_grouped_parameters = []
+        for key, value in dict(model.named_parameters()).items():
+            if key[12:] in bert_weight_name_filtered:
+                value.requires_grad = False
+        
+        print("filtered weight")
+        print(bert_weight_name_filtered)
 
-        optimizer = FusedAdam(
-            optimizer_grouped_parameters,
-            lr=args.learning_rate,
-            bias_correction=False,
-            max_grad_norm=1.0,
-        )
-        if args.loss_scale == 0:
-            optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
-        else:
-            optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
-            warmup_linear = WarmupLinearSchedule(warmup=args.warmup_proportion,
-                                                 t_total=num_train_optimization_steps)
+    if not args.from_pretrained:
+        param_optimizer = list(model.named_parameters())
+        optimizer_grouped_parameters = [
+            {
+                "params": [
+                    p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.01,
+            },
+            {
+                "params": [
+                    p for n, p in param_optimizer if any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.0,
+            },
+        ]
     else:
-        if args.from_pretrained:
-            if args.optimizer == 'adam':
-                optimizer = BertAdam(optimizer_grouped_parameters,
-                                 lr=args.learning_rate,
-                                 warmup=args.warmup_proportion,
-                                 t_total=num_train_optimization_steps)
-            elif args.optimizer == 'admax':
-                optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
-        else:
-            if args.optimizer == 'adam':
-                optimizer = BertAdam(optimizer_grouped_parameters,
-                                 lr=args.learning_rate,
-                                 warmup=args.warmup_proportion,
-                                 t_total=num_train_optimization_steps)
-            elif args.optimizer == 'admax':
-                optimizer = torch.optim.Adamax(optimizer_grouped_parameters)
-    
-    if args.optimizer == 'admax':
-        lr_lambda = lambda x: lr_lambda_update(x)
-        lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
+        optimizer_grouped_parameters = []
+        for key, value in dict(model.named_parameters()).items():
+            if value.requires_grad:
+                if key[12:] in bert_weight_name:
+                    lr = args.learning_rate
+                else:
+                    lr = args.learning_rate
+
+                if any(nd in key for nd in no_decay):
+                    optimizer_grouped_parameters += [
+                        {"params": [value], "lr": lr, "weight_decay": 0.01}
+                    ]
+
+                if not any(nd in key for nd in no_decay):
+                    optimizer_grouped_parameters += [
+                        {"params": [value], "lr": lr, "weight_decay": 0.0}
+                    ]
+
+        print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
+
+    if args.from_pretrained:
+        if args.optimizer == 'adam':
+            optimizer = BertAdam(optimizer_grouped_parameters,
+                             lr=args.learning_rate,
+                             warmup=args.warmup_proportion,
+                             t_total=num_train_optimization_steps)
+    else:
+        if args.optimizer == 'adam':
+            optimizer = BertAdam(optimizer_grouped_parameters,
+                             lr=args.learning_rate,
+                             warmup=args.warmup_proportion,
+                             t_total=num_train_optimization_steps)
 
     logger.info("***** Running training *****")
     # logger.info("  Num examples = %d", len(train_dset))
-    # logger.info("  Batch size = %d", args.train_batch_size)
     logger.info("  Num steps = %d", num_train_optimization_steps)
 
     startIterID = 0
-    global_step = 0
-    loss_tmp = 0
     max_num_iter = max(task_num_iters.values())
-    start_t = timer()
     model.train()
-    # t1 = timer()
 
     # initialize the data iteration.
-
     task_iter_train = {name:iter(dataloader) for name, dataloader in task_dataloader_train.items()}
-    task_count = {name:0 for name in task_names}
+    task_count = {name:0 for name in task_ids}
     for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
-        total_loss = 0
-        tr_loss = 0
-        nb_tr_examples, nb_tr_steps = 0, 0
-        train_score = 0
-        optimizer.zero_grad()
+        model.train()
         for step in range(max_num_iter):
             iterId = startIterID + step + (epochId * max_num_iter)
-            for task_name in task_names:
-                task_count[task_name] += 1
-                if iterId % task_count[task_name] == 0:
-                    task_iter_train[task_name] = iter(task_dataloader_train[task_name])
-                
-                batch = task_iter_train[task_name].next()
-                batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-                features, spatials, image_mask, question, target, input_mask, segment_ids, question_ids = batch
-                
-                preds = model(question, features, spatials, segment_ids, input_mask, image_mask)
-                loss = loss_funs[task_name](preds, target)
-                if n_gpu > 1:
-                    loss = loss.mean()
-                loss = loss * target.size(1)
-                
-                preds_gathered = torch.cat([pred.detach() for pred in preds], dim=0)
-                batch_score = compute_score_with_logits(preds_gathered, target).sum()
+            for task_id in task_ids:
+                loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task_iter_train, task_dataloader_train, model, task_losses)
 
-                # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
-                total_loss += loss.item() * features.size(0)
-                train_score += batch_score
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                tbLogger.step_train(epochId, iterId, float(loss), float(score), task_id, 'train')
 
-                if args.gradient_accumulation_steps > 1:
-                    loss = loss / args.gradient_accumulation_steps
-                if args.fp16:
-                    optimizer.backward(loss)
-                else:
-                    loss.backward()
-                # print(loss)
-                # print(tr_loss)
-                viz.linePlot(iterId, loss.item(), "loss", "train")
-                # viz.linePlot(iterId, optimizer.get_lr()[0], 'learning_rate', 'train')
-                loss_tmp += loss.item()
+            if step % 20 == 0:
+                tbLogger.showLossTrain()
 
-                nb_tr_examples += question.size(0)
-                nb_tr_steps += 1
-                if (step + 1) % args.gradient_accumulation_steps == 0:
-                    if args.fp16:
-                        # modify learning rate with special warm up BERT uses
-                        # if args.fp16 is False, BertAdam is used that handles this automatically
-                        lr_this_step = args.learning_rate * warmup_linear(
-                            global_step / num_train_optimization_steps, args.warmup_proportion
-                        )
-                        for param_group in optimizer.param_groups:
-                            param_group["lr"] = lr_this_step
-        
-                    # nn.utils.clip_grad_norm_(model.parameters(), 0.25)
-                    optimizer.step()
-                    optimizer.zero_grad()
-                    global_step += 1
+        model.eval()
+        # when run evaluate, we run each task sequentially. 
+        for task_id in task_ids:
+            for batch in task_dataloader_val[task_id]:
+                loss, score = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
+                tbLogger.step_val(epochId, float(loss), float(score), task_id, 'val')
 
-                if args.optimizer == 'admax':
-                    lr_scheduler.step(iterId)
-
-                if step % 20 == 0 and step != 0:
-                    loss_tmp = loss_tmp / 20.0
-
-                    end_t = timer()
-                    timeStamp = strftime("%a %d %b %y %X", gmtime())
-
-                    Ep = epochId + nb_tr_steps / float(len(train_dataloader))
-                    printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g]"
-
-                    printInfo = [
-                        timeStamp,
-                        Ep,
-                        iterId,
-                        end_t - start_t,
-                        loss_tmp,
-                    ]
-
-                    start_t = end_t
-                    print(printFormat % tuple(printInfo))
-
-                    loss_tmp = 0
-
-        model.train(False)
-        eval_score, bound = evaluate(args, model, eval_dataloader)
-        model.train(True)
-
-        train_score = 100 * train_score / len(train_dataloader.dataset)
-        total_loss = total_loss / len(train_dataloader.dataset)
-        logger.info("epoch %d" % (epochId))
-        logger.info("\ttrain_loss: %.2f, score: %.2f" % (total_loss, train_score))
-        logger.info("\teval score: %.2f (%.2f)" % (100 * eval_score, 100 * bound))
+        tbLogger.showLossVal()
 
         # Save a trained model
         logger.info("** ** * Saving fine - tuned model ** ** * ")
@@ -411,55 +334,6 @@ def main():
         output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
         if args.do_train:
             torch.save(model_to_save.state_dict(), output_model_file)
-
-
-class TBlogger:
-    def __init__(self, log_dir):
-        print("logging file at: " + log_dir)
-        self.logger = SummaryWriter(log_dir=log_dir)
-
-    def linePlot(self, step, val, split, key, xlabel="None"):
-        self.logger.add_scalar(split + "/" + key, val, step)
-
-def evaluate(args, model, dataloader):
-    score = 0
-    upper_bound = 0
-    num_data = 0
-    for batch in dataloader:
-        batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, question, target, input_mask, segment_ids, question_ids = batch
-
-        with torch.no_grad():
-            preds = model(question, features, spatials, segment_ids, input_mask, image_mask)
-            preds_gathered = torch.cat([pred.detach() for pred in preds], dim=0)
-            batch_score = compute_score_with_logits(preds_gathered, target.cuda()).sum()
-            score += batch_score.item()
-            upper_bound += (target.max(1)[0]).sum()
-            num_data += features.size(0)
-
-
-    score = score / len(dataloader.dataset)
-    upper_bound = upper_bound / len(dataloader.dataset)
-    return score, upper_bound
-
-def compute_score_with_logits(logits, labels):
-    logits = torch.max(logits, 1)[1].data  # argmax
-    one_hots = torch.zeros(*labels.size()).cuda()
-    one_hots.scatter_(1, logits.view(-1, 1), 1)
-    scores = one_hots * labels
-    return scores
-
-def lr_lambda_update(i_iter):
-    warmup_iterations = 1000
-    warmup_factor = 0.2
-    lr_ratio = 0.1
-    lr_steps = [15000, 18000, 20000, 21000]
-    if i_iter <= warmup_iterations:
-        alpha = float(i_iter) / float(warmup_iterations)
-        return warmup_factor * (1.0 - alpha) + alpha
-    else:
-        idx = bisect([], i_iter)
-        return pow(lr_ratio, idx)
 
 if __name__ == "__main__":
 

@@ -18,9 +18,10 @@ TASK1:
   features_h5path2: ''
   annotations_jsonpath: ''
   max_seq_length: 30
-  batch_size: 16
+  batch_size: 128
   train_split: trainval
   val_split: minval
+  start_iteration: 0
 TASK2:
   name: GenomeQA
   type: VL-classifier

@@ -17,13 +17,77 @@ import requests
 from botocore.exceptions import ClientError
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
+from time import gmtime, strftime
+
 import pdb
 
 PYTORCH_PRETRAINED_BERT_CACHE = Path(
     os.getenv("PYTORCH_PRETRAINED_BERT_CACHE", Path.home() / ".pytorch_pretrained_bert")
 )
 
+
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
+class tbLogger(object):
+    def __init__(self, log_dir, task_names, task_ids):
+        logger.info("logging file at: " + log_dir)
+        self.logger = SummaryWriter(log_dir=log_dir)
+        self.task_id2name = {ids:name for ids, name in zip(task_ids, task_names)}
+        self.task_ids = task_ids
+        self.task_loss = {task_id:0 for task_id in task_ids}
+        self.task_loss_tmp = {task_id:0 for task_id in task_ids}
+        self.task_score = {task_id:0 for task_id in task_ids}
+        self.task_step = {task_id:0 for task_id in task_ids}
+        self.task_step_tmp = {task_id:0 for task_id in task_ids}
+        self.epochId = 0
+
+        self.task_loss_val = {task_id:0 for task_id in task_ids}
+        self.task_score_val = {task_id:0 for task_id in task_ids}
+        self.task_step_val = {task_id:0 for task_id in task_ids}
+
+    def linePlot(self, step, val, split, key, xlabel="None"):
+        self.logger.add_scalar(split + "/" + key, val, step)
+
+    def step_train(self, epochId, stepId, loss, score, task_id, split):
+        self.task_loss[task_id] += loss
+        self.task_loss_tmp[task_id] += loss
+        self.task_score[task_id] += score
+        self.task_step[task_id] += 1
+        self.task_step_tmp[task_id] += 1
+        self.epochId = epochId
+
+        # plot on tensorboard.
+        self.linePlot(stepId, loss, split, self.task_id2name[task_id] + '_loss')
+        self.linePlot(stepId, score, split, self.task_id2name[task_id] + '_score')
+
+    def step_val(self, epochId, loss, score, task_id, split):
+        self.task_loss_val[task_id] += loss
+        self.task_score_val[task_id] += score
+        self.task_step_val[task_id] += 1
+
+    def showLossVal(self):
+        progressInfo = "Eval Ep: %d " %self.epochId
+        lossInfo = ''
+
+        for task_id in self.task_ids:
+            loss = self.task_loss_val[task_id] / float(self.task_step_val[task_id])
+            score = self.task_score_val[task_id] / float(self.task_step_val[task_id])
+            lossInfo += '[%s]: loss %.3f score %.3f' %(self.task_id2name[task_id], loss, score)
+
+            self.linePlot(self.epochId, loss, 'val', self.task_id2name[task_id] + '_loss')
+            self.linePlot(self.epochId, score, 'val', self.task_id2name[task_id] + '_score')
+
+    def showLossTrain(self):
+        # show the current loss, once showed, reset the loss. 
+        progressInfo = "Ep: %d " %self.epochId
+        lossInfo = ''
+        for task_id in self.task_ids:
+            lossInfo += '[%s]: iter %d loss %.3f' %(self.task_id2name[task_id], \
+            self.task_step[task_id], self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]))
+        
+        logger.info(progressInfo + lossInfo)
+        self.task_step_tmp = {task_id:0 for task_id in self.task_ids}
+        self.task_loss_tmp = {task_id:0 for task_id in self.task_ids}
 
 
 def url_to_filename(url, etag=None):
@@ -240,12 +304,3 @@ def get_file_extension(path, dot=True, lower=True):
     ext = ext if dot else ext[1:]
     return ext.lower() if lower else ext
 
-
-class TBlogger:
-    def __init__(self, log_dir, exp_name):
-        log_dir = log_dir + "/" + exp_name
-        print("logging file at: " + log_dir)
-        self.logger = SummaryWriter(log_dir=log_dir)
-
-    def linePlot(self, step, val, split, key, xlabel="None"):
-        self.logger.add_scalar(split + "/" + key, val, step)
