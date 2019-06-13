@@ -17,13 +17,13 @@ import torch
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from parallel.data_parallel import DataParallel
+from tensorboardX import SummaryWriter
 
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from vilbert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
 from vilbert.vilbert import BertForMultiModalPreTraining, BertConfig
-from vilbert.file_utils import TBlogger
 import torch.distributed as dist
 
 import pdb
@@ -217,7 +217,9 @@ def main():
         os.makedirs(savePath)
     
     config = BertConfig.from_json_file(args.config_file)
-    config.fixed_t_layer = args.freeze
+    
+    if args.freeze > config.t_biattention_id[0]:
+        config.fixed_t_layer = config.t_biattention_id[0]
 
     # save all the hidden parameters. 
     with open(os.path.join(savePath, 'command.txt'), 'w') as f:
@@ -302,6 +304,16 @@ def main():
     #         num_train_optimization_steps // torch.distributed.get_world_size()
     #     )
 
+
+    default_gpu = False
+    if dist.is_available() and args.distributed:
+        rank = dist.get_rank()
+        if rank == 0:
+            default_gpu = True
+    else:
+        default_gpu = True
+
+
     # pdb.set_trace()
     if args.predict_feature:
         config.v_target_size = 2048
@@ -347,8 +359,9 @@ def main():
             if key[12:] in bert_weight_name_filtered:
                 value.requires_grad = False
         
-        print("filtered weight")
-        print(bert_weight_name_filtered)
+        if default_gpu:
+            print("filtered weight")
+            print(bert_weight_name_filtered)
 
     if not args.from_pretrained:
         param_optimizer = list(model.named_parameters())
@@ -384,8 +397,8 @@ def main():
                     optimizer_grouped_parameters += [
                         {"params": [value], "lr": lr, "weight_decay": 0.0}
                     ]
-
-        print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
+        if default_gpu:
+            print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
 
     # set different parameters for vision branch and lanugage branch.
     if args.fp16:
@@ -628,13 +641,6 @@ def main():
         viz.linePlot(epochId, eval_masked_loss_v, "masked_loss_v_" + str(rank), "val")
         viz.linePlot(epochId, eval_next_sentence_loss, "next_sentence_loss_" + str(rank), "val")
 
-        default_gpu = False
-        if dist.is_available() and args.distributed:
-            rank = dist.get_rank()
-            if rank == 0:
-                default_gpu = True
-        else:
-            default_gpu = True
 
         if default_gpu:
             # Save a trained model
@@ -649,7 +655,16 @@ def main():
             # model_save['model'] = model_to_save.state_dict()
             # model_save['optimizer'] = optimizer
             # model_save['epoch'] = epochId
-            torch.save(model_save.state_dict(), output_model_file)
+            torch.save(model_to_save.state_dict(), output_model_file)
+
+class TBlogger:
+    def __init__(self, log_dir, exp_name):
+        log_dir = log_dir + "/" + exp_name
+        print("logging file at: " + log_dir)
+        self.logger = SummaryWriter(log_dir=log_dir)
+
+    def linePlot(self, step, val, split, key, xlabel="None"):
+        self.logger.add_scalar(split + "/" + key, val, step)
 
 if __name__ == "__main__":
 

@@ -25,6 +25,7 @@ from vilbert.vilbert import BertConfig
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
 from vilbert.vilbert import VILBertForVLTasks
 import vilbert.utils as utils
+import torch.distributed as dist
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -50,7 +51,6 @@ def main():
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
         "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
     )
-
     parser.add_argument(
         "--output_dir",
         default="save",
@@ -64,7 +64,7 @@ def main():
         help="The config file which specified the model details.",
     )
     parser.add_argument(
-        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=1e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -112,7 +112,7 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=20, help="Number of workers in the dataloader."
+        "--num_workers", type=int, default=24, help="Number of workers in the dataloader."
     )
     parser.add_argument(
         "--save_name",
@@ -124,7 +124,7 @@ def main():
         "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
     )
     parser.add_argument(
-        "--in_memory", default=True, type=bool, help="whether use chunck for parallel training."
+        "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
     )
     parser.add_argument(
         "--optimizer", default='adam', type=str, help="whether use chunck for parallel training."
@@ -144,14 +144,16 @@ def main():
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
-    
-    task_batch_size, task_num_iters, task_names, task_ids, task_datasets_train, task_datasets_val, \
-            task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
 
-    timeStamp = '-'.join(task_names) + '_' + args.bert_model     
-    tbLogger = utils.tbLogger("logs/" + timeStamp, task_names, task_ids)
+    task_names = []
+    for i, task_id in enumerate(args.tasks.split('-')):
+        task = 'TASK' + task_id
+        name = task_cfg[task]['name']
+        task_names.append(name)
 
+    timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
     savePath = os.path.join(args.output_dir, timeStamp)
+    
     if not os.path.exists(savePath):
         os.makedirs(savePath)
 
@@ -180,19 +182,29 @@ def main():
         )
     )
 
+    default_gpu = False
+    if dist.is_available() and args.local_rank != -1:
+        rank = dist.get_rank()
+        if rank == 0:
+            default_gpu = True
+    else:
+        default_gpu = True
+
+    if default_gpu and not os.path.exists(savePath):
+        os.makedirs(savePath)
+
+    task_batch_size, task_num_iters, task_ids, task_datasets_train, task_datasets_val, \
+            task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
+
+    tbLogger = utils.tbLogger("logs/" + timeStamp, task_names, task_ids, task_num_iters)
+
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    num_train_optimization_steps = max([len(dataloader) for dataloader in task_dataloader_train.values()])* args.num_train_epochs
-    
-    if args.local_rank != -1:
-        num_train_optimization_steps = (
-            num_train_optimization_steps // torch.distributed.get_world_size()
-        )
-
+    num_train_optimization_steps = max(task_num_iters.values())* args.num_train_epochs
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
     if args.from_pretrained:
@@ -204,7 +216,7 @@ def main():
             args.bert_model, config, num_labels=num_labels)
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
-
+    model.to(device)
     if args.local_rank != -1:
         try:
             from apex.parallel import DistributedDataParallel as DDP
@@ -212,12 +224,11 @@ def main():
             raise ImportError(
                 "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
             )
-        model = DDP(model)
+        model = DDP(model, delay_allreduce=True)
+
     elif n_gpu > 1:
         model = DataParallelModel(model)
-        criterion = DataParallelCriterion(criterion)
 
-    model.cuda()
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 
     if args.freeze != -1:
@@ -258,8 +269,8 @@ def main():
         optimizer_grouped_parameters = []
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
-                if key[12:] in bert_weight_name:
-                    lr = args.learning_rate
+                if 'vil_prediction' in key:
+                    lr = args.learning_rate * 10
                 else:
                     lr = args.learning_rate
 
@@ -288,24 +299,24 @@ def main():
                              warmup=args.warmup_proportion,
                              t_total=num_train_optimization_steps)
 
-    logger.info("***** Running training *****")
-    # logger.info("  Num examples = %d", len(train_dset))
-    logger.info("  Num steps = %d", num_train_optimization_steps)
+
+    print("***** Running training *****")
+    print("  Num Iters: ", task_num_iters)
+    print("  Batch size: ", task_batch_size)    
+    print("  Num steps: %d" %num_train_optimization_steps)
 
     startIterID = 0
     max_num_iter = max(task_num_iters.values())
     model.train()
 
     # initialize the data iteration.
-    task_iter_train = {name:iter(dataloader) for name, dataloader in task_dataloader_train.items()}
+    task_iter_train = {name:None for name in task_ids}
     task_count = {name:0 for name in task_ids}
     for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
-        model.train()
         for step in range(max_num_iter):
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
                 loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task_iter_train, task_dataloader_train, model, task_losses)
-
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
@@ -318,22 +329,27 @@ def main():
         # when run evaluate, we run each task sequentially. 
         for task_id in task_ids:
             for batch in task_dataloader_val[task_id]:
-                loss, score = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
-                tbLogger.step_val(epochId, float(loss), float(score), task_id, 'val')
+                loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
+                tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
 
         tbLogger.showLossVal()
 
-        # Save a trained model
-        logger.info("** ** * Saving fine - tuned model ** ** * ")
-        model_to_save = (
-            model.module if hasattr(model, "module") else model
-        )  # Only save the model it-self
+        if default_gpu:
+            # Save a trained model
+            logger.info("** ** * Saving fine - tuned model ** ** * ")
+            model_to_save = (
+                model.module if hasattr(model, "module") else model
+            )  # Only save the model it-self
 
-        if not os.path.exists(savePath):
-            os.makedirs(savePath)
-        output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
-        if args.do_train:
-            torch.save(model_to_save.state_dict(), output_model_file)
+            if not os.path.exists(savePath):
+                os.makedirs(savePath)
+            output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
+            
+            model_save = {}
+            model_save['model'] = model_to_save.state_dict()
+            model_save['optimizer'] = optimizer
+            model_save['epoch'] = epochId
+            torch.save(model_save, output_model_file)
 
 if __name__ == "__main__":
 

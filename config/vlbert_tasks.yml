@@ -14,11 +14,13 @@ TASK1:
   loss: BCEWithLogitLoss
   task_id: 1
   dataroot: data/VQA
-  features_h5path1: /srv/datasets/conceptual_caption/coco/coco_trainval.h5
+  features_h5path1: data/coco/coco_trainval.h5
   features_h5path2: ''
-  annotations_jsonpath: ''
-  max_seq_length: 30
-  batch_size: 128
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 16
+  max_region_num: 37
+  batch_size: 256
   train_split: trainval
   val_split: minval
   start_iteration: 0
@@ -41,35 +43,101 @@ TASK4:
   task_id: 4
   split: train
 TASK5:
-  name: VCR_QA
+  name: VCR_Q-A
   type: VL-logit
+  loss: CrossEntropyLoss
   task_id: 5
-  split: train
+  dataroot: data/VCR
+  features_h5path1: /srv/datasets/conceptual_caption/VCR_resnet101_faster_rcnn_genome.h5
+  features_h5path2: /srv/datasets/conceptual_caption/VCR_gt_resnet101_faster_rcnn_genome.h5
+  train_annotations_jsonpath: data/VCR/train.jsonl
+  val_annotations_jsonpath: data/VCR/val.jsonl
+  max_seq_length: 40
+  max_region_num: 60
+  batch_size: 64
+  train_split: train
+  val_split: val
+  start_iteration: 0
 TASK6:
-  name: VCR_QAR
+  name: VCR_QA-R
   type: VL-logit
+  loss: CrossEntropyLoss
   task_id: 6
-  split: train
+  dataroot: data/VCR
+  features_h5path1: /srv/datasets/conceptual_caption/VCR_resnet101_faster_rcnn_genome.h5
+  features_h5path2: /srv/datasets/conceptual_caption/VCR_gt_resnet101_faster_rcnn_genome.h5
+  train_annotations_jsonpath: data/VCR/train.jsonl
+  val_annotations_jsonpath: data/VCR/val.jsonl
+  max_seq_length: 60
+  max_region_num: 80
+  batch_size: 48
+  train_split: train
+  val_split: val
+  start_iteration: 0
 TASK7:
   name: RetrievalCOCO
   type: VL-logit
+  loss: CrossEntropyLoss
   task_id: 7
-  split: train
+  dataroot: data/cocoRetreival
+  features_h5path1: data/coco/coco_trainval.h5
+  features_h5path2: ''
+  train_annotations_jsonpath: data/cocoRetreival/all_data_final_train_2014.jsonline
+  val_annotations_jsonpath: data/cocoRetreival/all_data_final_val_set0_2014.jsonline
+  max_seq_length: 30
+  max_region_num: 37
+  batch_size: 64
+  train_split: train
+  val_split: val
+  start_iteration: 0
 TASK8:
   name: RetrievalFlickr30k
   type: VL-logit
+  loss: CrossEntropyLoss
   task_id: 8
-  split: train
+  dataroot: data/flickr30k
+  features_h5path1: data/flickr30k/flickr30k.h5
+  features_h5path2: ''
+  train_annotations_jsonpath: data/flickr30k/all_data_final_train_2014.jsonline
+  val_annotations_jsonpath: data/flickr30k/all_data_final_val_set0_2014.jsonline
+  max_seq_length: 30
+  max_region_num: 37
+  batch_size: 64
+  train_split: train
+  val_split: val
+  start_iteration: 0
 TASK9:
-  name: RefCOCO
+  name: refcoco
   type: V-logit
-  task_id: 9
-  split: train
-TASK10:
-  name: RefCOCO_plus
-  type: V-logit
+  loss: BCEWithLogitLoss
   task_id: 10
-  split: train
+  dataroot: data/referExpression
+  features_h5path1: data/referExpression/refcoco.h5
+  features_h5path2: data/referExpression/refcoco_gt.h5
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 20
+  max_region_num: 60
+  batch_size: 256
+  train_split: train
+  val_split: val
+  start_iteration: 0
+TASK10:
+  name: refcoco+
+  type: V-logit
+  loss: BCEWithLogitLoss
+  task_id: 10
+  dataroot: data/referExpression
+  features_h5path1: data/referExpression/refcoco+.h5
+  features_h5path2: data/referExpression/refcoco+_gt.h5
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 20
+  max_region_num: 60
+  batch_size: 256
+  train_split: train
+  val_split: val
+  start_iteration: 0
 TASK11:
   name: Refg
   type: V-logit

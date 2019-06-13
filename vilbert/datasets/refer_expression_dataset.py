@@ -15,8 +15,6 @@ import sys
 sys.path.append("tools/refer")
 from refer import REFER
 
-import pdb
-
 def iou(anchors, gt_boxes):
     """
     anchors: (N, 4) ndarray of float
@@ -54,41 +52,41 @@ def assert_eq(real, expected):
 class ReferExpressionDataset(Dataset):
     def __init__(
         self,
-        task: str, 
-        name: str,
+        task: str,
+        dataroot: str, 
         annotations_jsonpath: str,
+        split: str,
         image_features_reader: ImageFeaturesH5Reader,
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
         padding_index: int = 0,
-        max_caption_length: int = 20,
+        max_seq_length: int = 20,
+        max_region_num: int = 60
     ):
-        # All the keys in `self._entries` would be present in `self._image_features_reader`
+        self.split = split
+        self.refer = REFER(dataroot, dataset=task,  splitBy='unc')
+        self.ref_ids = self.refer.getRefIds(split=split)
+        print('%s refs are in split [%s].' % (len(self.ref_ids), split))
 
-        self.split = name
-        self.refer = REFER(annotations_jsonpath, dataset=task,  splitBy='unc')
-        self.ref_ids = self.refer.getRefIds(split=name)
-        print('%s refs are in split [%s].' % (len(self.ref_ids), name))
-
+        self.num_labels = 1
         self._image_features_reader = image_features_reader
         self._gt_image_features_reader = gt_image_features_reader
-        
         self._tokenizer = tokenizer
 
         self._padding_index = padding_index
-        self._max_caption_length = max_caption_length
+        self._max_seq_length = max_seq_length
         self.entries = self._load_annotations()
 
-        self.max_region_num = 50
-        # cache file path data/cache/train_ques
-        # ref_cache_path = "data/referExpression/cache/" + name + "_" + task + '.pkl'
-        
-        # if not os.path.exists(ref_cache_path):
-        self.tokenize()
-        self.tensorize()
-            # cPickle.dump(self.entries, open(ref_cache_path, 'wb'))
-        # else:
-            # self.entries = cPickle.load(open(ref_cache_path, "rb"))
+        self.max_region_num = max_region_num
+
+        cache_path = os.path.join(dataroot, "cache", task + '_' + split + '_' + str(max_seq_length)+ "_" + str(max_region_num) + '.pkl')
+        if not os.path.exists(cache_path):
+            self.tokenize()
+            self.tensorize()
+            cPickle.dump(self.entries, open(cache_path, 'wb'))
+        else:
+            print('loading entries from %s' %(cache_path))
+            self.entries = cPickle.load(open(cache_path, "rb"))
 
     def _load_annotations(self):
 
@@ -127,18 +125,18 @@ class ReferExpressionDataset(Dataset):
                 for w in sentence_tokens
             ]
 
-            tokens = tokens[:self._max_caption_length]
+            tokens = tokens[:self._max_seq_length]
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)
 
-            if len(tokens) < self._max_caption_length:
+            if len(tokens) < self._max_seq_length:
                 # Note here we pad in front of the sentence
-                padding = [self._padding_index] * (self._max_caption_length - len(tokens))
+                padding = [self._padding_index] * (self._max_seq_length - len(tokens))
                 tokens = tokens + padding
                 input_mask += padding
                 segment_ids += padding
 
-            assert_eq(len(tokens), self._max_caption_length)
+            assert_eq(len(tokens), self._max_seq_length)
             entry["token"] = tokens
             entry["input_mask"] = input_mask
             entry["segment_ids"] = segment_ids
@@ -212,12 +210,13 @@ class ReferExpressionDataset(Dataset):
         target[:mix_num_boxes] = mix_target
 
         spatials_ori = torch.tensor(mix_boxes_ori).float()
+        co_attention_mask = torch.zeros((self.max_region_num, self._max_seq_length))
 
         caption = entry["token"]
         input_mask = entry["input_mask"]
         segment_ids = entry["segment_ids"]
 
-        return features, spatials, image_mask, caption, target, input_mask, segment_ids
+        return features, spatials, image_mask, caption, target, input_mask, segment_ids, co_attention_mask
 
     def __len__(self):
         return len(self.entries)

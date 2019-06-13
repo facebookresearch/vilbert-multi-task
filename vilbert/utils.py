@@ -29,21 +29,24 @@ PYTORCH_PRETRAINED_BERT_CACHE = Path(
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class tbLogger(object):
-    def __init__(self, log_dir, task_names, task_ids):
+    def __init__(self, log_dir, task_names, task_ids, task_num_iters):
         logger.info("logging file at: " + log_dir)
         self.logger = SummaryWriter(log_dir=log_dir)
-        self.task_id2name = {ids:name for ids, name in zip(task_ids, task_names)}
+        self.task_id2name = {ids:name.replace('+', 'plus') for ids, name in zip(task_ids, task_names)}
         self.task_ids = task_ids
         self.task_loss = {task_id:0 for task_id in task_ids}
         self.task_loss_tmp = {task_id:0 for task_id in task_ids}
         self.task_score = {task_id:0 for task_id in task_ids}
         self.task_step = {task_id:0 for task_id in task_ids}
         self.task_step_tmp = {task_id:0 for task_id in task_ids}
+        self.task_num_iters = task_num_iters
         self.epochId = 0
 
         self.task_loss_val = {task_id:0 for task_id in task_ids}
         self.task_score_val = {task_id:0 for task_id in task_ids}
         self.task_step_val = {task_id:0 for task_id in task_ids}
+        self.task_datasize_val = {task_id:0 for task_id in task_ids}
+
 
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
@@ -60,32 +63,35 @@ class tbLogger(object):
         self.linePlot(stepId, loss, split, self.task_id2name[task_id] + '_loss')
         self.linePlot(stepId, score, split, self.task_id2name[task_id] + '_score')
 
-    def step_val(self, epochId, loss, score, task_id, split):
+    def step_val(self, epochId, loss, score, task_id, batch_size, split):
         self.task_loss_val[task_id] += loss
         self.task_score_val[task_id] += score
         self.task_step_val[task_id] += 1
+        self.task_datasize_val[task_id] += batch_size
 
     def showLossVal(self):
         progressInfo = "Eval Ep: %d " %self.epochId
-        lossInfo = ''
+        lossInfo = 'Validation '
 
         for task_id in self.task_ids:
             loss = self.task_loss_val[task_id] / float(self.task_step_val[task_id])
-            score = self.task_score_val[task_id] / float(self.task_step_val[task_id])
-            lossInfo += '[%s]: loss %.3f score %.3f' %(self.task_id2name[task_id], loss, score)
+            score = self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
+            lossInfo += '[%s]: loss %.3f score %.3f' %(self.task_id2name[task_id], loss, score * 100.0)
 
             self.linePlot(self.epochId, loss, 'val', self.task_id2name[task_id] + '_loss')
             self.linePlot(self.epochId, score, 'val', self.task_id2name[task_id] + '_score')
+        
+        logger.info(lossInfo)
 
     def showLossTrain(self):
         # show the current loss, once showed, reset the loss. 
-        progressInfo = "Ep: %d " %self.epochId
         lossInfo = ''
         for task_id in self.task_ids:
-            lossInfo += '[%s]: iter %d loss %.3f' %(self.task_id2name[task_id], \
-            self.task_step[task_id], self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]))
+            lossInfo += '[%s]: iter %d Ep: %.2f loss %.3f' %(self.task_id2name[task_id], \
+                self.task_step[task_id], self.task_step[task_id] / float(self.task_num_iters[task_id]), \
+                                    self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]))
         
-        logger.info(progressInfo + lossInfo)
+        logger.info(lossInfo)
         self.task_step_tmp = {task_id:0 for task_id in self.task_ids}
         self.task_loss_tmp = {task_id:0 for task_id in self.task_ids}
 

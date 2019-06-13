@@ -73,20 +73,21 @@ def _load_annotationsQA_R(annotations_jsonpath):
 class VCRDataset(Dataset):
     def __init__(
         self,
-        name: str,
         task: str,
+        dataroot: str,
         annotations_jsonpath: str,
+        split: str,
         image_features_reader: ImageFeaturesH5Reader,
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
         padding_index: int = 0,
-        max_caption_length: int = 40,
-        _max_region_num: int = 60
+        max_seq_length: int = 40,
+        max_region_num: int = 60
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
-        if task == 'Q-A':
+        if task == 'VCR_Q-A':
             self._entries = _load_annotationsQ_A(annotations_jsonpath)
-        elif task == "QA-R":
+        elif task == "VCR_QA-R":
             self._entries = _load_annotationsQA_R(annotations_jsonpath)
         else:
             assert False
@@ -96,8 +97,9 @@ class VCRDataset(Dataset):
         self._tokenizer = tokenizer
 
         self._padding_index = padding_index
-        self._max_caption_length = max_caption_length
-        self._max_region_num = _max_region_num
+        self._max_caption_length = max_seq_length
+        self._max_region_num = max_region_num
+        self.num_labels = 1
 
         self._names = []
         with open('data/VCR/unisex_names_table.csv') as csv_file:
@@ -107,13 +109,13 @@ class VCRDataset(Dataset):
                     self._names.append(row[1])
 
         # cache file path data/cache/train_ques
-        vcr_cache_path = "data/VCR/cache/" + name + '_' + task + "_" + str(max_caption_length) + "_vcr.pkl"
-        if not os.path.exists(vcr_cache_path):
+        cache_path = "data/VCR/cache/" + split + '_' + task + "_" + str(max_seq_length) + "_" + str(max_region_num) + "_vcr.pkl"
+        if not os.path.exists(cache_path):
             self.tokenize()
             self.tensorize()
-            cPickle.dump(self._entries, open(vcr_cache_path, 'wb'))
+            cPickle.dump(self._entries, open(cache_path, 'wb'))
         else:
-            self._entries = cPickle.load(open(vcr_cache_path, "rb"))
+            self._entries = cPickle.load(open(cache_path, "rb"))
 
     def tokenize(self):
         """Tokenizes the captions.

@@ -1152,9 +1152,10 @@ class BertPreTrainedModel(nn.Module):
             weights_path = os.path.join(serialization_dir, WEIGHTS_NAME)
             state_dict = torch.load(
                 weights_path,
-                map_location="cpu" if not torch.cuda.is_available() else None,
+                map_location="cpu",
             )
-            state_dict = state_dict.state_dict()
+            if 'state_dict' in dir(state_dict):
+                state_dict = state_dict.state_dict()
 
         if tempdir:
             # Clean up temp dir
@@ -1496,13 +1497,13 @@ class VILBertForVLTasks(BertPreTrainedModel):
         self.num_labels = num_labels
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(dropout_prob)
-        # self.cls = BertPreTrainingHeads(
-        #     config, self.bert.embeddings.word_embeddings.weight
-        # )
-        self.vil_prediction = nn.Linear(config.bi_hidden_size, num_labels)
-        # self.vil_logit = nn.Linear(config.bi_hidden_size, 1)
-        # self.vision_logit = nn.Linear(config.v_hidden_size, 1)
-        # self.linguisic_logit = nn.Linear(config.hidden_size, 1)
+        self.cls = BertPreTrainingHeads(
+            config, self.bert.embeddings.word_embeddings.weight
+        )
+        self.vil_prediction = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, num_labels, 0.5)
+        self.vil_logit = nn.Linear(config.bi_hidden_size, 1)
+        self.vision_logit = nn.Linear(config.v_hidden_size, 1)
+        self.linguisic_logit = nn.Linear(config.hidden_size, 1)
 
         self.apply(self.init_bert_weights)
 
@@ -1535,15 +1536,27 @@ class VILBertForVLTasks(BertPreTrainedModel):
         linguisic_prediction = None
         linguisic_logit = None
         
-        # linguisic_prediction, vision_prediction, vil_binary_prediction = self.cls(
-        #     sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v
-        # )
+        linguisic_prediction, vision_prediction, vil_binary_prediction = self.cls(
+            sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v
+        )
         vil_prediction = self.vil_prediction(self.dropout(pooled_output_t * pooled_output_v))
-        # vil_logit = self.vil_logit(self.dropout(pooled_output_t * pooled_output_v))
-        # vision_logit = self.vision_logit(self.dropout(sequence_output_v))
-        # linguisic_logit = self.linguisic_logit(self.dropout(sequence_output_t))
+        vil_logit = self.vil_logit(self.dropout(pooled_output_t * pooled_output_v))
+        vision_logit = self.vision_logit(self.dropout(sequence_output_v)) + ((1.0 - image_attention_mask)* -10000.0).unsqueeze(2).to(dtype=next(self.parameters()).dtype)
+        linguisic_logit = self.linguisic_logit(self.dropout(sequence_output_t))
 
+        return vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit
 
+class SimpleClassifier(nn.Module):
+    def __init__(self, in_dim, hid_dim, out_dim, dropout):
+        super(SimpleClassifier, self).__init__()
+        layers = [
+            weight_norm(nn.Linear(in_dim, hid_dim), dim=None),
+            nn.ReLU(),
+            nn.Dropout(dropout, inplace=True),
+            weight_norm(nn.Linear(hid_dim, out_dim), dim=None)
+        ]
+        self.main = nn.Sequential(*layers)
 
-        return vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, \
-                    vision_logit, linguisic_prediction, linguisic_logit
+    def forward(self, x):
+        logits = self.main(x)
+        return logits

@@ -85,7 +85,6 @@ def _load_dataset(dataroot, name):
             entries.append(_create_entry(question, answer))
     return entries
 
-
 class VQAClassificationDataset(Dataset):
     def __init__(
         self,
@@ -97,7 +96,8 @@ class VQAClassificationDataset(Dataset):
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
         padding_index: int = 0,
-        max_seq_length: int = 20,
+        max_seq_length: int = 16,
+        max_region_num: int = 37,
     ):
         super().__init__()
         self.split = split
@@ -106,14 +106,15 @@ class VQAClassificationDataset(Dataset):
         self.ans2label = cPickle.load(open(ans2label_path, "rb"))
         self.label2ans = cPickle.load(open(label2ans_path, "rb"))
         self.num_labels = len(self.ans2label)
-
+        self._max_region_num = max_region_num
+        self._max_seq_length = max_seq_length
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
         self._padding_index = padding_index
         cache_path = os.path.join('data', task, "cache", task + '_' + split + '_' + str(max_seq_length)+'.pkl')
         if not os.path.exists(cache_path):
             self.entries = _load_dataset(dataroot, split)
-            self.tokenize()
+            self.tokenize(max_seq_length)
             self.tensorize()
             cPickle.dump(self.entries, open(cache_path, 'wb'))
         else:
@@ -194,6 +195,7 @@ class VQAClassificationDataset(Dataset):
         input_mask = entry["q_input_mask"]
         segment_ids = entry["q_segment_ids"]
 
+        co_attention_mask = torch.zeros((self._max_region_num, self._max_seq_length))
         target = torch.zeros(self.num_labels)
 
         if "test" not in self.split:
@@ -203,7 +205,7 @@ class VQAClassificationDataset(Dataset):
             if labels is not None:
                 target.scatter_(0, labels, scores)
 
-        return features, spatials, image_mask, question, target, input_mask, segment_ids, int(question_id)
+        return features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask
 
     def __len__(self):
         return len(self.entries)
