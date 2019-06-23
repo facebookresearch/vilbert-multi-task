@@ -34,9 +34,19 @@ TASK2:
 TASK3:
   name: VisualDialog
   type: VL-logit
+  loss: CrossEntropyLoss
   task_id: 3
-  features_h5path: /srv/datasets/conceptual_caption/coco/coco_trainval.h5
-  split: train
+  dataroot: data/VisualDialog
+  features_h5path1: data/coco/coco_trainval.h5
+  features_h5path2: ''
+  train_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_train.json'
+  val_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_val.json'
+  max_seq_length: 60
+  max_region_num: 37
+  batch_size: 64
+  train_split: train
+  val_split: val
+  start_iteration: 0
 TASK4:
   name: Vissual7w
   type: VL-logit
@@ -110,7 +120,7 @@ TASK9:
   name: refcoco
   type: V-logit
   loss: BCEWithLogitLoss
-  task_id: 10
+  task_id: 9
   dataroot: data/referExpression
   features_h5path1: data/referExpression/refcoco.h5
   features_h5path2: data/referExpression/refcoco_gt.h5

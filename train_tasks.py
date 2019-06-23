@@ -222,11 +222,11 @@ def main():
 
     if args.from_pretrained:
         model = VILBertForVLTasks.from_pretrained(
-            args.from_pretrained, config, num_labels=num_labels
+            args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
         )
     else:
         model = VILBertForVLTasks(
-            args.bert_model, config, num_labels=num_labels)
+            args.bert_model, config, num_labels=num_labels, default_gpu=default_gpu)
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
     model.to(device)
@@ -290,7 +290,7 @@ def main():
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
                 if key[12:] in bert_weight_name:
-                    lr = args.learning_rate * 0.2
+                    lr = args.learning_rate * 0.1
                 else:
                     lr = args.learning_rate
 

@@ -1483,7 +1483,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             return prediction_scores_t, prediction_scores_v, seq_relationship_score, all_attention_mask
 
 class VILBertForVLTasks(BertPreTrainedModel):
-    def __init__(self, config, num_labels, dropout_prob=0.1):
+    def __init__(self, config, num_labels, dropout_prob=0.1, default_gpu=True):
         super(VILBertForVLTasks, self).__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)

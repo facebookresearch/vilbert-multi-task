@@ -20,6 +20,7 @@ __all__ = ["FoilClassificationDataset", \
 
 DatasetMapTrain = {'TASK0': ConceptCapLoaderTrain,
 				   'TASK1': VQAClassificationDataset,
+				   'TASK3': VisDialDataset,
 				   'TASK5': VCRDataset,
 				   'TASK6': VCRDataset,
 				   'TASK7': RetreivalDataset,
@@ -29,6 +30,7 @@ DatasetMapTrain = {'TASK0': ConceptCapLoaderTrain,
 
 DatasetMapVal = {'TASK0': ConceptCapLoaderVal,
 				 'TASK1': VQAClassificationDataset,
+				 'TASK3': VisDialDataset,
 				 'TASK5': VCRDataset,
 				 'TASK6': VCRDataset,
 				 'TASK7': RetreivalDataset,
@@ -37,6 +39,7 @@ DatasetMapVal = {'TASK0': ConceptCapLoaderVal,
 				}
 DatasetMapTest = {'TASK0': ConceptCapLoaderVal,
 				 'TASK1': VQAClassificationDataset,
+				 'TASK3': VisDialDataset,
 				 'TASK5': VCRDataset,
 				 'TASK6': VCRDataset,
 				 'TASK7': RetreivalDatasetVal,

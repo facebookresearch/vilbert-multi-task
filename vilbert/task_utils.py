@@ -26,7 +26,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    if task_id in ['TASK5', 'TASK6']:
+    if task_id in ['TASK3', 'TASK5', 'TASK6']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -85,7 +85,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task
         features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
         batch_size = features.size(0)
 
-        if task_id in ['TASK5', 'TASK6']:
+        if task_id in ['TASK3' ,'TASK5', 'TASK6']:
             max_num_bbox = features.size(1)
             num_options = question.size(1)
             features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
