@@ -85,10 +85,26 @@ TASK6:
   val_split: val
   start_iteration: 0
 TASK7:
-  name: RetrievalCOCO
+  name: VCR_Q-AR
   type: VL-logit
   loss: CrossEntropyLoss
   task_id: 7
+  dataroot: data/VCR
+  features_h5path1: /srv/datasets/conceptual_caption/VCR_resnet101_faster_rcnn_genome.h5
+  features_h5path2: /srv/datasets/conceptual_caption/VCR_gt_resnet101_faster_rcnn_genome.h5
+  train_annotations_jsonpath: data/VCR/train.jsonl
+  val_annotations_jsonpath: data/VCR/val.jsonl
+  max_seq_length: 60
+  max_region_num: 80
+  batch_size: 64
+  train_split: train
+  val_split: val
+  start_iteration: 0 
+TASK8:
+  name: RetrievalCOCO
+  type: VL-logit
+  loss: CrossEntropyLoss
+  task_id: 8
   dataroot: data/cocoRetreival
   features_h5path1: data/coco/coco_trainval.h5
   features_h5path2: ''
@@ -100,11 +116,11 @@ TASK7:
   train_split: train
   val_split: val
   start_iteration: 0
-TASK8:
+TASK9:
   name: RetrievalFlickr30k
   type: VL-logit
   loss: CrossEntropyLoss
-  task_id: 8
+  task_id: 9
   dataroot: data/flickr30k
   features_h5path1: data/flickr30k/flickr30k.h5
   features_h5path2: ''
@@ -116,11 +132,11 @@ TASK8:
   train_split: train
   val_split: val
   start_iteration: 0
-TASK9:
+TASK10:
   name: refcoco
   type: V-logit
   loss: BCEWithLogitLoss
-  task_id: 9
+  task_id: 10
   dataroot: data/referExpression
   features_h5path1: data/referExpression/refcoco.h5
   features_h5path2: data/referExpression/refcoco_gt.h5
@@ -132,11 +148,11 @@ TASK9:
   train_split: train
   val_split: val
   start_iteration: 0
-TASK10:
+TASK11:
   name: refcoco+
   type: V-logit
   loss: BCEWithLogitLoss
-  task_id: 10
+  task_id: 11
   dataroot: data/referExpression
   features_h5path1: data/referExpression/refcoco+.h5
   features_h5path2: data/referExpression/refcoco+_gt.h5
@@ -148,33 +164,33 @@ TASK10:
   train_split: train
   val_split: val
   start_iteration: 0
-TASK11:
-  name: Refg
-  type: V-logit
-  task_id: 11
-  split: train
 TASK12:
-  name: DenseCaptionRetrieval
+  name: Refg
   type: V-logit
   task_id: 12
   split: train
 TASK13:
-  name: Flickr30kGround
-  type: L-logit
+  name: DenseCaptionRetrieval
+  type: V-logit
   task_id: 13
   split: train
 TASK14:
-  name: CocoCaption
-  type: L-classifier
+  name: Flickr30kGround
+  type: L-logit
   task_id: 14
   split: train
 TASK15:
-  name: Flickr30kCaption
+  name: CocoCaption
   type: L-classifier
   task_id: 15
   split: train
 TASK16:
+  name: Flickr30kCaption
+  type: L-classifier
+  task_id: 16
+  split: train
+TASK17:
   name: NLVR2
   type: VL-logit
-  task_id: 16
-  split: train  
+  task_id: 17
+  split: train

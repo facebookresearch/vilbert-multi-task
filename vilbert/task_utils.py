@@ -26,7 +26,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    if task_id in ['TASK3', 'TASK5', 'TASK6']:
+    if task_id in ['TASK3', 'TASK5', 'TASK6', 'TASK7']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -37,7 +37,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    elif task_id in ['TASK7', 'TASK8']:
+    elif task_id in ['TASK8', 'TASK9']:
         batch_size = features.size(0)
         max_num_bbox = features.size(1)
         num_options = question.size(1)
@@ -85,7 +85,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task
         features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
         batch_size = features.size(0)
 
-        if task_id in ['TASK3' ,'TASK5', 'TASK6']:
+        if task_id in ['TASK3', 'TASK5', 'TASK6', 'TASK7']:
             max_num_bbox = features.size(1)
             num_options = question.size(1)
             features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -96,7 +96,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task
             segment_ids = segment_ids.view(-1, segment_ids.size(2))
             co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-        elif task_id in ['TASK7', 'TASK8']:
+        elif task_id in ['TASK8', 'TASK9']:
             max_num_bbox = features.size(1)
             num_options = question.size(1)
             features = features.view(-1, features.size(2), features.size(3))

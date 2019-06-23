@@ -69,6 +69,27 @@ def _load_annotationsQA_R(annotations_jsonpath):
 
     return entries
 
+def _load_annotationsQ_AR(annotations_jsonpath):
+    """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
+    entries = []
+    with open(annotations_jsonpath, 'rb') as f: # opening file in binary(rb) mode    
+        for annotation in json_lines.reader(f):
+            # metadata_fn = json.load(open(os.path.join('data/VCR/vcr1images', annotation["metadata_fn"]), 'r'))
+            # det_names = metadata_fn["names"]
+            det_names = ""
+            question = annotation["question"]
+            ans_label = annotation["rationale_label"] * 4 + annotation["answer_label"]
+            img_id = _converId(annotation["img_id"])
+            rationale_answers = []
+            for rationale in annotation["rationale_choices"]:
+                for answer in annotation["answer_choices"]:
+                    rationale_answers.append(rationale + ["[SEP]"] + answer)
+
+            entries.append(
+                {"question": question, 'answers':rationale_answers, "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
+            )
+
+    return entries
 
 class VCRDataset(Dataset):
     def __init__(
@@ -89,6 +110,8 @@ class VCRDataset(Dataset):
             self._entries = _load_annotationsQ_A(annotations_jsonpath)
         elif task == "VCR_QA-R":
             self._entries = _load_annotationsQA_R(annotations_jsonpath)
+        elif task == "VCR_Q-AR":
+            self._entries = _load_annotationsQ_AR(annotations_jsonpath)            
         else:
             assert False
 
@@ -291,7 +314,7 @@ class VCRDataset(Dataset):
         target = int(entry["target"])
 
         co_attention_idxs = entry["co_attention_mask"]
-        co_attention_mask = torch.zeros((4, self._max_region_num, self._max_caption_length))
+        co_attention_mask = torch.zeros((len(entry["co_attention_mask"]), self._max_region_num, self._max_caption_length))
 
         for ii, co_attention_idx in enumerate(co_attention_idxs):
             for jj, idx in enumerate(co_attention_idx):
