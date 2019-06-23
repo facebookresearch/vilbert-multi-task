@@ -162,6 +162,7 @@ class BertConfig(object):
         fixed_v_layer=0,
         fixed_t_layer=0,
         in_batch_pairs=False,
+        fusion_method="mul",
     ):
 
         """Constructs BertConfig.
@@ -230,9 +231,9 @@ class BertConfig(object):
             self.fast_mode = fast_mode
             self.fixed_v_layer = fixed_v_layer
             self.fixed_t_layer = fixed_t_layer
-
+            
             self.in_batch_pairs = in_batch_pairs
-
+            self.fusion_method = fusion_method
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -381,6 +382,7 @@ class BertSelfAttention(nn.Module):
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
+        
         return context_layer, attention_probs
 
 
@@ -509,6 +511,7 @@ class BertImageSelfAttention(nn.Module):
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
+        
         return context_layer, attention_probs
 
 
@@ -606,7 +609,6 @@ class BertBiAttention(nn.Module):
         self.query2 = nn.Linear(config.hidden_size, self.all_head_size)
         self.key2 = nn.Linear(config.hidden_size, self.all_head_size)
         self.value2 = nn.Linear(config.hidden_size, self.all_head_size)
-
         self.dropout2 = nn.Dropout(config.attention_probs_dropout_prob)
 
     def transpose_for_scores(self, x):
@@ -643,9 +645,6 @@ class BertBiAttention(nn.Module):
 
         attention_scores1 = attention_scores1 + attention_mask1 + co_attention_mask.permute(0,1,3,2)
 
-        # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-        # attention_scores1 = attention_scores1 + co_attention_mask.permute(0,1,3,2)
-
         # Normalize the attention scores to probabilities.
         attention_probs1 = nn.Softmax(dim=-1)(attention_scores1)
 
@@ -665,9 +664,6 @@ class BertBiAttention(nn.Module):
 
         # we can comment this line for single flow. 
         attention_scores2 = attention_scores2 + attention_mask2 + co_attention_mask
-
-        # if co_attention_mask is not None:
-            # attention_scores2 = attention_scores2 + co_attention_mask
 
         # Normalize the attention scores to probabilities.
         attention_probs2 = nn.Softmax(dim=-1)(attention_scores2)
@@ -764,7 +760,7 @@ class BertEncoder(nn.Module):
         layer = BertLayer(config)
         v_layer = BertImageLayer(config)
         connect_layer = BertConnectionLayer(config)
-
+        
         self.layer = nn.ModuleList(
             [copy.deepcopy(layer) for _ in range(config.num_hidden_layers)]
         )
@@ -996,14 +992,22 @@ class BertPreTrainingHeads(nn.Module):
         self.predictions = BertLMPredictionHead(config, bert_model_embedding_weights)
         self.bi_seq_relationship = nn.Linear(config.bi_hidden_size, 2)
         self.imagePredictions = BertImagePredictionHead(config)
+        self.fusion_method = config.fusion_method
+        self.dropout = nn.Dropout(0.1)
 
     def forward(
         self, sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v
     ):
+
+        if self.fusion_method == 'sum':
+            pooled_output = self.dropout(pooled_output_t + pooled_output_v)
+        elif self.fusion_method == 'mul':
+            pooled_output = self.dropout(pooled_output_t * pooled_output_v)
+        else:
+            assert False
+
         prediction_scores_t = self.predictions(sequence_output_t)
-        seq_relationship_score = self.bi_seq_relationship(
-            pooled_output_t * pooled_output_v
-        )
+        seq_relationship_score = self.bi_seq_relationship(pooled_output)
         prediction_scores_v = self.imagePredictions(sequence_output_v)
 
         return prediction_scores_t, prediction_scores_v, seq_relationship_score
@@ -1299,7 +1303,7 @@ class BertModel(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         co_attention_mask=None,
-        output_all_encoded_layers=True,
+        output_all_encoded_layers=False,
         output_all_attention_masks=False,
     ):
         if attention_mask is None:
@@ -1379,29 +1383,16 @@ class BertImageEmbeddings(nn.Module):
     def __init__(self, config):
         super(BertImageEmbeddings, self).__init__()
 
+        self.image_embeddings = nn.Linear(config.v_feature_size, config.v_hidden_size)
         self.image_location_embeddings = nn.Linear(5, config.v_hidden_size)
-        # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
-        # any TensorFlow checkpoint file
         self.LayerNorm = BertLayerNorm(config.v_hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
     def forward(self, input_ids, input_loc):
-        batch_size = input_ids.size(0)
-        # seq_length = input_ids.size(1)
-        # position_ids = torch.arange(seq_length, dtype=torch.long, device=input_ids.device)
-        # position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
-        # if token_type_ids is None:
-        # embeddings = self.image_embeddings(input_ids)
-        # special_token = self.special_token_embeddings(
-        #     torch.full([batch_size], 0, dtype=torch.long, device=input_ids.device)
-        # )
-        # position_embeddings = self.position_embeddings(position_ids)
-        # token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
-        # embeddings = words_embeddings + position_embeddings + token_type_embeddings
-
+        img_embeddings = self.image_embeddings(input_ids)
         loc_embeddings = self.image_location_embeddings(input_loc)        
-        embeddings = self.LayerNorm(input_ids+loc_embeddings)
+        embeddings = self.LayerNorm(img_embeddings+loc_embeddings)
         embeddings = self.dropout(embeddings)
         
         return embeddings
@@ -1500,11 +1491,12 @@ class VILBertForVLTasks(BertPreTrainedModel):
         self.cls = BertPreTrainingHeads(
             config, self.bert.embeddings.word_embeddings.weight
         )
-        self.vil_prediction = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, num_labels, 0.5)
+        # self.vil_prediction = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, num_labels, 0.5)
+        self.vil_prediction = nn.Linear(config.bi_hidden_size, num_labels)
         self.vil_logit = nn.Linear(config.bi_hidden_size, 1)
         self.vision_logit = nn.Linear(config.v_hidden_size, 1)
         self.linguisic_logit = nn.Linear(config.hidden_size, 1)
-
+        self.fusion_method = config.fusion_method
         self.apply(self.init_bert_weights)
 
     def forward(
@@ -1515,7 +1507,8 @@ class VILBertForVLTasks(BertPreTrainedModel):
         token_type_ids=None,
         attention_mask=None,
         image_attention_mask=None,
-        output_all_encoded_layers=True,
+        co_attention_mask=None,
+        output_all_encoded_layers=False,
     ):
         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
             input_txt,
@@ -1524,9 +1517,9 @@ class VILBertForVLTasks(BertPreTrainedModel):
             token_type_ids,
             attention_mask,
             image_attention_mask,
+            co_attention_mask,
             output_all_encoded_layers=False,
         )
-
 
         vil_prediction = None
         vil_logit = None
@@ -1539,8 +1532,15 @@ class VILBertForVLTasks(BertPreTrainedModel):
         linguisic_prediction, vision_prediction, vil_binary_prediction = self.cls(
             sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v
         )
-        vil_prediction = self.vil_prediction(self.dropout(pooled_output_t * pooled_output_v))
-        vil_logit = self.vil_logit(self.dropout(pooled_output_t * pooled_output_v))
+
+        if self.fusion_method == 'sum':
+            pooled_output = self.dropout(pooled_output_t + pooled_output_v)
+        elif self.fusion_method == 'mul':
+            pooled_output = self.dropout(pooled_output_t * pooled_output_v)
+        else:
+            assert False
+        vil_prediction = self.vil_prediction(pooled_output)
+        vil_logit = self.vil_logit(pooled_output)
         vision_logit = self.vision_logit(self.dropout(sequence_output_v)) + ((1.0 - image_attention_mask)* -10000.0).unsqueeze(2).to(dtype=next(self.parameters()).dtype)
         linguisic_logit = self.linguisic_logit(self.dropout(sequence_output_t))
 

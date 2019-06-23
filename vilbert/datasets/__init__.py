@@ -34,5 +34,12 @@ DatasetMapVal = {'TASK0': ConceptCapLoaderVal,
 				 'TASK7': RetreivalDataset,
 				 'TASK8': RetreivalDataset,
 				 'TASK10': ReferExpressionDataset,			   
-
+				}
+DatasetMapTest = {'TASK0': ConceptCapLoaderVal,
+				 'TASK1': VQAClassificationDataset,
+				 'TASK5': VCRDataset,
+				 'TASK6': VCRDataset,
+				 'TASK7': RetreivalDatasetVal,
+				 'TASK8': RetreivalDatasetVal,
+				 'TASK10': ReferExpressionDataset,			   
 				}

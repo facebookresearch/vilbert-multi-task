@@ -30,7 +30,6 @@ class ImageFeaturesH5Reader(object):
         sometimes tens of GBs in size. Set this to true if you have sufficient
         RAM - trade-off between speed and memory.
     """
-
     def __init__(self, features_h5path: str, in_memory: bool = False):
         self.features_h5path = features_h5path
         self._in_memory = in_memory
@@ -43,7 +42,7 @@ class ImageFeaturesH5Reader(object):
         self.num_boxes = [None] * len(self._image_ids)
         self.boxes = [None] * len(self._image_ids)
         self.boxes_ori = [None] * len(self._image_ids)
-
+    
     def __len__(self):
         return len(self._image_ids)
 

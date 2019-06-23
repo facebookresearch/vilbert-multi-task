@@ -127,18 +127,17 @@ class VCRDataset(Dataset):
         for entry in self._entries:
             metadata_fn = json.load(open(os.path.join('data/VCR/vcr1images', entry["metadata_fn"]), 'r'))
             det_names = metadata_fn["names"]
-            
+            random_names = self.generate_random_name(det_names)
             # replace with name
-            tokens_a, mask_a = self.replace_det_with_name(entry["question"], det_names)
+            tokens_a, mask_a = self.replace_det_with_name(entry["question"], random_names)
             
-
             input_ids_all = []
             co_attention_mask_all = []
             input_mask_all = []
             segment_ids_all = []
 
             for answer in entry["answers"]:
-                tokens_b, mask_b = self.replace_det_with_name(answer, det_names)
+                tokens_b, mask_b = self.replace_det_with_name(answer, random_names)
 
                 self._truncate_seq_pair(tokens_a, tokens_b, mask_a, mask_b, self._max_caption_length - 3)
 
@@ -180,7 +179,7 @@ class VCRDataset(Dataset):
                 input_ids_all.append(input_ids)
                 input_mask_all.append(input_mask)
                 segment_ids_all.append(segment_ids)
-
+            
             entry["co_attention_mask"] = co_attention_mask_all
             entry["input_ids"] = input_ids_all
             entry["input_mask"] = input_mask_all
@@ -202,8 +201,18 @@ class VCRDataset(Dataset):
             segment_ids = torch.from_numpy(np.array(entry["segment_ids"]))
             entry["segment_ids"] = segment_ids
 
+    def generate_random_name(self, det_names):
+        random_name = []
+        for name in det_names:
+            if name == 'person':
+                word = random.choice(self._names)
+            else:
+                word = name
+            random_name.append(word)
 
-    def replace_det_with_name(self, inputs, det_names):
+        return random_name
+
+    def replace_det_with_name(self, inputs, random_names):
         tokens = []
         mask = []
         for w in inputs:
@@ -215,14 +224,9 @@ class VCRDataset(Dataset):
                 tokens += word_token
             else:
                 for idx in w:
-                    det = idx
-                    if det_names[idx] == 'person':
-                        word = random.choice(self._names)
-                    else:
-                        word = det_names[idx]
-
+                    word = random_names[idx]
                     word_token = self._tokenizer.tokenize(word)
-                    mask += [det] * len(word_token)
+                    mask += [idx] * len(word_token)
                     tokens += word_token
 
         return tokens, mask
@@ -294,7 +298,7 @@ class VCRDataset(Dataset):
                 if idx != -1 and idx < self._max_region_num:
                     co_attention_mask[ii, idx, jj] = 1
 
-        return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask
+        return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask, image_id
 
     def __len__(self):
         return len(self._entries)

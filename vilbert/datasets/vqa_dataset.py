@@ -205,7 +205,7 @@ class VQAClassificationDataset(Dataset):
             if labels is not None:
                 target.scatter_(0, labels, scores)
 
-        return features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask
+        return features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id
 
     def __len__(self):
         return len(self.entries)

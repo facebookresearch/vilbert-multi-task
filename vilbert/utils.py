@@ -31,12 +31,13 @@ logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 class tbLogger(object):
     def __init__(self, log_dir, task_names, task_ids, task_num_iters):
         logger.info("logging file at: " + log_dir)
-        self.logger = SummaryWriter(log_dir=log_dir)
+        self.logger = SummaryWriter(log_dir="logs/" + log_dir)
         self.task_id2name = {ids:name.replace('+', 'plus') for ids, name in zip(task_ids, task_names)}
         self.task_ids = task_ids
         self.task_loss = {task_id:0 for task_id in task_ids}
         self.task_loss_tmp = {task_id:0 for task_id in task_ids}
-        self.task_score = {task_id:0 for task_id in task_ids}
+        self.task_score_tmp = {task_id:0 for task_id in task_ids}
+        self.task_norm_tmp = {task_id:0 for task_id in task_ids}
         self.task_step = {task_id:0 for task_id in task_ids}
         self.task_step_tmp = {task_id:0 for task_id in task_ids}
         self.task_num_iters = task_num_iters
@@ -47,14 +48,16 @@ class tbLogger(object):
         self.task_step_val = {task_id:0 for task_id in task_ids}
         self.task_datasize_val = {task_id:0 for task_id in task_ids}
 
+        self.txt_file = open("save/"+log_dir+"/log.txt", 'w')
 
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
 
-    def step_train(self, epochId, stepId, loss, score, task_id, split):
+    def step_train(self, epochId, stepId, loss, score, norm, task_id, split):
         self.task_loss[task_id] += loss
         self.task_loss_tmp[task_id] += loss
-        self.task_score[task_id] += score
+        self.task_score_tmp[task_id] += score
+        self.task_norm_tmp[task_id] += norm
         self.task_step[task_id] += 1
         self.task_step_tmp[task_id] += 1
         self.epochId = epochId
@@ -80,21 +83,29 @@ class tbLogger(object):
 
             self.linePlot(self.epochId, loss, 'val', self.task_id2name[task_id] + '_loss')
             self.linePlot(self.epochId, score, 'val', self.task_id2name[task_id] + '_score')
+
+        self.task_loss_val = {task_id:0 for task_id in self.task_loss_val}
+        self.task_score_val = {task_id:0 for task_id in self.task_score_val}
+        self.task_datasize_val = {task_id:0 for task_id in self.task_datasize_val}
         
         logger.info(lossInfo)
-
+        self.txt_file.write(lossInfo + '\n')
     def showLossTrain(self):
         # show the current loss, once showed, reset the loss. 
         lossInfo = ''
         for task_id in self.task_ids:
-            lossInfo += '[%s]: iter %d Ep: %.2f loss %.3f' %(self.task_id2name[task_id], \
+            lossInfo += '[%s]: iter %d Ep: %.2f loss %.3f score %.3f lr %.6g' %(self.task_id2name[task_id], \
                 self.task_step[task_id], self.task_step[task_id] / float(self.task_num_iters[task_id]), \
-                                    self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]))
+                                    self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]), \
+                                    self.task_score_tmp[task_id] / float(self.task_step_tmp[task_id]), \
+                                    self.task_norm_tmp[task_id] / float(self.task_step_tmp[task_id]))
         
         logger.info(lossInfo)
+        self.txt_file.write(lossInfo + '\n')
         self.task_step_tmp = {task_id:0 for task_id in self.task_ids}
         self.task_loss_tmp = {task_id:0 for task_id in self.task_ids}
-
+        self.task_score_tmp =  {task_id:0 for task_id in self.task_ids}
+        self.task_norm_tmp = {task_id:0 for task_id in self.task_ids}
 
 def url_to_filename(url, etag=None):
     """

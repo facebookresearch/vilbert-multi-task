@@ -13,17 +13,18 @@ import yaml
 from easydict import EasyDict as edict
 
 import pdb
-
+import sys
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
+from pytorch_pretrained_bert.optimization import WarmupLinearSchedule
 
 from parallel.parallel import DataParallelModel, DataParallelCriterion
 from vilbert.vilbert import BertConfig
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
 from vilbert.vilbert import VILBertForVLTasks
+from vilbert.optimization import BertAdam, VqaAdam, adjust_lr
 import vilbert.utils as utils
 import torch.distributed as dist
 
@@ -74,7 +75,7 @@ def main():
     )
     parser.add_argument(
         "--warmup_proportion",
-        default=0.01,
+        default=0.1,
         type=float,
         help="Proportion of training to perform linear learning rate warmup for. "
         "E.g., 0.1 = 10%% of training.",
@@ -112,7 +113,7 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=24, help="Number of workers in the dataloader."
+        "--num_workers", type=int, default=16, help="Number of workers in the dataloader."
     )
     parser.add_argument(
         "--save_name",
@@ -133,9 +134,11 @@ def main():
         "--tasks", default='', type=str, help="1-2-3... training task separate by -"
     )
     parser.add_argument(
-        "--freeze", default = 0, type=int, 
+        "--freeze", default = -1, type=int, 
         help="till which layer of textual stream of vilbert need to fixed."
     )
+    parser.add_argument("--predict_feature", action="store_true", help="visual target.")
+    parser.add_argument("--vision_pretrained", action="store_true", help="whether pre-trained the image or not.")
 
     args = parser.parse_args()
     with open('config/vlbert_tasks.yml', 'r') as f:
@@ -151,18 +154,12 @@ def main():
         name = task_cfg[task]['name']
         task_names.append(name)
 
-    timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
+    if args.save_name:
+        prefix = '-' + args.save_name
+    else:
+        prefix = ''
+    timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0] + prefix
     savePath = os.path.join(args.output_dir, timeStamp)
-    
-    if not os.path.exists(savePath):
-        os.makedirs(savePath)
-
-    config = BertConfig.from_json_file(args.config_file)
-    # save all the hidden parameters. 
-    with open(os.path.join(savePath, 'command.txt'), 'w') as f:
-        print(args, file=f)  # Python 3.x
-        print('\n', file=f)
-        print(config, file=f)
 
     bert_weight_name = json.load(open("config/" + args.bert_model + "_weight_name.json", "r"))
 
@@ -190,13 +187,22 @@ def main():
     else:
         default_gpu = True
 
-    if default_gpu and not os.path.exists(savePath):
-        os.makedirs(savePath)
+    if default_gpu:
+        if not os.path.exists(savePath):
+            os.makedirs(savePath)
+
+    config = BertConfig.from_json_file(args.config_file)
+    if default_gpu:
+        # save all the hidden parameters. 
+        with open(os.path.join(savePath, 'command.txt'), 'w') as f:
+            print(args, file=f)  # Python 3.x
+            print('\n', file=f)
+            print(config, file=f)
 
     task_batch_size, task_num_iters, task_ids, task_datasets_train, task_datasets_val, \
             task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
 
-    tbLogger = utils.tbLogger("logs/" + timeStamp, task_names, task_ids, task_num_iters)
+    tbLogger = utils.tbLogger(timeStamp, task_names, task_ids, task_num_iters)
 
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
@@ -206,6 +212,13 @@ def main():
 
     num_train_optimization_steps = max(task_num_iters.values())* args.num_train_epochs
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
+
+    if args.predict_feature:
+        config.v_target_size = 2048
+        config.predict_feature = True
+    else:
+        config.v_target_size = 1601
+        config.predict_feature = False
 
     if args.from_pretrained:
         model = VILBertForVLTasks.from_pretrained(
@@ -246,93 +259,118 @@ def main():
             if key[12:] in bert_weight_name_filtered:
                 value.requires_grad = False
         
-        print("filtered weight")
-        print(bert_weight_name_filtered)
+        if default_gpu:
+            print("filtered weight")
+            print(bert_weight_name_filtered)
 
-    if not args.from_pretrained:
-        param_optimizer = list(model.named_parameters())
-        optimizer_grouped_parameters = [
-            {
-                "params": [
-                    p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
-                ],
-                "weight_decay": 0.01,
-            },
-            {
-                "params": [
-                    p for n, p in param_optimizer if any(nd in n for nd in no_decay)
-                ],
-                "weight_decay": 0.0,
-            },
-        ]
+    if args.vision_pretrained:
+        optimizer_grouped_parameters = []
+        lr = args.learning_rate
+        for key, value in dict(model.named_parameters()).items():
+            if value.requires_grad:
+                optimizer_grouped_parameters += [{"params": [value], "lr": lr}]
+
+        # param_optimizer = list(model.named_parameters())
+        # optimizer_grouped_parameters = [
+        #     {
+        #         "params": [
+        #             p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
+        #         ],
+        #         "weight_decay": 0.01,
+        #     },
+        #     {
+        #         "params": [
+        #             p for n, p in param_optimizer if any(nd in n for nd in no_decay)
+        #         ],
+        #         "weight_decay": 0.0,
+        #     },
+        # ]
     else:
         optimizer_grouped_parameters = []
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
-                if 'vil_prediction' in key:
-                    lr = args.learning_rate * 10
+                if key[12:] in bert_weight_name:
+                    lr = args.learning_rate * 0.2
                 else:
                     lr = args.learning_rate
 
-                if any(nd in key for nd in no_decay):
-                    optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr, "weight_decay": 0.01}
-                    ]
+                optimizer_grouped_parameters += [{"params": [value], "lr": lr}]
 
-                if not any(nd in key for nd in no_decay):
-                    optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr, "weight_decay": 0.0}
-                    ]
+                # if any(nd in key for nd in no_decay):
+                #     optimizer_grouped_parameters += [
+                #         {"params": [value], "lr": lr, "weight_decay": 0.01}
+                #     ]
 
+                # if not any(nd in key for nd in no_decay):
+                #     optimizer_grouped_parameters += [
+                #         {"params": [value], "lr": lr, "weight_decay": 0.0}
+                #     ]
+
+    # optimizer_grouped_parameters = []
+    # for key, value in dict(model.named_parameters()).items():
+    #     if value.requires_grad:
+    #         optimizer_grouped_parameters += [{"params": [value]}]
+    
+    if default_gpu:
         print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
+    max_num_iter = max(task_num_iters.values())
+    max_batch_size = max(task_batch_size.values())
+    if args.optimizer == 'adam':
+        optim = BertAdam(optimizer_grouped_parameters,
+                         lr=args.learning_rate,
+                         warmup=args.warmup_proportion,
+                         t_total=num_train_optimization_steps)
 
-    if args.from_pretrained:
-        if args.optimizer == 'adam':
-            optimizer = BertAdam(optimizer_grouped_parameters,
-                             lr=args.learning_rate,
-                             warmup=args.warmup_proportion,
-                             t_total=num_train_optimization_steps)
+    elif args.optimizer == 'VqaAdam':
+        optim = VqaAdam(optimizer_grouped_parameters,
+                         lr=args.learning_rate,
+                         data_size= max_batch_size * max_num_iter, 
+                         batch_size=max_batch_size)
     else:
-        if args.optimizer == 'adam':
-            optimizer = BertAdam(optimizer_grouped_parameters,
-                             lr=args.learning_rate,
-                             warmup=args.warmup_proportion,
-                             t_total=num_train_optimization_steps)
+        assert False 
 
-
-    print("***** Running training *****")
-    print("  Num Iters: ", task_num_iters)
-    print("  Batch size: ", task_batch_size)    
-    print("  Num steps: %d" %num_train_optimization_steps)
+    if default_gpu:
+        print("***** Running training *****")
+        print("  Num Iters: ", task_num_iters)
+        print("  Batch size: ", task_batch_size)    
+        print("  Num steps: %d" %num_train_optimization_steps)
 
     startIterID = 0
-    max_num_iter = max(task_num_iters.values())
-    model.train()
-
     # initialize the data iteration.
     task_iter_train = {name:None for name in task_ids}
     task_count = {name:0 for name in task_ids}
     for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
+
+        if args.optimizer == 'VqaAdam':
+            if epochId in [10, 12]:
+                adjust_lr(optim, 0.2)
+
+        model.train()
         for step in range(max_num_iter):
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
                 loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task_iter_train, task_dataloader_train, model, task_losses)
-                optimizer.zero_grad()
+                optim.zero_grad()
                 loss.backward()
-                optimizer.step()
-                tbLogger.step_train(epochId, iterId, float(loss), float(score), task_id, 'train')
+                optim.step()
 
-            if step % 20 == 0:
+                if default_gpu:
+                    tbLogger.step_train(epochId, iterId, float(loss), float(score), optim.rate(), task_id, 'train')
+
+            if step % 20 == 0 and default_gpu:
                 tbLogger.showLossTrain()
 
         model.eval()
         # when run evaluate, we run each task sequentially. 
         for task_id in task_ids:
-            for batch in task_dataloader_val[task_id]:
+            for i, batch in enumerate(task_dataloader_val[task_id]):
                 loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
                 tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
+                if default_gpu:
+                    sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
+                    sys.stdout.flush()
 
-        tbLogger.showLossVal()
+        if default_gpu: tbLogger.showLossVal()
 
         if default_gpu:
             # Save a trained model
@@ -347,7 +385,7 @@ def main():
             
             model_save = {}
             model_save['model'] = model_to_save.state_dict()
-            model_save['optimizer'] = optimizer
+            model_save['optim'] = optim
             model_save['epoch'] = epochId
             torch.save(model_save, output_model_file)
 

@@ -211,7 +211,7 @@ class RetreivalDataset(Dataset):
         co_attention_mask = torch.zeros((4, self._max_region_num, self._max_seq_length))
         target = 0
 
-        return features, spatials, image_mask, caption, target, input_mask, segment_ids, co_attention_mask
+        return features, spatials, image_mask, caption, target, input_mask, segment_ids, co_attention_mask, image_id
 
     def __len__(self):
         return len(self._entries)

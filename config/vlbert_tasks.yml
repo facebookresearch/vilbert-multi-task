@@ -48,8 +48,8 @@ TASK5:
   loss: CrossEntropyLoss
   task_id: 5
   dataroot: data/VCR
-  features_h5path1: /srv/datasets/conceptual_caption/VCR_resnet101_faster_rcnn_genome.h5
-  features_h5path2: /srv/datasets/conceptual_caption/VCR_gt_resnet101_faster_rcnn_genome.h5
+  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.h5
+  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.h5
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 40
@@ -70,7 +70,7 @@ TASK6:
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
   max_region_num: 80
-  batch_size: 48
+  batch_size: 64
   train_split: train
   val_split: val
   start_iteration: 0
@@ -144,7 +144,7 @@ TASK11:
   task_id: 11
   split: train
 TASK12:
-  name: DenseCaption
+  name: DenseCaptionRetrieval
   type: V-logit
   task_id: 12
   split: train
@@ -163,3 +163,8 @@ TASK15:
   type: L-classifier
   task_id: 15
   split: train
+TASK16:
+  name: NLVR2
+  type: VL-logit
+  task_id: 16
+  split: train  

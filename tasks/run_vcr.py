@@ -163,7 +163,7 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=20, help="Number of workers in the dataloader."
+        "--num_workers", type=int, default=16, help="Number of workers in the dataloader."
     )
     parser.add_argument(
         "--from_pretrained", action="store_true", help="Wheter the tensor is from pretrained."

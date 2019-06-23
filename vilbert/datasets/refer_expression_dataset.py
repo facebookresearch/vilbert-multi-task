@@ -216,7 +216,7 @@ class ReferExpressionDataset(Dataset):
         input_mask = entry["input_mask"]
         segment_ids = entry["segment_ids"]
 
-        return features, spatials, image_mask, caption, target, input_mask, segment_ids, co_attention_mask
+        return features, spatials, image_mask, caption, target, input_mask, segment_ids, co_attention_mask, image_id
 
     def __len__(self):
         return len(self.entries)

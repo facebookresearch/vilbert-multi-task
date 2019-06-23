@@ -118,13 +118,13 @@ class ConceptCapLoaderTrain(object):
             num_replicas = dist.get_world_size()
             assert num_replicas == 8
             rank = dist.get_rank()
-            lmdb_file = "/coc/dataset/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
+            # lmdb_file = "/coc/dataset/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
             # if not os.path.exists(lmdb_file):
             # lmdb_file = "/srv/share/datasets/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
         else:
-            # lmdb_file = "/coc/dataset/conceptual_caption/training_feat_all.lmdb"
+            lmdb_file = "/coc/dataset/conceptual_caption/training_feat_all.lmdb"
             # if not os.path.exists(lmdb_file):
-            lmdb_file = "data/conceptual_caption/training_feat_all.lmdb"
+            # lmdb_file = "data/conceptual_caption/training_feat_all.lmdb"
             
         caption_path = "data/conceptual_caption/caption_train.json"
         print("Loading from %s" % lmdb_file)
