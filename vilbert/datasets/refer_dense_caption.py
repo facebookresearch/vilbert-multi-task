@@ -85,8 +85,16 @@ class ReferDenseCpationDataset(Dataset):
     def _load_annotations(self, annotations_jsonpath):
 
         # annotations_json: Dict[str, Any] = json.load(open(annotations_jsonpath))
-
         annotations = json.load(open(annotations_jsonpath, 'r'))
+        
+        # we simply use the last 5000 for val and test
+        if self.split == 'train':
+            annotations = annotations[:-10000]
+        elif self.split == 'val':
+            annotations = annotations[-10000:-5000]
+        elif self.split == 'test':
+            annotations = annotations[-5000:]
+
         entries = []
         for img in annotations:
             image_id = img['id']
@@ -139,7 +147,6 @@ class ReferDenseCpationDataset(Dataset):
             count += 1
 
     def tensorize(self):
-
         for entry in self.entries:
             token = torch.from_numpy(np.array(entry["token"]))
             entry["token"] = token
@@ -150,13 +157,11 @@ class ReferDenseCpationDataset(Dataset):
             segment_ids = torch.from_numpy(np.array(entry["segment_ids"]))
             entry["segment_ids"] = segment_ids
 
-
     def __getitem__(self, index):
         entry = self.entries[index]
 
-        pdb.set_trace()
         image_id = entry["image_id"]
-        ref_box = entry["refBox"]
+        ref_box = entry["bbox"]
 
         ref_box = [ref_box[0], ref_box[1], ref_box[0]+ref_box[2], ref_box[1]+ref_box[3]]
         features, num_boxes, boxes, boxes_ori = self._image_features_reader[image_id]
@@ -164,30 +169,12 @@ class ReferDenseCpationDataset(Dataset):
         boxes_ori = boxes_ori[:num_boxes]
         boxes = boxes[:num_boxes]
         features = features[:num_boxes]
-
-        if self.split == 'train':
-            gt_features, gt_num_boxes, gt_boxes, gt_boxes_ori = self._gt_image_features_reader[image_id]
-
-            # merge two boxes, and assign the labels. 
-            gt_boxes_ori = gt_boxes_ori[1:gt_num_boxes]
-            gt_boxes = gt_boxes[1:gt_num_boxes]
-            gt_features = gt_features[1:gt_num_boxes]
-
-            # concatenate the boxes
-            mix_boxes_ori = np.concatenate((boxes_ori, gt_boxes_ori), axis=0)
-            mix_boxes = np.concatenate((boxes, gt_boxes), axis=0)
-            mix_features = np.concatenate((features, gt_features), axis=0)
-            mix_num_boxes = min(int(num_boxes + int(gt_num_boxes) - 1), self.max_region_num)
-            # given the mix boxes, and ref_box, calculate the overlap. 
-            mix_target = iou(torch.tensor(mix_boxes_ori[:,:4]).float(), torch.tensor([ref_box]).float())
-            mix_target[mix_target<0.5] = 0
-
-        else:
-            mix_boxes_ori = boxes_ori
-            mix_boxes = boxes
-            mix_features = features
-            mix_num_boxes = min(int(num_boxes), self.max_region_num)
-            mix_target = iou(torch.tensor(mix_boxes_ori[:,:4]).float(), torch.tensor([ref_box]).float())
+        
+        mix_boxes_ori = boxes_ori
+        mix_boxes = boxes
+        mix_features = features
+        mix_num_boxes = min(int(num_boxes), self.max_region_num)
+        mix_target = iou(torch.tensor(mix_boxes_ori[:,:4]).float(), torch.tensor([ref_box]).float())
 
         image_mask = [1] * (mix_num_boxes)
         while len(image_mask) < self.max_region_num:

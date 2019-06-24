@@ -12,7 +12,6 @@ csv.field_size_limit(sys.maxsize)
 
 import sys
 sys.path.append("tools/refer")
-from refer import REFER
 
 
 # data_root = '/srv/share2/jlu347/multi-modal-bert/data/referExpression'
@@ -44,16 +43,21 @@ count = 0
 num_file = 1
 name = '/srv/share2/jlu347/bottom-up-attention/feature/refcoco_unc/refcoco+_unc_resnet101_faster_rcnn_genome.tsv.%d'
 infiles = [name % i for i in range(num_file)]
-
+max_num_box = 0
 for infile in infiles:
     with open(infile) as tsv_in_file:
         reader = csv.DictReader(tsv_in_file, delimiter='\t', fieldnames = FIELDNAMES)
         for item in reader:
+            num_boxes = int(item['num_boxes'])
+            if max_num_box < num_boxes:
+                max_num_box = num_boxes
+
             count += 1
 
             if count %1000 == 0:
                 print(count)
 
+print(max_num_box)
 length = count
 
 print("total length is %d" %length)
@@ -74,18 +78,18 @@ num_boxes_h5d = save_h5.create_dataset(
 )
 
 features_h5d = save_h5.create_dataset(
-    "features", (length, 36, 2048),
-    chunks=(1, 36, 2048)
+    "features", (length, max_num_box, 2048),
+    chunks=(1, max_num_box, 2048)
 )
 
 cls_prob_h5d = save_h5.create_dataset(
-    "cls_prob", (length, 36, 1601),
-    chunks=(1, 36, 1601)
+    "cls_prob", (length, max_num_box, 1601),
+    chunks=(1, max_num_box, 1601)
 )
 
 boxes_h5d = save_h5.create_dataset(
-    "boxes", (length, 36, 4),
-    chunks=(1, 36, 4)
+    "boxes", (length, max_num_box, 4),
+    chunks=(1, max_num_box, 4)
 )
 
 count = 0

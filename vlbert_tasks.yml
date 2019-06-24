@@ -182,6 +182,7 @@ TASK12:
   start_iteration: 0
 TASK13:
   name: refDenseCaption
+  type: V-logit
   loss: BCEWithLogitLoss
   task_id: 13
   dataroot: data/visgenome
