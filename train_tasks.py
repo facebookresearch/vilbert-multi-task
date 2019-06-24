@@ -141,7 +141,7 @@ def main():
     parser.add_argument("--vision_pretrained", action="store_true", help="whether pre-trained the image or not.")
 
     args = parser.parse_args()
-    with open('config/vlbert_tasks.yml', 'r') as f:
+    with open('vlbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.load(f))
 
     random.seed(args.seed)

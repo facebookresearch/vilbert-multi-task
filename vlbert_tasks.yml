@@ -96,7 +96,7 @@ TASK7:
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
   max_region_num: 80
-  batch_size: 64
+  batch_size: 16
   train_split: train
   val_split: val
   start_iteration: 0 
@@ -165,15 +165,36 @@ TASK11:
   val_split: val
   start_iteration: 0
 TASK12:
-  name: Refg
+  name: refgoogle
   type: V-logit
+  loss: BCEWithLogitLoss
   task_id: 12
-  split: train
+  dataroot: data/referExpression
+  features_h5path1: data/referExpression/refcoco+.h5
+  features_h5path2: data/referExpression/refcoco+_gt.h5
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 20
+  max_region_num: 60
+  batch_size: 256
+  train_split: train
+  val_split: val
+  start_iteration: 0
 TASK13:
-  name: DenseCaptionRetrieval
-  type: V-logit
+  name: refDenseCaption
+  loss: BCEWithLogitLoss
   task_id: 13
-  split: train
+  dataroot: data/visgenome
+  features_h5path1: data/referExpression/refcoco+.h5
+  features_h5path2: ''
+  train_annotations_jsonpath: 'data/visgenome/region_descriptions.json'
+  val_annotations_jsonpath: 'data/visgenome/region_descriptions.json'
+  max_seq_length: 20
+  max_region_num: 60
+  batch_size: 256
+  train_split: train
+  val_split: val
+  start_iteration: 0
 TASK14:
   name: Flickr30kGround
   type: L-logit
