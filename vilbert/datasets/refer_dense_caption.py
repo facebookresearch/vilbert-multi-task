@@ -169,7 +169,7 @@ class ReferDenseCpationDataset(Dataset):
         boxes_ori = boxes_ori[:num_boxes]
         boxes = boxes[:num_boxes]
         features = features[:num_boxes]
-        
+
         mix_boxes_ori = boxes_ori
         mix_boxes = boxes
         mix_features = features
@@ -182,6 +182,9 @@ class ReferDenseCpationDataset(Dataset):
 
         mix_boxes_pad = np.zeros((self.max_region_num, 5))
         mix_features_pad = np.zeros((self.max_region_num, 2048))
+
+        # random sample index for the target.
+        pdb.set_trace()
 
         mix_boxes_pad[:mix_num_boxes] = mix_boxes
         mix_features_pad[:mix_num_boxes] = mix_features

@@ -14,12 +14,12 @@ TASK1:
   loss: BCEWithLogitLoss
   task_id: 1
   dataroot: data/VQA
-  features_h5path1: data/coco/coco_trainval.h5
+  features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 16
-  max_region_num: 37
+  max_region_num: 100
   batch_size: 256
   train_split: trainval
   val_split: minval
@@ -28,7 +28,7 @@ TASK2:
   name: GenomeQA
   type: VL-classifier
   task_id: 2
-  features_h5path: /srv/datasets/conceptual_caption/coco/coco_trainval.h5
+  features_h5path: data/coco/coco_trainval.h5
   train_file: data/VQA/
   split: train
 TASK3:
@@ -42,7 +42,7 @@ TASK3:
   train_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_train.json'
   val_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_val.json'
   max_seq_length: 60
-  max_region_num: 37
+  max_region_num: 100
   batch_size: 64
   train_split: train
   val_split: val
@@ -58,12 +58,12 @@ TASK5:
   loss: CrossEntropyLoss
   task_id: 5
   dataroot: data/VCR
-  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.h5
-  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.h5
+  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 40
-  max_region_num: 60
+  max_region_num: 100
   batch_size: 64
   train_split: train
   val_split: val
@@ -74,12 +74,12 @@ TASK6:
   loss: CrossEntropyLoss
   task_id: 6
   dataroot: data/VCR
-  features_h5path1: /srv/datasets/conceptual_caption/VCR_resnet101_faster_rcnn_genome.h5
-  features_h5path2: /srv/datasets/conceptual_caption/VCR_gt_resnet101_faster_rcnn_genome.h5
+  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
-  max_region_num: 80
+  max_region_num: 100
   batch_size: 64
   train_split: train
   val_split: val
@@ -90,12 +90,12 @@ TASK7:
   loss: CrossEntropyLoss
   task_id: 7
   dataroot: data/VCR
-  features_h5path1: /srv/datasets/conceptual_caption/VCR_resnet101_faster_rcnn_genome.h5
-  features_h5path2: /srv/datasets/conceptual_caption/VCR_gt_resnet101_faster_rcnn_genome.h5
+  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
-  max_region_num: 80
+  max_region_num: 100
   batch_size: 16
   train_split: train
   val_split: val
@@ -111,7 +111,7 @@ TASK8:
   train_annotations_jsonpath: data/cocoRetreival/all_data_final_train_2014.jsonline
   val_annotations_jsonpath: data/cocoRetreival/all_data_final_val_set0_2014.jsonline
   max_seq_length: 30
-  max_region_num: 37
+  max_region_num: 100
   batch_size: 64
   train_split: train
   val_split: val
@@ -127,7 +127,7 @@ TASK9:
   train_annotations_jsonpath: data/flickr30k/all_data_final_train_2014.jsonline
   val_annotations_jsonpath: data/flickr30k/all_data_final_val_set0_2014.jsonline
   max_seq_length: 30
-  max_region_num: 37
+  max_region_num: 100
   batch_size: 64
   train_split: train
   val_split: val
@@ -143,7 +143,7 @@ TASK10:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
-  max_region_num: 60
+  max_region_num: 100
   batch_size: 256
   train_split: train
   val_split: val
@@ -154,12 +154,12 @@ TASK11:
   loss: BCEWithLogitLoss
   task_id: 11
   dataroot: data/referExpression
-  features_h5path1: data/referExpression/refcoco+.h5
-  features_h5path2: data/referExpression/refcoco+_gt.h5
+  features_h5path1: data/referExpression/refcoco+_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: data/referExpression/refcoco+_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
-  max_region_num: 60
+  max_region_num: 100
   batch_size: 256
   train_split: train
   val_split: val
@@ -175,7 +175,7 @@ TASK12:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
-  max_region_num: 60
+  max_region_num: 100
   batch_size: 256
   train_split: train
   val_split: val

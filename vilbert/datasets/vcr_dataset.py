@@ -288,10 +288,17 @@ class VCRDataset(Dataset):
         gt_boxes = gt_boxes[:gt_num_boxes]
         gt_features = gt_features[:gt_num_boxes]
 
+        # shuffle the image location here.
+        num_box_preserve = min(self._max_region_num - int(gt_num_boxes), int(num_boxes))
+        img_idx = list(np.random.permutation(num_boxes-1)[:num_box_preserve]+1)
+        img_idx.append(0)
+        boxes = boxes[img_idx]
+        features = features[img_idx]
+
         # concatenate the boxes
         mix_boxes = np.concatenate((gt_boxes, boxes), axis=0)
         mix_features = np.concatenate((gt_features, features), axis=0)
-        mix_num_boxes = min(int(num_boxes + int(gt_num_boxes)), self._max_region_num)
+        mix_num_boxes = num_box_preserve + int(gt_num_boxes)
         
         image_mask = [1] * (mix_num_boxes)
         while len(image_mask) < self._max_region_num:

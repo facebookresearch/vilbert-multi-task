@@ -69,7 +69,7 @@ def main():
     )
     parser.add_argument(
         "--num_train_epochs",
-        default=30,
+        default=20,
         type=int,
         help="Total number of training epochs to perform.",
     )
@@ -223,7 +223,7 @@ def main():
     if args.from_pretrained:
         model = VILBertForVLTasks.from_pretrained(
             args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
-        )
+            )
     else:
         model = VILBertForVLTasks(
             args.bert_model, config, num_labels=num_labels, default_gpu=default_gpu)
@@ -253,12 +253,12 @@ def main():
                 layer_num = name.split('.')[2]
                 if int(layer_num) <= args.freeze:
                     bert_weight_name_filtered.append(name)
-
+            
         optimizer_grouped_parameters = []
         for key, value in dict(model.named_parameters()).items():
             if key[12:] in bert_weight_name_filtered:
                 value.requires_grad = False
-        
+            
         if default_gpu:
             print("filtered weight")
             print(bert_weight_name_filtered)
@@ -268,49 +268,21 @@ def main():
         lr = args.learning_rate
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
+                if 'vil_prediction' in key:
+                    lr = args.learning_rate * 10
+                else:
+                    lr = args.learning_rate                
                 optimizer_grouped_parameters += [{"params": [value], "lr": lr}]
-
-        # param_optimizer = list(model.named_parameters())
-        # optimizer_grouped_parameters = [
-        #     {
-        #         "params": [
-        #             p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
-        #         ],
-        #         "weight_decay": 0.01,
-        #     },
-        #     {
-        #         "params": [
-        #             p for n, p in param_optimizer if any(nd in n for nd in no_decay)
-        #         ],
-        #         "weight_decay": 0.0,
-        #     },
-        # ]
     else:
         optimizer_grouped_parameters = []
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
                 if key[12:] in bert_weight_name:
-                    lr = args.learning_rate * 0.1
+                    lr = args.learning_rate * 10
                 else:
-                    lr = args.learning_rate
-
+                    lr = args.learning_rate                
                 optimizer_grouped_parameters += [{"params": [value], "lr": lr}]
 
-                # if any(nd in key for nd in no_decay):
-                #     optimizer_grouped_parameters += [
-                #         {"params": [value], "lr": lr, "weight_decay": 0.01}
-                #     ]
-
-                # if not any(nd in key for nd in no_decay):
-                #     optimizer_grouped_parameters += [
-                #         {"params": [value], "lr": lr, "weight_decay": 0.0}
-                #     ]
-
-    # optimizer_grouped_parameters = []
-    # for key, value in dict(model.named_parameters()).items():
-    #     if value.requires_grad:
-    #         optimizer_grouped_parameters += [{"params": [value]}]
-    
     if default_gpu:
         print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
     max_num_iter = max(task_num_iters.values())

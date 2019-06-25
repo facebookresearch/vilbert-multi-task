@@ -13,7 +13,6 @@ from ._image_features_reader import ImageFeaturesH5Reader
 import jsonlines
 import sys
 
-import pdb
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
 

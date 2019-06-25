@@ -9,9 +9,8 @@ from torch.utils.data import Dataset
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 
 from ._image_features_reader import ImageFeaturesH5Reader
-
+import pdb
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
-
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
 def assert_eq(real, expected):
@@ -183,13 +182,23 @@ class VQAClassificationDataset(Dataset):
         question_id = entry["question_id"]
         features, num_boxes, boxes, _ = self._image_features_reader[image_id]
 
-        image_mask = [1] * (int(num_boxes))
-        while len(image_mask) < 37:
+        mix_num_boxes = min(int(num_boxes), self._max_region_num)
+        mix_boxes_pad = np.zeros((self._max_region_num, 5))
+        mix_features_pad = np.zeros((self._max_region_num, 2048))
+
+        image_mask = [1] * (int(mix_num_boxes))
+        while len(image_mask) < self._max_region_num:
             image_mask.append(0)
 
-        features = torch.tensor(features).float()
+        # shuffle the image location here.
+        img_idx = list(np.random.permutation(num_boxes-1)[:mix_num_boxes]+1)
+        img_idx.append(0)
+        mix_boxes_pad[:mix_num_boxes] = boxes[img_idx]
+        mix_features_pad[:mix_num_boxes] = features[img_idx]
+
+        features = torch.tensor(mix_features_pad).float()
         image_mask = torch.tensor(image_mask).long()
-        spatials = torch.tensor(boxes).float()
+        spatials = torch.tensor(mix_boxes_pad).float()
 
         question = entry["q_token"]
         input_mask = entry["q_input_mask"]
