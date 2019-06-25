@@ -139,7 +139,8 @@ def main():
     )
     parser.add_argument("--predict_feature", action="store_true", help="visual target.")
     parser.add_argument("--vision_pretrained", action="store_true", help="whether pre-trained the image or not.")
-
+    parser.add_argument("--evaluation_interval", default=2, type=int, help="evaluate very n epoch.")
+    
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.load(f))
@@ -268,19 +269,19 @@ def main():
         lr = args.learning_rate
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
-                if 'vil_prediction' in key:
-                    lr = args.learning_rate * 10
-                else:
-                    lr = args.learning_rate                
+                # if 'vil_prediction' in key:
+                    # lr = args.learning_rate * 10
+                # else:
+                lr = args.learning_rate                
                 optimizer_grouped_parameters += [{"params": [value], "lr": lr}]
     else:
         optimizer_grouped_parameters = []
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
                 if key[12:] in bert_weight_name:
-                    lr = args.learning_rate * 10
+                    lr = args.learning_rate 
                 else:
-                    lr = args.learning_rate                
+                    lr = args.learning_rate * 10               
                 optimizer_grouped_parameters += [{"params": [value], "lr": lr}]
 
     if default_gpu:
@@ -327,39 +328,40 @@ def main():
                 optim.step()
 
                 if default_gpu:
-                    tbLogger.step_train(epochId, iterId, float(loss), float(score), optim.rate(), task_id, 'train')
+                    tbLogger.step_train(epochId, iterId, float(loss), float(score), optim.show_lr(), task_id, 'train')
 
             if step % 20 == 0 and default_gpu:
                 tbLogger.showLossTrain()
 
-        model.eval()
-        # when run evaluate, we run each task sequentially. 
-        for task_id in task_ids:
-            for i, batch in enumerate(task_dataloader_val[task_id]):
-                loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
-                tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
-                if default_gpu:
-                    sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
-                    sys.stdout.flush()
+        if (epochId % args.evaluation_interval == 0 and epochId != 0) or epochId == args.num_train_epochs-1: 
+            model.eval()
+            # when run evaluate, we run each task sequentially. 
+            for task_id in task_ids:
+                for i, batch in enumerate(task_dataloader_val[task_id]):
+                    loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
+                    tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
+                    if default_gpu:
+                        sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
+                        sys.stdout.flush()
 
-        if default_gpu: tbLogger.showLossVal()
+            if default_gpu: tbLogger.showLossVal()
 
-        if default_gpu:
-            # Save a trained model
-            logger.info("** ** * Saving fine - tuned model ** ** * ")
-            model_to_save = (
-                model.module if hasattr(model, "module") else model
-            )  # Only save the model it-self
+            if default_gpu:
+                # Save a trained model
+                logger.info("** ** * Saving fine - tuned model ** ** * ")
+                model_to_save = (
+                    model.module if hasattr(model, "module") else model
+                )  # Only save the model it-self
 
-            if not os.path.exists(savePath):
-                os.makedirs(savePath)
-            output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
-            
-            model_save = {}
-            model_save['model'] = model_to_save.state_dict()
-            model_save['optim'] = optim
-            model_save['epoch'] = epochId
-            torch.save(model_save, output_model_file)
+                if not os.path.exists(savePath):
+                    os.makedirs(savePath)
+                output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
+                
+                model_save = {}
+                model_save['model'] = model_to_save.state_dict()
+                model_save['optim'] = optim
+                model_save['epoch'] = epochId
+                torch.save(model_save, output_model_file)
 
 if __name__ == "__main__":
 

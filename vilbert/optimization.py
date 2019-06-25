@@ -82,7 +82,10 @@ class BertAdam(Optimizer):
         defaults = dict(lr=lr, schedule=schedule, warmup=warmup, t_total=t_total,
                         b1=b1, b2=b2, e=e, weight_decay=weight_decay,
                         max_grad_norm=max_grad_norm)
+        self.rate = None
         super(BertAdam, self).__init__(params, defaults)
+    def show_lr(sellf):
+        return self.rate
 
     def get_lr(self):
         lr = []
@@ -166,6 +169,8 @@ class BertAdam(Optimizer):
                 else:
                     lr_scheduled = group['lr']
 
+                self.rate = lr_scheduled
+
                 update_with_lr = lr_scheduled * update
                 p.data.add_(-update_with_lr)
 
@@ -175,7 +180,6 @@ class BertAdam(Optimizer):
                 # No bias correction
                 # bias_correction1 = 1 - beta1 ** state['step']
                 # bias_correction2 = 1 - beta2 ** state['step']
-
         return loss
 
 def VqaAdam(params, lr=required, data_size=required, batch_size=required, schedule='warmup_step'):
@@ -207,6 +211,9 @@ class WarmupOptimizer(object):
 
     def zero_grad(self):
         self.optimizer.zero_grad()
+
+    def show_lr(self):
+        return self.rate()
 
     def rate(self, step=None):
         if step is None:
