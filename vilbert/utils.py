@@ -18,6 +18,7 @@ from botocore.exceptions import ClientError
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
 from time import gmtime, strftime
+from bisect import bisect
 
 import pdb
 
@@ -27,6 +28,17 @@ PYTORCH_PRETRAINED_BERT_CACHE = Path(
 
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+
+def lr_warmup(step, ):
+    if (
+        cfg["training_parameters"]["use_warmup"] is True
+        and i_iter <= cfg["training_parameters"]["warmup_iterations"]
+    ):
+        alpha = float(i_iter) / float(cfg["training_parameters"]["warmup_iterations"])
+        return cfg["training_parameters"]["warmup_factor"] * (1.0 - alpha) + alpha
+    else:
+        idx = bisect(cfg["training_parameters"]["lr_steps"], i_iter)
+        return pow(cfg["training_parameters"]["lr_ratio"], idx)
 
 class tbLogger(object):
     def __init__(self, log_dir, task_names, task_ids, task_num_iters):
@@ -48,7 +60,6 @@ class tbLogger(object):
         self.task_step_val = {task_id:0 for task_id in task_ids}
         self.task_datasize_val = {task_id:0 for task_id in task_ids}
 
-        self.txt_file = open("save/"+log_dir+"/log.txt", 'w')
 
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
@@ -75,21 +86,27 @@ class tbLogger(object):
     def showLossVal(self):
         progressInfo = "Eval Ep: %d " %self.epochId
         lossInfo = 'Validation '
-
+        ave_score = 0
+        ave_loss = 0
         for task_id in self.task_ids:
             loss = self.task_loss_val[task_id] / float(self.task_step_val[task_id])
             score = self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
+            ave_score += score
+            ave_loss += loss
             lossInfo += '[%s]: loss %.3f score %.3f' %(self.task_id2name[task_id], loss, score * 100.0)
 
             self.linePlot(self.epochId, loss, 'val', self.task_id2name[task_id] + '_loss')
             self.linePlot(self.epochId, score, 'val', self.task_id2name[task_id] + '_score')
 
+        ave_score = ave_score / len(self.task_ids)
         self.task_loss_val = {task_id:0 for task_id in self.task_loss_val}
         self.task_score_val = {task_id:0 for task_id in self.task_score_val}
         self.task_datasize_val = {task_id:0 for task_id in self.task_datasize_val}
-        
+        self.task_step_val = {task_id:0 for task_id in self.task_ids}
         logger.info(lossInfo)
-        self.txt_file.write(lossInfo + '\n')
+
+        return ave_score
+
     def showLossTrain(self):
         # show the current loss, once showed, reset the loss. 
         lossInfo = ''
@@ -101,7 +118,6 @@ class tbLogger(object):
                                     self.task_norm_tmp[task_id] / float(self.task_step_tmp[task_id]))
         
         logger.info(lossInfo)
-        self.txt_file.write(lossInfo + '\n')
         self.task_step_tmp = {task_id:0 for task_id in self.task_ids}
         self.task_loss_tmp = {task_id:0 for task_id in self.task_ids}
         self.task_score_tmp =  {task_id:0 for task_id in self.task_ids}
@@ -208,9 +224,7 @@ def s3_request(func):
                 raise EnvironmentError("file {} not found".format(url))
             else:
                 raise
-
     return wrapper
-
 
 @s3_request
 def s3_etag(url):
@@ -220,14 +234,12 @@ def s3_etag(url):
     s3_object = s3_resource.Object(bucket_name, s3_path)
     return s3_object.e_tag
 
-
 @s3_request
 def s3_get(url, temp_file):
     """Pull a file directly from S3."""
     s3_resource = boto3.resource("s3")
     bucket_name, s3_path = split_s3_path(url)
     s3_resource.Bucket(bucket_name).download_fileobj(s3_path, temp_file)
-
 
 def http_get(url, temp_file):
     req = requests.get(url, stream=True)

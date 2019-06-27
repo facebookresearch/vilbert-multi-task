@@ -24,7 +24,9 @@ from parallel.parallel import DataParallelModel, DataParallelCriterion
 from vilbert.vilbert import BertConfig
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
 from vilbert.vilbert import VILBertForVLTasks
-from vilbert.optimization import BertAdam, VqaAdam, adjust_lr
+from vilbert.optimization import BertAdam
+from torch import optim
+
 import vilbert.utils as utils
 import torch.distributed as dist
 
@@ -139,7 +141,8 @@ def main():
     )
     parser.add_argument("--predict_feature", action="store_true", help="visual target.")
     parser.add_argument("--vision_pretrained", action="store_true", help="whether pre-trained the image or not.")
-    parser.add_argument("--evaluation_interval", default=2, type=int, help="evaluate very n epoch.")
+    parser.add_argument("--evaluation_interval", default=1, type=int, help="evaluate very n epoch.")
+    parser.add_argument("--lr_scheduler", default=True, type=bool, help="whether use learning rate scheduler.")  
     
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
@@ -211,7 +214,7 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    num_train_optimization_steps = max(task_num_iters.values())* args.num_train_epochs
+    num_train_optimization_steps = max(task_num_iters.values()) * args.num_train_epochs
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
     if args.predict_feature:
@@ -254,7 +257,7 @@ def main():
                 layer_num = name.split('.')[2]
                 if int(layer_num) <= args.freeze:
                     bert_weight_name_filtered.append(name)
-            
+        
         optimizer_grouped_parameters = []
         for key, value in dict(model.named_parameters()).items():
             if key[12:] in bert_weight_name_filtered:
@@ -269,38 +272,58 @@ def main():
         lr = args.learning_rate
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
-                # if 'vil_prediction' in key:
-                    # lr = args.learning_rate * 10
-                # else:
-                lr = args.learning_rate                
-                optimizer_grouped_parameters += [{"params": [value], "lr": lr}]
+                if 'vil_prediction' in key:
+                    if args.learning_rate <= 2e-5:
+                        lr = args.learning_rate * 5
+                    else:
+                        lr = args.learning_rate
+                else:
+                    lr = args.learning_rate
+                if any(nd in key for nd in no_decay):
+                    optimizer_grouped_parameters += [
+                        {"params": [value], "lr": lr, "weight_decay": 0.01}
+                    ]
+                if not any(nd in key for nd in no_decay):
+                    optimizer_grouped_parameters += [
+                        {"params": [value], "lr": lr, "weight_decay": 0.0}
+                    ]
     else:
         optimizer_grouped_parameters = []
         for key, value in dict(model.named_parameters()).items():
             if value.requires_grad:
                 if key[12:] in bert_weight_name:
-                    lr = args.learning_rate 
+                    lr = args.learning_rate
                 else:
-                    lr = args.learning_rate * 10               
-                optimizer_grouped_parameters += [{"params": [value], "lr": lr}]
+                    lr = args.learning_rate * 10            
 
+                if any(nd in key for nd in no_decay):
+                    optimizer_grouped_parameters += [
+                        {"params": [value], "lr": lr, "weight_decay": 0.01}
+                    ]
+                if not any(nd in key for nd in no_decay):
+                    optimizer_grouped_parameters += [
+                        {"params": [value], "lr": lr, "weight_decay": 0.0}
+                    ]
     if default_gpu:
         print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
+
     max_num_iter = max(task_num_iters.values())
     max_batch_size = max(task_batch_size.values())
-    if args.optimizer == 'adam':
-        optim = BertAdam(optimizer_grouped_parameters,
-                         lr=args.learning_rate,
-                         warmup=args.warmup_proportion,
-                         t_total=num_train_optimization_steps)
+    
+    optimizer = BertAdam(
+        optimizer_grouped_parameters,
+        lr=args.learning_rate,
+        warmup=args.warmup_proportion,
+        t_total=num_train_optimization_steps,
+        schedule='warmup_constant',
+    )
 
-    elif args.optimizer == 'VqaAdam':
-        optim = VqaAdam(optimizer_grouped_parameters,
-                         lr=args.learning_rate,
-                         data_size= max_batch_size * max_num_iter, 
-                         batch_size=max_batch_size)
-    else:
-        assert False 
+    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, \
+                    mode='max', 
+                    factor=0.2, 
+                    patience=1, 
+                    cooldown=1,
+                    threshold=0.001)
 
     if default_gpu:
         print("***** Running training *****")
@@ -313,55 +336,51 @@ def main():
     task_iter_train = {name:None for name in task_ids}
     task_count = {name:0 for name in task_ids}
     for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
-
-        if args.optimizer == 'VqaAdam':
-            if epochId in [10, 12]:
-                adjust_lr(optim, 0.2)
-
         model.train()
         for step in range(max_num_iter):
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
                 loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task_iter_train, task_dataloader_train, model, task_losses)
-                optim.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                optim.step()
+                optimizer.step()
 
                 if default_gpu:
-                    tbLogger.step_train(epochId, iterId, float(loss), float(score), optim.show_lr(), task_id, 'train')
+                    tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.show_lr(), task_id, 'train')
 
             if step % 20 == 0 and default_gpu:
                 tbLogger.showLossTrain()
 
-        if (epochId % args.evaluation_interval == 0 and epochId != 0) or epochId == args.num_train_epochs-1: 
-            model.eval()
-            # when run evaluate, we run each task sequentially. 
-            for task_id in task_ids:
-                for i, batch in enumerate(task_dataloader_val[task_id]):
-                    loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
-                    tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
-                    if default_gpu:
-                        sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
-                        sys.stdout.flush()
+        model.eval()
+        # when run evaluate, we run each task sequentially. 
+        for task_id in task_ids:
+            for i, batch in enumerate(task_dataloader_val[task_id]):
+                loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
+                tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
+                if default_gpu:
+                    sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
+                    sys.stdout.flush()
 
-            if default_gpu: tbLogger.showLossVal()
+        ave_score = tbLogger.showLossVal()
+        lr_scheduler.step(ave_score)
+        logger.info("best average score is %3f" %lr_scheduler.best)
 
-            if default_gpu:
-                # Save a trained model
-                logger.info("** ** * Saving fine - tuned model ** ** * ")
-                model_to_save = (
-                    model.module if hasattr(model, "module") else model
-                )  # Only save the model it-self
+        if default_gpu:
+            # Save a trained model
+            logger.info("** ** * Saving fine - tuned model ** ** * ")
+            model_to_save = (
+                model.module if hasattr(model, "module") else model
+            )  # Only save the model it-self
 
-                if not os.path.exists(savePath):
-                    os.makedirs(savePath)
-                output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
-                
-                model_save = {}
-                model_save['model'] = model_to_save.state_dict()
-                model_save['optim'] = optim
-                model_save['epoch'] = epochId
-                torch.save(model_save, output_model_file)
+            if not os.path.exists(savePath):
+                os.makedirs(savePath)
+            output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
+
+            # model_save = {}
+            # model_save['model'] = model_to_save.state_dict()
+            # model_save['optim'] = optim
+            # model_save['epoch'] = epochId
+            torch.save(model_to_save.state_dict(), output_model_file)
 
 if __name__ == "__main__":
 

@@ -116,9 +116,9 @@ class ConceptCapLoaderTrain(object):
 
         if dist.is_available() and distributed:
             num_replicas = dist.get_world_size()
-            assert num_replicas == 8
+            # assert num_replicas == 8
             rank = dist.get_rank()
-            # lmdb_file = "/coc/dataset/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
+            lmdb_file = "/coc/dataset/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
             # if not os.path.exists(lmdb_file):
             # lmdb_file = "/srv/share/datasets/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
         else:

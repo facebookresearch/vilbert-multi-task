@@ -130,14 +130,23 @@ class RetreivalDataset(Dataset):
         image_id = entry["image_id"]
 
         features, num_boxes, boxes, _ = self._image_features_reader[image_id]
-        image_mask = [1] * (int(num_boxes))
+        
+        mix_num_boxes = min(int(num_boxes), self._max_region_num)
+        mix_boxes_pad = np.zeros((self._max_region_num, 5))
+        mix_features_pad = np.zeros((self._max_region_num, 2048))
 
-        while len(image_mask) < 37:
+        image_mask = [1] * (int(mix_num_boxes))
+        while len(image_mask) < self._max_region_num:
             image_mask.append(0)
 
-        features1 = torch.tensor(features).float()
+        img_idx = list(np.random.permutation(num_boxes-1)[:mix_num_boxes]+1)
+        img_idx.append(0)
+        mix_boxes_pad[:mix_num_boxes] = boxes[img_idx]
+        mix_features_pad[:mix_num_boxes] = features[img_idx]
+
+        features1 = torch.tensor(mix_features_pad).float()
         image_mask1 = torch.tensor(image_mask).long()
-        spatials1 = torch.tensor(boxes).float()
+        spatials1 = torch.tensor(mix_boxes_pad).float()
 
         caption1 = entry["token"]
         input_mask1 = entry["input_mask"]
@@ -169,12 +178,21 @@ class RetreivalDataset(Dataset):
         features3, num_boxes3, boxes3, _ = self._image_features_reader[img_id3]
         image_mask3 = [1] * (int(num_boxes3))
 
-        while len(image_mask3) < 37:
+        mix_num_boxes3 = min(int(num_boxes3), self._max_region_num)
+        mix_boxes_pad3 = np.zeros((self._max_region_num, 5))
+        mix_features_pad3 = np.zeros((self._max_region_num, 2048))
+
+        while len(image_mask3) < self._max_region_num:
             image_mask3.append(0)        
 
-        features3 = torch.tensor(features3).float()
+        img_idx3 = list(np.random.permutation(num_boxes3-1)[:mix_num_boxes3]+1)
+        img_idx3.append(0)
+        mix_boxes_pad[:mix_num_boxes3] = boxes3[img_idx3]
+        mix_features_pad[:mix_num_boxes3] = features3[img_idx3]
+
+        features3 = torch.tensor(mix_features_pad).float()
         image_mask3 = torch.tensor(image_mask3).long()
-        spatials3 = torch.tensor(boxes3).float()
+        spatials3 = torch.tensor(mix_boxes_pad).float()
 
         caption3 = caption1
         input_mask3 = input_mask1

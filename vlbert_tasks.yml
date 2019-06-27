@@ -24,6 +24,8 @@ TASK1:
   train_split: trainval
   val_split: minval
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK2:
   name: GenomeQA
   type: VL-classifier
@@ -47,6 +49,8 @@ TASK3:
   train_split: train
   val_split: val
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK4:
   name: Vissual7w
   type: VL-logit
@@ -58,8 +62,8 @@ TASK5:
   loss: CrossEntropyLoss
   task_id: 5
   dataroot: data/VCR
-  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/datasets/vilbert/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/datasets/vilbert/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 40
@@ -68,14 +72,16 @@ TASK5:
   train_split: train
   val_split: val
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK6:
   name: VCR_QA-R
   type: VL-logit
   loss: CrossEntropyLoss
   task_id: 6
   dataroot: data/VCR
-  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/datasets/vilbert/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/datasets/vilbert/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
@@ -84,14 +90,16 @@ TASK6:
   train_split: train
   val_split: val
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK7:
   name: VCR_Q-AR
   type: VL-logit
   loss: CrossEntropyLoss
   task_id: 7
   dataroot: data/VCR
-  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/datasets/vilbert/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/datasets/vilbert/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
@@ -100,13 +108,15 @@ TASK7:
   train_split: train
   val_split: val
   start_iteration: 0 
+  lr: 0.00001
+  num_epoch: 20
 TASK8:
   name: RetrievalCOCO
   type: VL-logit
   loss: CrossEntropyLoss
   task_id: 8
   dataroot: data/cocoRetreival
-  features_h5path1: data/coco/coco_trainval.h5
+  features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: data/cocoRetreival/all_data_final_train_2014.jsonline
   val_annotations_jsonpath: data/cocoRetreival/all_data_final_val_set0_2014.jsonline
@@ -116,13 +126,15 @@ TASK8:
   train_split: train
   val_split: val
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK9:
   name: RetrievalFlickr30k
   type: VL-logit
   loss: CrossEntropyLoss
   task_id: 9
   dataroot: data/flickr30k
-  features_h5path1: data/flickr30k/flickr30k.h5
+  features_h5path1: data/flickr30k/flickr30k_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: data/flickr30k/all_data_final_train_2014.jsonline
   val_annotations_jsonpath: data/flickr30k/all_data_final_val_set0_2014.jsonline
@@ -132,6 +144,8 @@ TASK9:
   train_split: train
   val_split: val
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK10:
   name: refcoco
   type: V-logit
@@ -148,6 +162,8 @@ TASK10:
   train_split: train
   val_split: val
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK11:
   name: refcoco+
   type: V-logit
@@ -164,6 +180,8 @@ TASK11:
   train_split: train
   val_split: val
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK12:
   name: refgoogle
   type: V-logit
@@ -180,6 +198,8 @@ TASK12:
   train_split: train
   val_split: val
   start_iteration: 0
+  lr: 0.00001
+  num_epoch: 20
 TASK13:
   name: refDenseCaption
   type: V-logit
@@ -216,3 +236,19 @@ TASK17:
   type: VL-logit
   task_id: 17
   split: train
+TASK18:
+  name: VQA-MC
+  type: VL-logit
+  loss: CrossEntropyLoss
+  task_id: 18
+  dataroot: data/VQA-MC
+  features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: ''
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 16
+  max_region_num: 100
+  batch_size: 64
+  train_split: trainval
+  val_split: minval
+  start_iteration: 0

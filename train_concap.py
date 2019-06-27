@@ -120,7 +120,7 @@ def main():
     )
     parser.add_argument(
         "--warmup_proportion",
-        default=0.01,
+        default=0.1,
         type=float,
         help="Proportion of training to perform linear learning rate warmup for. "
         "E.g., 0.1 = 10%% of training.",

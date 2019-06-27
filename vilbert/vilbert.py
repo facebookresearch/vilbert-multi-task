@@ -163,6 +163,7 @@ class BertConfig(object):
         fixed_t_layer=0,
         in_batch_pairs=False,
         fusion_method="mul",
+        intra_gate=False,
     ):
 
         """Constructs BertConfig.
@@ -234,6 +235,7 @@ class BertConfig(object):
             
             self.in_batch_pairs = in_batch_pairs
             self.fusion_method = fusion_method
+            self.intra_gate = intra_gate
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -1033,7 +1035,7 @@ class BertPreTrainedModel(nn.Module):
         a simple interface for dowloading and loading pretrained models.
     """
 
-    def __init__(self, config, *inputs, **kwargs):
+    def __init__(self, config, default_gpu=True, *inputs, **kwargs):
         super(BertPreTrainedModel, self).__init__()
 
         if not isinstance(config, BertConfig):
@@ -1065,6 +1067,7 @@ class BertPreTrainedModel(nn.Module):
         cls,
         pretrained_model_name_or_path,
         config,
+        default_gpu=True,
         state_dict=None,
         cache_dir=None,
         from_tf=False,
@@ -1120,14 +1123,15 @@ class BertPreTrainedModel(nn.Module):
             )
             return None
 
-        if resolved_archive_file == archive_file:
-            logger.info("loading archive file {}".format(archive_file))
-        else:
-            logger.info(
-                "loading archive file {} from cache at {}".format(
-                    archive_file, resolved_archive_file
+        if default_gpu:
+            if resolved_archive_file == archive_file:
+                logger.info("loading archive file {}".format(archive_file))
+            else:
+                logger.info(
+                    "loading archive file {} from cache at {}".format(
+                        archive_file, resolved_archive_file
+                    )
                 )
-            )
         tempdir = None
         if os.path.isdir(resolved_archive_file) or from_tf:
             serialization_dir = resolved_archive_file
@@ -1148,8 +1152,8 @@ class BertPreTrainedModel(nn.Module):
         # Load config
         # config_file = os.path.join(serialization_dir, CONFIG_NAME)
         # config = BertConfig.from_json_file(config_file)
-
-        logger.info("Model config {}".format(config))
+        if default_gpu:
+            logger.info("Model config {}".format(config))
         # Instantiate model.
         model = cls(config, *inputs, **kwargs)
         if state_dict is None and not from_tf:
@@ -1213,19 +1217,19 @@ class BertPreTrainedModel(nn.Module):
         ):
             start_prefix = "bert."
         load(model, prefix=start_prefix)
-        if len(missing_keys) > 0:
+        if len(missing_keys) > 0 and default_gpu:
             logger.info(
                 "Weights of {} not initialized from pretrained model: {}".format(
                     model.__class__.__name__, missing_keys
                 )
             )
-        if len(unexpected_keys) > 0:
+        if len(unexpected_keys) > 0 and default_gpu:
             logger.info(
                 "Weights from pretrained model not used in {}: {}".format(
                     model.__class__.__name__, unexpected_keys
                 )
             )
-        if len(error_msgs) > 0:
+        if len(error_msgs) > 0 and default_gpu:
             raise RuntimeError(
                 "Error(s) in loading state_dict for {}:\n\t{}".format(
                     model.__class__.__name__, "\n\t".join(error_msgs)
@@ -1315,8 +1319,6 @@ class BertModel(BertPreTrainedModel):
                 input_imgs.size(0), input_imgs.size(1)
             ).type_as(input_txt)
 
-        # image_attention_mask_first = torch.ones(input_imgs.size(0), 1).type_as(image_attention_mask)
-        # image_attention_mask = torch.cat((image_attention_mask_first, image_attention_mask), dim=1)
         # We create a 3D attention mask from a 2D tensor mask.
         # Sizes are [batch_size, 1, 1, to_seq_length]
         # So we can broadcast to [batch_size, num_heads, from_seq_length, to_seq_length]
@@ -1491,8 +1493,8 @@ class VILBertForVLTasks(BertPreTrainedModel):
         self.cls = BertPreTrainingHeads(
             config, self.bert.embeddings.word_embeddings.weight
         )
-        # self.vil_prediction = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, num_labels, 0.5)
-        self.vil_prediction = nn.Linear(config.bi_hidden_size, num_labels)
+        self.vil_prediction = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, num_labels, 0.5)
+        # self.vil_prediction = nn.Linear(config.bi_hidden_size, num_labels)
         self.vil_logit = nn.Linear(config.bi_hidden_size, 1)
         self.vision_logit = nn.Linear(config.v_hidden_size, 1)
         self.linguisic_logit = nn.Linear(config.hidden_size, 1)
