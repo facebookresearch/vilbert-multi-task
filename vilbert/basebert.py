@@ -19,6 +19,7 @@ from torch.nn import CrossEntropyLoss
 from vilbert.utils import cached_path
 from pytorch_pretrained_bert.modeling import BertConfig
 import pdb
+from torch.nn.utils.weight_norm import weight_norm
 
 # from .file_utils import cached_path
 logger = logging.getLogger(__name__)
@@ -199,7 +200,7 @@ class BertPreTrainedModel(nn.Module):
             weights_path = os.path.join(serialization_dir, WEIGHTS_NAME)
             state_dict = torch.load(
                 weights_path,
-                map_location="cpu" if not torch.cuda.is_available() else None,
+                map_location="cpu",
             )
         if tempdir:
             # Clean up temp dir
@@ -603,10 +604,10 @@ class BertPreTrainingHeads(nn.Module):
         self.seq_relationship = nn.Linear(config.hidden_size, 2)
         self.imagePredictions = BertImagePredictionHead(config, bert_model_embedding_weights)
 
-    def forward(self, sequence_output, pooled_output):
+    def forward(self, sequence_output_t, sequence_output_v, pooled_output):
 
-        img_prediction_scores = self.imagePredictions(sequence_output[:,-37:])
-        prediction_scores = self.predictions(sequence_output[:,:-37])
+        img_prediction_scores = self.imagePredictions(sequence_output_v) #sequence_output[:,txt_len:])
+        prediction_scores = self.predictions(sequence_output_t) #sequence_output[:,:txt_len])
 
         seq_relationship_score = self.seq_relationship(pooled_output)
         return img_prediction_scores, prediction_scores, seq_relationship_score
@@ -801,7 +802,8 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             output_all_encoded_layers=False,
         )
 
-        prediction_scores_v, prediction_scores_t, seq_relationship_score = self.cls(sequence_output, pooled_output)
+        prediction_scores_v, prediction_scores_t, seq_relationship_score = self.cls(sequence_output, pooled_output, input_ids.size(1), image_feat.size(1))
+        
         if masked_lm_labels is not None and next_sentence_label is not None:
 
             prediction_scores_v = prediction_scores_v[:, 1:]
@@ -826,218 +828,20 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         else:
             return prediction_scores, seq_relationship_score, prediction_scores_v
 
-class MultiModalBertForVQA(BertPreTrainedModel):
-
-    def __init__(self, config, num_labels, dropout_prob=0.1):
-        super(MultiModalBertForVQA, self).__init__(config)
-        self.num_labels = num_labels
-        self.bert = BertModel(config)
-        # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
-        self.classifier = nn.Linear(config.hidden_size, num_labels)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-
-        self.apply(self.init_bert_weights)
-
-    def forward(
-        self,
-        input_txt,
-        input_imgs,
-        image_loc,
-        token_type_ids=None,
-        attention_mask=None,
-        image_attention_mask=None,
-        output_all_encoded_layers=True,
-    ):
-        
-        sequence_output, pooled_output = self.bert(
-            input_txt,
-            input_imgs,
-            image_loc,
-            token_type_ids,
-            attention_mask,
-            image_attention_mask,
-            output_all_encoded_layers=False,
-        )
-
-        logits = self.classifier(self.dropout(pooled_output))
-        return logits
-
-class MultiModalBertForImageCaptionRetrieval(BertPreTrainedModel):
-
-    def __init__(self, config, dropout_prob=0.1):
-        super(MultiModalBertForImageCaptionRetrieval, self).__init__(config)
-        self.bert = BertModel(config)
-        # self.classifier = SimpleClassifier(1024, 2 * 1024, num_labels, 0.5)
-        self.classifier = nn.Linear(config.hidden_size, 1)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.apply(self.init_bert_weights)
-
-    def forward(
-        self,
-        input_txt,
-        input_imgs,
-        image_loc,
-        token_type_ids=None,
-        attention_mask=None,
-        image_attention_mask=None,
-        output_all_encoded_layers=True,
-    ):
-        sequence_output, pooled_output = self.bert(
-            input_txt,
-            input_imgs,
-            image_loc,
-            token_type_ids,
-            attention_mask,
-            image_attention_mask,
-            output_all_encoded_layers=False,
-        )
-        logits = self.classifier(self.dropout(pooled_output))
-
-        return logits
-
-
-class MultiModalBertForFoilClassification(BertPreTrainedModel):
-    """Multi-modal BERT for the FOIL classification task. This task is trivially similar to binary
-    VQA, where the caption is treated as a "question" and the goal is to answer whether the image
-    and caption match or not.
-
-    This module is composed of the Multi-modal BERT model with a linear layer on top of the pooled
-    outputs from visual and textual BERT.
-
-    Params:
-        `config`: a BertConfig class instance with the configuration to build a new model.
-        `num_labels`: the number of classes for the classifier. Default = 2.
-    """
-
-    def __init__(self, config, num_labels=2, dropout_prob=0.1):
-        super().__init__(config)
-        self.num_labels = num_labels
-        self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, 2)
-        self.apply(self.init_bert_weights)
-        # self.dropout = nn.Dropout(config.hidden_dropout_prob)
-
-    def forward(
-        self,
-        input_txt,
-        input_imgs,
-        image_loc,
-        token_type_ids=None,
-        attention_mask=None,
-        image_attention_mask=None,
-        output_all_encoded_layers=True,
-    ):
-        sequence_output, pooled_output = self.bert(
-            input_txt,
-            input_imgs,
-            image_loc,
-            token_type_ids,
-            attention_mask,
-            image_attention_mask,
-            output_all_encoded_layers=False,
-        )
-        logits = self.classifier(self.dropout(pooled_output))
-        return logits
-
-class MultiModalBertForReferExpression(BertPreTrainedModel):
-    def __init__(self, config, dropout_prob=0.1):
-        super(MultiModalBertForReferExpression, self).__init__(config)
-        self.bert = BertModel(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, 1)
-        self.apply(self.init_bert_weights)
-
-    def forward(
-        self,
-        input_txt,
-        input_imgs,
-        image_loc,
-        token_type_ids=None,
-        attention_mask=None,
-        image_attention_mask=None,
-        output_all_encoded_layers=True,
-    ):
-
-        sequence_output, pooled_output = self.bert(
-            input_txt,
-            input_imgs,
-            image_loc,
-            token_type_ids,
-            attention_mask,
-            image_attention_mask,
-            output_all_encoded_layers=False,
-        )
-        sequence_output_v = sequence_output[:,-50:]
-        logits = self.classifier(self.dropout(sequence_output_v))
-
-        return logits
-
-
-class MultiModalBertForVCR(BertPreTrainedModel):
-    """Multi-modal BERT for the CVR classification task. This task is trivially similar to binary
-    VQA, where the caption is treated as a "question" and the goal is to answer whether the image
-    and caption match or not.
-
-    This module is composed of the Multi-modal BERT model with a linear layer on top of the pooled
-    outputs from visual and textual BERT.
-
-    Params:
-        `config`: a BertConfig class instance with the configuration to build a new model.
-        `num_labels`: the number of classes for the classifier. Default = 2.
-    """
-
-    def __init__(self, config: BertConfig, num_labels: int = 2, dropout_prob: float=0.1):
-        super().__init__(config)
+class BaseBertForVLTasks(BertPreTrainedModel):
+    def __init__(self, config, num_labels, dropout_prob=0.1, default_gpu=True):
+        super(BaseBertForVLTasks, self).__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
         self.dropout = nn.Dropout(dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, 1)
-        self.apply(self.init_bert_weights)
-
-    def forward(
-        self,
-        input_txt,
-        input_imgs,
-        image_loc,
-        token_type_ids=None,
-        attention_mask=None,
-        image_attention_mask=None,
-        co_attention_mask=None,
-        output_all_encoded_layers=False,
-    ):
-        sequence_output, pooled_output = self.bert(
-            input_txt,
-            input_imgs,
-            image_loc,
-            token_type_ids,
-            attention_mask,
-            image_attention_mask,
-            output_all_encoded_layers=False,
+        self.cls = BertPreTrainingHeads(
+            config, self.bert.embeddings.word_embeddings.weight
         )
-        logits = self.classifier(self.dropout(pooled_output))
-        return logits
-
-
-class MultiModalBertForVisDial(BertPreTrainedModel):
-    """Multi-modal BERT for the CVR classification task. This task is trivially similar to binary
-    VQA, where the caption is treated as a "question" and the goal is to answer whether the image
-    and caption match or not.
-
-    This module is composed of the Multi-modal BERT model with a linear layer on top of the pooled
-    outputs from visual and textual BERT.
-
-    Params:
-        `config`: a BertConfig class instance with the configuration to build a new model.
-        `num_labels`: the number of classes for the classifier. Default = 2.
-    """
-
-    def __init__(self, config: BertConfig, num_labels: int = 2, dropout_prob: float=0.1):
-        super().__init__(config)
-        self.num_labels = num_labels
-        self.bert = BertModel(config)
-        self.dropout = nn.Dropout(dropout_prob)
-        self.classifier = nn.Linear(config.hidden_size, 1)
+        self.vil_prediction = SimpleClassifier(config.hidden_size, config.hidden_size*2, num_labels, 0.5)
+        # self.vil_prediction = nn.Linear(config.bi_hidden_size, num_labels)
+        self.vil_logit = nn.Linear(config.hidden_size, 1)
+        self.vision_logit = nn.Linear(config.hidden_size, 1)
+        self.linguisic_logit = nn.Linear(config.hidden_size, 1)
         self.apply(self.init_bert_weights)
 
     def forward(
@@ -1061,5 +865,37 @@ class MultiModalBertForVisDial(BertPreTrainedModel):
             output_all_encoded_layers=output_all_encoded_layers,
         )
 
-        logits = self.classifier(self.dropout(pooled_output))
+        sequence_output_v = sequence_output[:,input_txt.size(1):]
+        sequence_output_t = sequence_output[:,:input_txt.size(1)]
+
+        vil_prediction = 0
+        vil_logit = 0
+        vil_binary_prediction = 0 
+        vision_prediction = 0
+        vision_logit = 0
+        linguisic_prediction = 0
+        linguisic_logit = 0
+
+        vision_prediction, linguisic_prediction, vil_binary_prediction = self.cls(sequence_output_t, sequence_output_v, pooled_output)
+        
+        vil_prediction = self.vil_prediction(pooled_output)
+        vil_logit = self.vil_logit(pooled_output)
+        vision_logit = self.vision_logit(self.dropout(sequence_output_v)) + ((1.0 - image_attention_mask)* -10000.0).unsqueeze(2).to(dtype=next(self.parameters()).dtype)
+        linguisic_logit = self.linguisic_logit(self.dropout(sequence_output_t))
+
+        return vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit
+
+class SimpleClassifier(nn.Module):
+    def __init__(self, in_dim, hid_dim, out_dim, dropout):
+        super(SimpleClassifier, self).__init__()
+        layers = [
+            weight_norm(nn.Linear(in_dim, hid_dim), dim=None),
+            nn.ReLU(),
+            nn.Dropout(dropout, inplace=True),
+            weight_norm(nn.Linear(hid_dim, out_dim), dim=None)
+        ]
+        self.main = nn.Sequential(*layers)
+
+    def forward(self, x):
+        logits = self.main(x)
         return logits

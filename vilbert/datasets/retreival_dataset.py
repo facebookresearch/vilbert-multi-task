@@ -139,10 +139,8 @@ class RetreivalDataset(Dataset):
         while len(image_mask) < self._max_region_num:
             image_mask.append(0)
 
-        img_idx = list(np.random.permutation(num_boxes-1)[:mix_num_boxes]+1)
-        img_idx.append(0)
-        mix_boxes_pad[:mix_num_boxes] = boxes[img_idx]
-        mix_features_pad[:mix_num_boxes] = features[img_idx]
+        mix_boxes_pad[:mix_num_boxes] = boxes[:mix_num_boxes]
+        mix_features_pad[:mix_num_boxes] = features[:mix_num_boxes]
 
         features1 = torch.tensor(mix_features_pad).float()
         image_mask1 = torch.tensor(image_mask).long()
@@ -185,10 +183,9 @@ class RetreivalDataset(Dataset):
         while len(image_mask3) < self._max_region_num:
             image_mask3.append(0)        
 
-        img_idx3 = list(np.random.permutation(num_boxes3-1)[:mix_num_boxes3]+1)
-        img_idx3.append(0)
-        mix_boxes_pad[:mix_num_boxes3] = boxes3[img_idx3]
-        mix_features_pad[:mix_num_boxes3] = features3[img_idx3]
+
+        mix_boxes_pad[:mix_num_boxes3] = boxes3[:mix_num_boxes3]
+        mix_features_pad[:mix_num_boxes3] = features3[:mix_num_boxes3]
 
         features3 = torch.tensor(mix_features_pad).float()
         image_mask3 = torch.tensor(image_mask3).long()

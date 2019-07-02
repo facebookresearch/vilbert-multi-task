@@ -21,10 +21,11 @@ import torch.nn as nn
 from pytorch_pretrained_bert.optimization import WarmupLinearSchedule
 
 from parallel.parallel import DataParallelModel, DataParallelCriterion
-from vilbert.vilbert import BertConfig
+
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
 from vilbert.vilbert import VILBertForVLTasks
-from vilbert.optimization import BertAdam
+from vilbert.basebert import BaseBertForVLTasks
+from vilbert.optimization import BertAdam, Adam, Adamax
 from torch import optim
 
 import vilbert.utils as utils
@@ -67,7 +68,7 @@ def main():
         help="The config file which specified the model details.",
     )
     parser.add_argument(
-        "--learning_rate", default=1e-5, type=float, help="The initial learning rate for Adam."
+        "--learning_rate", default=2e-5, type=float, help="The initial learning rate for Adam."
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -94,7 +95,7 @@ def main():
     parser.add_argument(
         "--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus"
     )
-    parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
+    parser.add_argument("--seed", type=int, default=0, help="random seed for initialization")
     parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
@@ -130,7 +131,7 @@ def main():
         "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
     )
     parser.add_argument(
-        "--optimizer", default='adam', type=str, help="whether use chunck for parallel training."
+        "--optimizer", default='BertAdam', type=str, help="whether use chunck for parallel training."
     )
     parser.add_argument(
         "--tasks", default='', type=str, help="1-2-3... training task separate by -"
@@ -143,14 +144,21 @@ def main():
     parser.add_argument("--vision_pretrained", action="store_true", help="whether pre-trained the image or not.")
     parser.add_argument("--evaluation_interval", default=1, type=int, help="evaluate very n epoch.")
     parser.add_argument("--lr_scheduler", default=True, type=bool, help="whether use learning rate scheduler.")  
-    
+    parser.add_argument("--baseline", action="store_true", help="whether use single stream baseline.")
+
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.load(f))
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    # random.seed(args.seed)
+    # np.random.seed(args.seed)
+    # torch.manual_seed(args.seed)
+
+    if args.baseline:
+        from pytorch_pretrained_bert.modeling import BertConfig
+    else:
+        from vilbert.vilbert import BertConfig
+
 
     task_names = []
     for i, task_id in enumerate(args.tasks.split('-')):
@@ -208,8 +216,8 @@ def main():
 
     tbLogger = utils.tbLogger(timeStamp, task_names, task_ids, task_num_iters)
 
-    if n_gpu > 0:
-        torch.cuda.manual_seed_all(args.seed)
+    # if n_gpu > 0:
+        # torch.cuda.manual_seed_all(args.seed)
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -217,20 +225,14 @@ def main():
     num_train_optimization_steps = max(task_num_iters.values()) * args.num_train_epochs
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
-    if args.predict_feature:
-        config.v_target_size = 2048
-        config.predict_feature = True
-    else:
-        config.v_target_size = 1601
-        config.predict_feature = False
-
-    if args.from_pretrained:
-        model = VILBertForVLTasks.from_pretrained(
+    if args.baseline:
+        model = BaseBertForVLTasks.from_pretrained(
             args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
             )
     else:
-        model = VILBertForVLTasks(
-            args.bert_model, config, num_labels=num_labels, default_gpu=default_gpu)
+        model = VILBertForVLTasks.from_pretrained(
+            args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
+            )
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
     model.to(device)
@@ -267,59 +269,59 @@ def main():
             print("filtered weight")
             print(bert_weight_name_filtered)
 
-    if args.vision_pretrained:
-        optimizer_grouped_parameters = []
-        lr = args.learning_rate
-        for key, value in dict(model.named_parameters()).items():
-            if value.requires_grad:
-                if 'vil_prediction' in key:
-                    if args.learning_rate <= 2e-5:
-                        lr = args.learning_rate * 5
-                    else:
-                        lr = args.learning_rate
-                else:
-                    lr = args.learning_rate
-                if any(nd in key for nd in no_decay):
-                    optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr, "weight_decay": 0.01}
-                    ]
-                if not any(nd in key for nd in no_decay):
-                    optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr, "weight_decay": 0.0}
-                    ]
-    else:
-        optimizer_grouped_parameters = []
-        for key, value in dict(model.named_parameters()).items():
-            if value.requires_grad:
-                if key[12:] in bert_weight_name:
-                    lr = args.learning_rate
-                else:
-                    lr = args.learning_rate * 10            
+    optimizer_grouped_parameters = []
+    lr = args.learning_rate
+    for key, value in dict(model.named_parameters()).items():
+        if value.requires_grad:
+            if 'vil_prediction' in key:
+                # if args.learning_rate <= 2e-5:
+                lr = 1e-4
+                # else:
+                    # lr = args.learning_rate
+            else:
+                lr = args.learning_rate
+            if any(nd in key for nd in no_decay):
+                optimizer_grouped_parameters += [
+                    {"params": [value], "lr": lr, "weight_decay": 0.01}
+                ]
+            if not any(nd in key for nd in no_decay):
+                optimizer_grouped_parameters += [
+                    {"params": [value], "lr": lr, "weight_decay": 0.0}
+                ]
 
-                if any(nd in key for nd in no_decay):
-                    optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr, "weight_decay": 0.01}
-                    ]
-                if not any(nd in key for nd in no_decay):
-                    optimizer_grouped_parameters += [
-                        {"params": [value], "lr": lr, "weight_decay": 0.0}
-                    ]
     if default_gpu:
         print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
 
     max_num_iter = max(task_num_iters.values())
     max_batch_size = max(task_batch_size.values())
     
-    optimizer = BertAdam(
-        optimizer_grouped_parameters,
-        lr=args.learning_rate,
-        warmup=args.warmup_proportion,
-        t_total=num_train_optimization_steps,
-        schedule='warmup_constant',
-    )
+    if args.optimizer == 'BertAdam':
+        optimizer = BertAdam(
+            optimizer_grouped_parameters,
+            lr=args.learning_rate,
+            warmup=args.warmup_proportion,
+            t_total=num_train_optimization_steps,
+            schedule='warmup_constant',
+        )
+    elif args.optimizer == 'Adam':
+        optimizer = Adam(
+            optimizer_grouped_parameters,
+            lr=args.learning_rate,
+            warmup=args.warmup_proportion,
+            t_total=num_train_optimization_steps,
+            schedule='warmup_constant',
+        )
+    elif args.optimizer == 'Adamax':
+        optimizer = Adamax(
+            optimizer_grouped_parameters,
+            lr=args.learning_rate,
+            warmup=args.warmup_proportion,
+            t_total=num_train_optimization_steps,
+            schedule='warmup_constant',
+        )        
 
     lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, \
-                    mode='max', 
+                    mode='max',
                     factor=0.2, 
                     patience=1, 
                     cooldown=1,
@@ -360,28 +362,26 @@ def main():
                 if default_gpu:
                     sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
                     sys.stdout.flush()
-
+        
+        # pdb.set_trace()
         ave_score = tbLogger.showLossVal()
         lr_scheduler.step(ave_score)
         logger.info("best average score is %3f" %lr_scheduler.best)
 
-        if default_gpu:
-            # Save a trained model
-            logger.info("** ** * Saving fine - tuned model ** ** * ")
-            model_to_save = (
-                model.module if hasattr(model, "module") else model
-            )  # Only save the model it-self
+        # if default_gpu:
+        #     # Save a trained model
+        #     logger.info("** ** * Saving fine - tuned model on " + timeStamp + "** ** * ")
+        #     model_to_save = (
+        #         model.module if hasattr(model, "module") else model
+        #     )  # Only save the model it-self
 
-            if not os.path.exists(savePath):
-                os.makedirs(savePath)
-            output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
+        #     if not os.path.exists(savePath):
+        #         os.makedirs(savePath)
+        #     output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
+        #     torch.save(model_to_save.state_dict(), output_model_file)
 
-            # model_save = {}
-            # model_save['model'] = model_to_save.state_dict()
-            # model_save['optim'] = optim
-            # model_save['epoch'] = epochId
-            torch.save(model_to_save.state_dict(), output_model_file)
-
+    tbLogger.txt_close()
+    
 if __name__ == "__main__":
 
     main()

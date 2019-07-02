@@ -1523,13 +1523,13 @@ class VILBertForVLTasks(BertPreTrainedModel):
             output_all_encoded_layers=False,
         )
 
-        vil_prediction = None
-        vil_logit = None
-        vil_binary_prediction = None 
-        vision_prediction = None
-        vision_logit = None
-        linguisic_prediction = None
-        linguisic_logit = None
+        vil_prediction = 0
+        vil_logit = 0
+        vil_binary_prediction = 0 
+        vision_prediction = 0
+        vision_logit = 0
+        linguisic_prediction = 0
+        linguisic_logit = 0
         
         linguisic_prediction, vision_prediction, vil_binary_prediction = self.cls(
             sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v
@@ -1541,6 +1541,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
             pooled_output = self.dropout(pooled_output_t * pooled_output_v)
         else:
             assert False
+        
         vil_prediction = self.vil_prediction(pooled_output)
         vil_logit = self.vil_logit(pooled_output)
         vision_logit = self.vision_logit(self.dropout(sequence_output_v)) + ((1.0 - image_attention_mask)* -10000.0).unsqueeze(2).to(dtype=next(self.parameters()).dtype)

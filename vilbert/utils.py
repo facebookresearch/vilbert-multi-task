@@ -44,6 +44,7 @@ class tbLogger(object):
     def __init__(self, log_dir, task_names, task_ids, task_num_iters):
         logger.info("logging file at: " + log_dir)
         self.logger = SummaryWriter(log_dir="logs/" + log_dir)
+        self.txt_f = open("save/" + log_dir + '/out.txt', 'w')
         self.task_id2name = {ids:name.replace('+', 'plus') for ids, name in zip(task_ids, task_names)}
         self.task_ids = task_ids
         self.task_loss = {task_id:0 for task_id in task_ids}
@@ -60,6 +61,8 @@ class tbLogger(object):
         self.task_step_val = {task_id:0 for task_id in task_ids}
         self.task_datasize_val = {task_id:0 for task_id in task_ids}
 
+    def txt_close(self):
+        self.txt_f.close()
 
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
@@ -104,7 +107,7 @@ class tbLogger(object):
         self.task_datasize_val = {task_id:0 for task_id in self.task_datasize_val}
         self.task_step_val = {task_id:0 for task_id in self.task_ids}
         logger.info(lossInfo)
-
+        print(lossInfo, file=self.txt_f)
         return ave_score
 
     def showLossTrain(self):
@@ -118,6 +121,8 @@ class tbLogger(object):
                                     self.task_norm_tmp[task_id] / float(self.task_step_tmp[task_id]))
         
         logger.info(lossInfo)
+        print(lossInfo, file=self.txt_f)
+
         self.task_step_tmp = {task_id:0 for task_id in self.task_ids}
         self.task_loss_tmp = {task_id:0 for task_id in self.task_ids}
         self.task_score_tmp =  {task_id:0 for task_id in self.task_ids}

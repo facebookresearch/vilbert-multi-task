@@ -198,8 +198,8 @@ class ReferExpressionDataset(Dataset):
         mix_boxes_pad = np.zeros((self.max_region_num, 5))
         mix_features_pad = np.zeros((self.max_region_num, 2048))
 
-        mix_boxes_pad[:mix_num_boxes] = mix_boxes
-        mix_features_pad[:mix_num_boxes] = mix_features
+        mix_boxes_pad[:mix_num_boxes] = mix_boxes[:mix_num_boxes]
+        mix_features_pad[:mix_num_boxes] = mix_features[:mix_num_boxes]
 
         # appending the target feature.
         features = torch.tensor(mix_features_pad).float()

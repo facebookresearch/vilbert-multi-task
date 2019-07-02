@@ -191,10 +191,13 @@ class VQAClassificationDataset(Dataset):
             image_mask.append(0)
 
         # shuffle the image location here.
-        img_idx = list(np.random.permutation(num_boxes-1)[:mix_num_boxes]+1)
-        img_idx.append(0)
-        mix_boxes_pad[:mix_num_boxes] = boxes[img_idx]
-        mix_features_pad[:mix_num_boxes] = features[img_idx]
+        # img_idx = list(np.random.permutation(num_boxes-1)[:mix_num_boxes]+1)
+        # img_idx.append(0)
+        # mix_boxes_pad[:mix_num_boxes] = boxes[img_idx]
+        # mix_features_pad[:mix_num_boxes] = features[img_idx]
+        
+        mix_boxes_pad[:mix_num_boxes] = boxes[:mix_num_boxes]
+        mix_features_pad[:mix_num_boxes] = features[:mix_num_boxes]
 
         features = torch.tensor(mix_features_pad).float()
         image_mask = torch.tensor(image_mask).long()

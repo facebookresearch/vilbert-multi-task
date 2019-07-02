@@ -11,7 +11,7 @@ from tqdm import tqdm
 from bisect import bisect
 import yaml
 from easydict import EasyDict as edict
-
+import sys
 import pdb
 
 import torch
@@ -20,7 +20,6 @@ import torch.nn as nn
 
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
-from parallel.parallel import DataParallelModel, DataParallelCriterion
 from vilbert.vilbert import BertConfig
 from vilbert.task_utils import LoadDatasetEval, LoadLosses, ForwardModelsTrain, ForwardModelsVal, EvaluatingModel
 from vilbert.vilbert import VILBertForVLTasks
@@ -53,7 +52,7 @@ def main():
     )
     parser.add_argument(
         "--output_dir",
-        default="save",
+        default="results",
         type=str,
         help="The output directory where the model checkpoints will be written.",
     )
@@ -90,7 +89,7 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=24, help="Number of workers in the dataloader."
+        "--num_workers", type=int, default=16, help="Number of workers in the dataloader."
     )
     parser.add_argument(
         "--save_name",
@@ -104,8 +103,12 @@ def main():
     parser.add_argument(
         "--tasks", default='', type=str, help="1-2-3... training task separate by -"
     )
+    parser.add_argument(
+        "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
+    )
+
     args = parser.parse_args()
-    with open('config/vlbert_tasks.yml', 'r') as f:
+    with open('vlbert_tasks_eval.yml', 'r') as f:
         task_cfg = edict(yaml.load(f))
 
     random.seed(args.seed)
@@ -120,9 +123,6 @@ def main():
 
     timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
     savePath = os.path.join(args.output_dir, timeStamp)
-    
-    if not os.path.exists(savePath):
-        os.makedirs(savePath)
 
     config = BertConfig.from_json_file(args.config_file)
     bert_weight_name = json.load(open("config/" + args.bert_model + "_weight_name.json", "r"))
@@ -142,7 +142,7 @@ def main():
             device, n_gpu, bool(args.local_rank != -1), args.fp16
         )
     )
-
+    
     default_gpu = False
     if dist.is_available() and args.local_rank != -1:
         rank = dist.get_rank()
@@ -157,18 +157,11 @@ def main():
     task_batch_size, task_num_iters, task_ids, task_datasets_val, task_dataloader_val \
                         = LoadDatasetEval(args, task_cfg, args.tasks.split('-'))
 
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-
     num_labels = max([dataset.num_labels for dataset in task_datasets_val.values()])
 
-    if args.from_pretrained:
-        model = VILBertForVLTasks.from_pretrained(
-            args.from_pretrained, config, num_labels=num_labels
-        )
-    else:
-        model = VILBertForVLTasks(
-            args.bert_model, config, num_labels=num_labels)
+    model = VILBertForVLTasks.from_pretrained(
+        args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
+    )
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
     model.to(device)
@@ -182,7 +175,7 @@ def main():
         model = DDP(model, delay_allreduce=True)
 
     elif n_gpu > 1:
-        model = DataParallelModel(model)
+        model = nn.DataParallel(model)
 
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 
@@ -190,23 +183,21 @@ def main():
     print("  Num Iters: ", task_num_iters)
     print("  Batch size: ", task_batch_size)    
 
-    startIterID = 0
-    max_num_iter = max(task_num_iters.values())
-
-    # initialize the data iteration.
-    task_iter_train = {name:None for name in task_ids}
-    task_count = {name:0 for name in task_ids}
-
     model.eval()
     # when run evaluate, we run each task sequentially. 
     for task_id in task_ids:
         results = []
-        for batch in task_dataloader_val[task_id]:
-            loss, score, batch_size, results = EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataloader_val, task_losses, results)
-            tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
-
-    tbLogger.showLossVal()
+        others = []
+        for i, batch in enumerate(task_dataloader_val[task_id]):
+            loss, score, batch_size, results, others = EvaluatingModel(args, task_cfg, device, \
+                    task_id, batch, model, task_dataloader_val, task_losses, results, others)
+            
+            sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
+            sys.stdout.flush()
+        # save the result or evaluate the result.
+    
     pdb.set_trace()
+    json.dump()
 
 if __name__ == "__main__":
 

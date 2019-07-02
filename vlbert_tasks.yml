@@ -21,6 +21,7 @@ TASK1:
   max_seq_length: 16
   max_region_num: 100
   batch_size: 256
+  eval_batch_size: 10
   train_split: trainval
   val_split: minval
   start_iteration: 0
