@@ -121,7 +121,8 @@ def main():
         name = task_cfg[task]['name']
         task_names.append(name)
 
-    timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
+    # timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
+    timeStamp = args.from_pretrained.split('/')[1]
     savePath = os.path.join(args.output_dir, timeStamp)
 
     config = BertConfig.from_json_file(args.config_file)
@@ -157,6 +158,8 @@ def main():
     task_batch_size, task_num_iters, task_ids, task_datasets_val, task_dataloader_val \
                         = LoadDatasetEval(args, task_cfg, args.tasks.split('-'))
 
+    tbLogger = utils.tbLogger(timeStamp, task_names, task_ids, task_num_iters, save_logger=False, txt_name='eval.txt')
+
     num_labels = max([dataset.num_labels for dataset in task_datasets_val.values()])
 
     model = VILBertForVLTasks.from_pretrained(
@@ -191,13 +194,16 @@ def main():
         for i, batch in enumerate(task_dataloader_val[task_id]):
             loss, score, batch_size, results, others = EvaluatingModel(args, task_cfg, device, \
                     task_id, batch, model, task_dataloader_val, task_losses, results, others)
-            
+
+            tbLogger.step_val(0, float(loss), float(score), task_id, batch_size, 'val')
+
             sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
             sys.stdout.flush()
         # save the result or evaluate the result.
-    
-    pdb.set_trace()
-    json.dump()
+        ave_score = tbLogger.showLossVal()
+        json_path = os.path.join(savePath, task_cfg[task_id]['val_split'])   
+        json.dump(results, open(json_path+ 'result.json', 'w'))
+        json.dump(others, open(json_path+ 'others.json', 'w'))
 
 if __name__ == "__main__":
 

@@ -41,10 +41,14 @@ def lr_warmup(step, ):
         return pow(cfg["training_parameters"]["lr_ratio"], idx)
 
 class tbLogger(object):
-    def __init__(self, log_dir, task_names, task_ids, task_num_iters):
+    def __init__(self, log_dir, task_names, task_ids, task_num_iters, save_logger=True, txt_name='out.txt'):
         logger.info("logging file at: " + log_dir)
-        self.logger = SummaryWriter(log_dir="logs/" + log_dir)
-        self.txt_f = open("save/" + log_dir + '/out.txt', 'w')
+
+        self.save_logger=save_logger
+        if self.save_logger:
+            self.logger = SummaryWriter(log_dir="logs/" + log_dir)
+
+        self.txt_f = open("save/" + log_dir + '/' + txt_name, 'w')
         self.task_id2name = {ids:name.replace('+', 'plus') for ids, name in zip(task_ids, task_names)}
         self.task_ids = task_ids
         self.task_loss = {task_id:0 for task_id in task_ids}
@@ -65,7 +69,8 @@ class tbLogger(object):
         self.txt_f.close()
 
     def linePlot(self, step, val, split, key, xlabel="None"):
-        self.logger.add_scalar(split + "/" + key, val, step)
+        if self.save_logger:
+            self.logger.add_scalar(split + "/" + key, val, step)
 
     def step_train(self, epochId, stepId, loss, score, norm, task_id, split):
         self.task_loss[task_id] += loss

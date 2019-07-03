@@ -359,13 +359,15 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit \
+    with torch.no_grad():
+        vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit \
             = model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
     
     if task_cfg[task_id]['type'] == 'VL-classifier':
         logits = torch.max(vil_prediction, 1)[1].data  # argmax
         sorted_score, sorted_idx = torch.sort(-vil_prediction) 
-        topk = 1 # top candidate.
+        topk = 8 # top candidate.
+        topkInd = sorted_idx[:topk]
         loss = 0
         batch_score = 0
         for i in range(logits.size(0)):
@@ -374,13 +376,17 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
             
             # save top 8 as options.
             others.append({'question_id':question_id[i].item(), \
-                'answer':[task_dataloader[task_id].dataset.label2ans[idx.item()] for idx in sorted_idx[i,:8]]})
+                'answer':[task_dataloader[task_id].dataset.label2ans[idx.item()] for idx in topkInd[i]]})
  
     elif task_cfg[task_id]['type'] == 'VL-logit':
         vil_logit = vil_logit.view(batch_size, num_options)
         loss = task_losses[task_id](vil_logit, target)
         _, preds = torch.max(vil_logit, 1)
         batch_score = (preds == target).sum()
+
+        probs = torch.softmax(vil_logit, dim=1)
+        for i in range(vil_logit.size(0)):
+            results.append({'question_id':question_id[i].item(), 'answer':[prob.item() for prob in probs[i]]})
 
     elif task_cfg[task_id]['type'] == 'V-logit':
         loss = task_losses[task_id](vision_logit, target)

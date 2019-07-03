@@ -33,7 +33,7 @@ def _converId(img_id):
     return new_id
 
 
-def _load_annotationsQ_A(annotations_jsonpath):
+def _load_annotationsQ_A(annotations_jsonpath, split):
     """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
     entries = []
     with open(annotations_jsonpath, 'rb') as f: # opening file in binary(rb) mode    
@@ -42,16 +42,19 @@ def _load_annotationsQ_A(annotations_jsonpath):
             # det_names = metadata_fn["names"]
             det_names = ""
             question = annotation["question"]
-            ans_label = annotation["answer_label"]
-            # img_fn = annotation["img_fn"]
+            if split == 'test':
+                ans_label = 0
+            else:
+                ans_label = annotation["answer_label"]
             img_id = _converId(annotation["img_id"])
+            anno_id = int(annotation["annot_id"].split('-')[1])
             entries.append(
-                {"question": question, 'answers':annotation["answer_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
+                {"question": question, 'answers':annotation["answer_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id, 'anno_id':anno_id}
             )
 
     return entries
 
-def _load_annotationsQA_R(annotations_jsonpath):
+def _load_annotationsQA_R(annotations_jsonpath, split):
     """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
     entries = []
     with open(annotations_jsonpath, 'rb') as f: # opening file in binary(rb) mode    
@@ -60,33 +63,14 @@ def _load_annotationsQA_R(annotations_jsonpath):
             # det_names = metadata_fn["names"]
             det_names = ""
             question = annotation["question"] + ["[SEP]"] + annotation["answer_choices"][annotation['answer_label']]
-            ans_label = annotation["rationale_label"]
+            if split == 'test':
+                ans_label = 0
+            else:
+                ans_label = annotation["rationale_label"]
             # img_fn = annotation["img_fn"]
             img_id = _converId(annotation["img_id"])
             entries.append(
                 {"question": question, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
-            )
-
-    return entries
-
-def _load_annotationsQ_AR(annotations_jsonpath):
-    """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
-    entries = []
-    with open(annotations_jsonpath, 'rb') as f: # opening file in binary(rb) mode    
-        for annotation in json_lines.reader(f):
-            # metadata_fn = json.load(open(os.path.join('data/VCR/vcr1images', annotation["metadata_fn"]), 'r'))
-            # det_names = metadata_fn["names"]
-            det_names = ""
-            question = annotation["question"]
-            ans_label = annotation["rationale_label"] * 4 + annotation["answer_label"]
-            img_id = _converId(annotation["img_id"])
-            rationale_answers = []
-            for rationale in annotation["rationale_choices"]:
-                for answer in annotation["answer_choices"]:
-                    rationale_answers.append(rationale + ["[SEP]"] + answer)
-
-            entries.append(
-                {"question": question, 'answers':rationale_answers, "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
             )
 
     return entries
@@ -107,14 +91,12 @@ class VCRDataset(Dataset):
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
         if task == 'VCR_Q-A':
-            self._entries = _load_annotationsQ_A(annotations_jsonpath)
+            self._entries = _load_annotationsQ_A(annotations_jsonpath, split)
         elif task == "VCR_QA-R":
-            self._entries = _load_annotationsQA_R(annotations_jsonpath)
-        elif task == "VCR_Q-AR":
-            self._entries = _load_annotationsQ_AR(annotations_jsonpath)            
+            self._entries = _load_annotationsQA_R(annotations_jsonpath, split)
         else:
             assert False
-
+        self._split = split
         self._image_features_reader = image_features_reader
         self._gt_image_features_reader = gt_image_features_reader
         self._tokenizer = tokenizer
@@ -284,20 +266,26 @@ class VCRDataset(Dataset):
 
         gt_features, gt_num_boxes, gt_boxes, _ = self._gt_image_features_reader[image_id]
 
-        # merge two boxes, and assign the labels. 
-        gt_boxes = gt_boxes[:gt_num_boxes]
-        gt_features = gt_features[:gt_num_boxes]
+        # merge two features.
+        features[0] = (features[0] * num_boxes + gt_features[0] * gt_num_boxes) / (num_boxes + gt_num_boxes)
 
-        # shuffle the image location here.
+        # merge two boxes, and assign the labels. 
+        gt_boxes = gt_boxes[1:gt_num_boxes]
+        gt_features = gt_features[1:gt_num_boxes]
+        gt_num_boxes = gt_num_boxes - 1
+
+        gt_box_preserve = min(self._max_region_num-1, gt_num_boxes)
+        gt_boxes = gt_boxes[:gt_box_preserve]
+        gt_features = gt_features[:gt_box_preserve]
+        gt_num_boxes = gt_box_preserve
+ 
         num_box_preserve = min(self._max_region_num - int(gt_num_boxes), int(num_boxes))
-        img_idx = list(np.random.permutation(num_boxes-1)[:num_box_preserve]+1)
-        img_idx.append(0)
-        boxes = boxes[img_idx]
-        features = features[img_idx]
+        boxes = boxes[:num_box_preserve]
+        features = features[:num_box_preserve]
 
         # concatenate the boxes
-        mix_boxes = np.concatenate((gt_boxes, boxes), axis=0)
-        mix_features = np.concatenate((gt_features, features), axis=0)
+        mix_boxes = np.concatenate((boxes, gt_boxes), axis=0)
+        mix_features = np.concatenate((features, gt_features), axis=0)
         mix_num_boxes = num_box_preserve + int(gt_num_boxes)
         
         image_mask = [1] * (mix_num_boxes)
@@ -320,15 +308,20 @@ class VCRDataset(Dataset):
         segment_ids = entry["segment_ids"]
         target = int(entry["target"])
 
+        if self._split == 'test':
+            anno_id = entry["anno_id"]
+        else:
+            anno_id = entry["img_id"]
+
         co_attention_idxs = entry["co_attention_mask"]
         co_attention_mask = torch.zeros((len(entry["co_attention_mask"]), self._max_region_num, self._max_caption_length))
 
         for ii, co_attention_idx in enumerate(co_attention_idxs):
             for jj, idx in enumerate(co_attention_idx):
-                if idx != -1 and idx < self._max_region_num:
-                    co_attention_mask[ii, idx, jj] = 1
+                if idx != -1 and idx+num_box_preserve < self._max_region_num:
+                    co_attention_mask[ii, idx+num_box_preserve, jj] = 1
 
-        return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask, image_id
+        return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask, anno_id
 
     def __len__(self):
         return len(self._entries)

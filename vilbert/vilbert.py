@@ -269,7 +269,6 @@ class BertConfig(object):
         """Serializes this instance to a JSON string."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
 
-
 try:
     from apex.normalization.fused_layer_norm import FusedLayerNorm as BertLayerNorm
 except ImportError:
@@ -291,7 +290,6 @@ except ImportError:
             s = (x - u).pow(2).mean(-1, keepdim=True)
             x = (x - u) / torch.sqrt(s + self.variance_epsilon)
             return self.weight * x + self.bias
-
 
 class BertEmbeddings(nn.Module):
     """Construct the embeddings from word, position and token_type embeddings.
@@ -516,7 +514,6 @@ class BertImageSelfAttention(nn.Module):
         
         return context_layer, attention_probs
 
-
 class BertImageSelfOutput(nn.Module):
     def __init__(self, config):
         super(BertImageSelfOutput, self).__init__()
@@ -529,7 +526,6 @@ class BertImageSelfOutput(nn.Module):
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
-
 
 class BertImageAttention(nn.Module):
     def __init__(self, config):

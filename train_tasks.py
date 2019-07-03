@@ -159,7 +159,6 @@ def main():
     else:
         from vilbert.vilbert import BertConfig
 
-
     task_names = []
     for i, task_id in enumerate(args.tasks.split('-')):
         task = 'TASK' + task_id
@@ -368,17 +367,17 @@ def main():
         lr_scheduler.step(ave_score)
         logger.info("best average score is %3f" %lr_scheduler.best)
 
-        # if default_gpu:
-        #     # Save a trained model
-        #     logger.info("** ** * Saving fine - tuned model on " + timeStamp + "** ** * ")
-        #     model_to_save = (
-        #         model.module if hasattr(model, "module") else model
-        #     )  # Only save the model it-self
+        if default_gpu:
+            # Save a trained model
+            logger.info("** ** * Saving fine - tuned model on " + timeStamp + "** ** * ")
+            model_to_save = (
+                model.module if hasattr(model, "module") else model
+            )  # Only save the model it-self
 
-        #     if not os.path.exists(savePath):
-        #         os.makedirs(savePath)
-        #     output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
-        #     torch.save(model_to_save.state_dict(), output_model_file)
+            if not os.path.exists(savePath):
+                os.makedirs(savePath)
+            output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
+            torch.save(model_to_save.state_dict(), output_model_file)
 
     tbLogger.txt_close()
     
