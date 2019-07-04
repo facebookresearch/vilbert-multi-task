@@ -202,8 +202,8 @@ def main():
         # save the result or evaluate the result.
         ave_score = tbLogger.showLossVal()
         json_path = os.path.join(savePath, task_cfg[task_id]['val_split'])   
-        json.dump(results, open(json_path+ 'result.json', 'w'))
-        json.dump(others, open(json_path+ 'others.json', 'w'))
+        json.dump(results, open(json_path+ '_result.json', 'w'))
+        json.dump(others, open(json_path+ '_others.json', 'w'))
 
 if __name__ == "__main__":
 

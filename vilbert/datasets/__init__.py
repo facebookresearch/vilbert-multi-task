@@ -1,6 +1,7 @@
 from .concept_cap_dataset import ConceptCapLoaderTrain, ConceptCapLoaderVal, ConceptCapLoaderRetrieval
 from .foil_dataset import FoilClassificationDataset
 from .vqa_dataset import VQAClassificationDataset
+from .vqa_mc_dataset import VQAMultipleChoiceDataset
 from .refer_expression_dataset import ReferExpressionDataset
 from .retreival_dataset import RetreivalDataset, RetreivalDatasetVal
 from .vcr_dataset import VCRDataset
@@ -11,6 +12,7 @@ from .refer_dense_caption import ReferDenseCpationDataset
 
 __all__ = ["FoilClassificationDataset", \
 		   "VQAClassificationDataset", \
+		   "VQAMultipleChoiceDataset", \
 		   "ConceptCapLoaderTrain", \
 		   "ConceptCapLoaderVal", \
 		   "ReferExpressionDataset", \
@@ -23,8 +25,8 @@ __all__ = ["FoilClassificationDataset", \
 
 DatasetMapTrain = {'TASK0': ConceptCapLoaderTrain,
 				   'TASK1': VQAClassificationDataset,
-				   'TASK3': VisDialDataset,
-				   'TASK5': VCRDataset,
+				   'TASK2': VQAMultipleChoiceDataset,
+				   'TASK4': VisDialDataset,
 				   'TASK6': VCRDataset,
 				   'TASK7': VCRDataset,				   
 				   'TASK8': RetreivalDataset,
@@ -36,8 +38,8 @@ DatasetMapTrain = {'TASK0': ConceptCapLoaderTrain,
 
 DatasetMapVal = {'TASK0': ConceptCapLoaderVal,
 				 'TASK1': VQAClassificationDataset,
-				 'TASK3': VisDialDataset,
-				 'TASK5': VCRDataset,
+				 'TASK2': VQAMultipleChoiceDataset,
+				 'TASK4': VisDialDataset,
 				 'TASK6': VCRDataset,
 				 'TASK7': VCRDataset,				   
 				 'TASK8': RetreivalDataset,
@@ -49,8 +51,8 @@ DatasetMapVal = {'TASK0': ConceptCapLoaderVal,
 
 DatasetMapTest = {'TASK0': ConceptCapLoaderVal,
 				 'TASK1': VQAClassificationDataset,
-				 'TASK3': VisDialDataset,
-				 'TASK5': VCRDataset,
+				 'TASK2': VQAMultipleChoiceDataset,
+				 'TASK4': VisDialDataset,
 				 'TASK6': VCRDataset,
 				 'TASK7': VCRDataset,				   
 				 'TASK8': RetreivalDatasetVal,
