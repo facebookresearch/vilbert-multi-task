@@ -14,7 +14,7 @@ TASK1:
   loss: BCEWithLogitLoss
   task_id: 1
   dataroot: data/VQA
-  features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/dataset/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
@@ -39,7 +39,7 @@ TASK2:
   val_annotations_jsonpath: ''
   max_seq_length: 20
   max_region_num: 100
-  batch_size: 64
+  batch_size: 128
   train_split: trainval
   val_split: minval
   start_iteration: 0

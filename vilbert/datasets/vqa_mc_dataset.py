@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 import random
 from ._image_features_reader import ImageFeaturesH5Reader
+import sys
 import pdb
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
@@ -24,7 +25,7 @@ def _create_entry(question, option, answer):
         "question_id": question["question_id"],
         "image_id": question["image_id"],
         "question": question["question"],
-        "option": option["answer"],
+        "option": option["answer"][:4],
         "answer": answer["multiple_choice_answer"],
     }
     return entry
@@ -73,7 +74,7 @@ def _load_dataset(dataroot, name):
         question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'val')
         questions_val = sorted(json.load(open(question_path_val))["questions"], key=lambda x: x["question_id"])
         answer_path_val = os.path.join(dataroot, "v2_mscoco_%s2014_annotations.json" % 'val')
-        answers_val = sorted(json.load(open(answer_path_train))["annotations"], key=lambda x: x["question_id"])  
+        answers_val = sorted(json.load(open(answer_path_val))["annotations"], key=lambda x: x["question_id"])  
         questions = questions_val[-3000:]
         answers = answers_val[-3000:]
 
@@ -223,7 +224,7 @@ class VQAMultipleChoiceDataset(Dataset):
             if self.split != 'test': 
                 entry["target"] = target
 
-            sys.stdout.write('%d/%d\r' % (count, len(self._entries)))
+            sys.stdout.write('%d/%d\r' % (count, len(self.entries)))
             sys.stdout.flush()
             count += 1
 
@@ -264,12 +265,11 @@ class VQAMultipleChoiceDataset(Dataset):
         input_mask = entry["q_input_mask"]
         segment_ids = entry["q_segment_ids"]
 
-        co_attention_mask = torch.zeros((self._max_region_num, self._max_seq_length))
+        co_attention_mask = torch.zeros((4, self._max_region_num, self._max_seq_length))
 
         if "test" not in self.split:
             target = entry["target"]
 
-        pdb.set_trace()
         return features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id
 
     def __len__(self):

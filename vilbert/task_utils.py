@@ -26,7 +26,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    if task_id in ['TASK3', 'TASK5', 'TASK6', 'TASK7']:
+    if task_id in ['TASK2', 'TASK3', 'TASK5', 'TASK6', 'TASK7']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -87,7 +87,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task
         features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
         batch_size = features.size(0)
 
-        if task_id in ['TASK3', 'TASK5', 'TASK6', 'TASK7']:
+        if task_id in ['TASK2', 'TASK3', 'TASK5', 'TASK6', 'TASK7']:
             max_num_bbox = features.size(1)
             num_options = question.size(1)
             features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -237,8 +237,8 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
             # num_workers = 1
             task_dataloader_train[task] = DataLoader(
                 task_datasets_train[task],
-                # sampler=train_sampler,
-                shuffle=False,
+                sampler=train_sampler,
+                # shuffle=False,
                 batch_size=batch_size,
                 num_workers=num_workers,
                 pin_memory=True,
@@ -337,7 +337,7 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    if task_id in ['TASK5', 'TASK6']:
+    if task_id in ['TASK2', 'TASK6', 'TASK7']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -348,7 +348,7 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    elif task_id in ['TASK7', 'TASK8']:
+    elif task_id in ['TASK8', 'TASK9']:
         batch_size = features.size(0)
         max_num_bbox = features.size(1)
         num_options = question.size(1)
