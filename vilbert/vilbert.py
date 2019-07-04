@@ -617,7 +617,7 @@ class BertBiAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask=None):
+    def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask=None, use_co_attention_mask=False):
 
         # for vision input.
         mixed_query_layer1 = self.query1(input_tensor1)
@@ -641,7 +641,10 @@ class BertBiAttention(nn.Module):
         attention_scores1 = torch.matmul(query_layer2, key_layer1.transpose(-1, -2))
         attention_scores1 = attention_scores1 / math.sqrt(self.attention_head_size)
 
-        attention_scores1 = attention_scores1 + attention_mask1 + co_attention_mask.permute(0,1,3,2)
+        attention_scores1 = attention_scores1 + attention_mask1
+        
+        if use_co_attention_mask:
+            attention_scores1 = attention_scores1 + co_attention_mask.permute(0,1,3,2)
 
         # Normalize the attention scores to probabilities.
         attention_probs1 = nn.Softmax(dim=-1)(attention_scores1)
@@ -659,9 +662,11 @@ class BertBiAttention(nn.Module):
         attention_scores2 = torch.matmul(query_layer1, key_layer2.transpose(-1, -2))
         attention_scores2 = attention_scores2 / math.sqrt(self.attention_head_size)
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-
+    
         # we can comment this line for single flow. 
-        attention_scores2 = attention_scores2 + attention_mask2 + co_attention_mask
+        attention_scores2 = attention_scores2 + attention_mask2
+        if use_co_attention_mask:
+            attention_scores2 = attention_scores2 + co_attention_mask
 
         # Normalize the attention scores to probabilities.
         attention_probs2 = nn.Softmax(dim=-1)(attention_scores2)
@@ -722,10 +727,10 @@ class BertConnectionLayer(nn.Module):
         self.t_intermediate = BertIntermediate(config)
         self.t_output = BertOutput(config)
 
-    def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask=None):
+    def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask=None, use_co_attention_mask=False):
 
         bi_output1, bi_output2, co_attention_probs = self.biattention(
-            input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask
+            input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask, use_co_attention_mask
         )
 
         attention_output1, attention_output2 = self.biOutput(bi_output2, input_tensor1, bi_output1, input_tensor2)
@@ -792,7 +797,8 @@ class BertEncoder(nn.Module):
 
         batch_size, num_words, t_hidden_size = txt_embedding.size()
         _, num_regions, v_hidden_size = image_embedding.size()
-
+        
+        use_co_attention_mask = True
         for v_layer_id, t_layer_id in zip(self.v_biattention_id, self.t_biattention_id):
 
             v_end = v_layer_id
@@ -842,8 +848,9 @@ class BertEncoder(nn.Module):
 
             # do the bi attention.
             image_embedding, txt_embedding, co_attention_probs = self.c_layer[count](
-                image_embedding, image_attention_mask, txt_embedding, txt_attention_mask, co_attention_mask)
+                image_embedding, image_attention_mask, txt_embedding, txt_attention_mask, co_attention_mask, use_co_attention_mask)
             
+            use_co_attention_mask = False
             if output_all_attention_masks:
                 all_attention_mask_c.append(co_attention_probs)
 
@@ -1343,11 +1350,10 @@ class BertModel(BertPreTrainedModel):
 
         extended_co_attention_mask = co_attention_mask.unsqueeze(1)
         extended_co_attention_mask = extended_co_attention_mask * 1000000.0
-
+        
         extended_co_attention_mask = extended_co_attention_mask.to(
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
-
 
         embedding_output = self.embeddings(input_txt, token_type_ids)
         v_embedding_output = self.v_embeddings(input_imgs, image_loc)

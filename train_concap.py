@@ -102,7 +102,7 @@ def main():
     )
     parser.add_argument(
         "--learning_rate",
-        default=5e-5,
+        default=1e-4,
         type=float,
         help="The initial learning rate for Adam.",
     )
@@ -424,6 +424,7 @@ def main():
                 optimizer_grouped_parameters,
                 warmup=args.warmup_proportion,
                 t_total=num_train_optimization_steps,
+                
             )
 
         else:

@@ -14,16 +14,15 @@ TASK1:
   loss: BCEWithLogitLoss
   task_id: 1
   dataroot: data/VQA
-  features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: data/coco/coco_test_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 16
   max_region_num: 100
-  batch_size: 256
-  eval_batch_size: 10
+  eval_batch_size: 1024
   train_split: trainval
-  val_split: minval
+  val_split: test
   start_iteration: 0
   lr: 0.00001
   num_epoch: 20
@@ -63,13 +62,14 @@ TASK5:
   loss: CrossEntropyLoss
   task_id: 5
   dataroot: data/VCR
-  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/datasets/vilbert/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/datasets/vilbert/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 40
   max_region_num: 100
   batch_size: 64
+  eval_batch_size: 256
   train_split: train
   val_split: val
   start_iteration: 0
@@ -81,15 +81,15 @@ TASK6:
   loss: CrossEntropyLoss
   task_id: 6
   dataroot: data/VCR
-  features_h5path1: data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/datasets/vilbert/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/datasets/vilbert/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
   max_region_num: 100
   batch_size: 64
   train_split: train
-  val_split: val
+  val_split: test
   start_iteration: 0
   lr: 0.00001
   num_epoch: 20

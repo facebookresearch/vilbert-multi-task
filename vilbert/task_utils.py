@@ -237,7 +237,8 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
             # num_workers = 1
             task_dataloader_train[task] = DataLoader(
                 task_datasets_train[task],
-                sampler=train_sampler,
+                # sampler=train_sampler,
+                shuffle=False,
                 batch_size=batch_size,
                 num_workers=num_workers,
                 pin_memory=True,
@@ -367,7 +368,7 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         logits = torch.max(vil_prediction, 1)[1].data  # argmax
         sorted_score, sorted_idx = torch.sort(-vil_prediction) 
         topk = 8 # top candidate.
-        topkInd = sorted_idx[:topk]
+        topkInd = sorted_idx[:,:topk]
         loss = 0
         batch_score = 0
         for i in range(logits.size(0)):
