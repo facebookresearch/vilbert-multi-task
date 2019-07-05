@@ -20,9 +20,10 @@ import torch.nn as nn
 
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
-from vilbert.vilbert import BertConfig
 from vilbert.task_utils import LoadDatasetEval, LoadLosses, ForwardModelsTrain, ForwardModelsVal, EvaluatingModel
 from vilbert.vilbert import VILBertForVLTasks
+from vilbert.basebert import BaseBertForVLTasks
+
 import vilbert.utils as utils
 import torch.distributed as dist
 
@@ -106,14 +107,25 @@ def main():
     parser.add_argument(
         "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
     )
+    parser.add_argument(
+        "--baseline", action="store_true", help="whether use single stream baseline."
+    )
+    parser.add_argument(
+        "--split", default="", type=str, help="which split to use."
+    )
 
     args = parser.parse_args()
-    with open('vlbert_tasks_eval.yml', 'r') as f:
+    with open('vlbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.load(f))
 
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+
+    if args.baseline:
+        from pytorch_pretrained_bert.modeling import BertConfig
+    else:
+        from vilbert.vilbert import BertConfig
 
     task_names = []
     for i, task_id in enumerate(args.tasks.split('-')):
@@ -162,9 +174,14 @@ def main():
 
     num_labels = max([dataset.num_labels for dataset in task_datasets_val.values()])
 
-    model = VILBertForVLTasks.from_pretrained(
-        args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
-    )
+    if args.baseline:
+        model = BaseBertForVLTasks.from_pretrained(
+            args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
+            )
+    else:
+        model = VILBertForVLTasks.from_pretrained(
+            args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
+            )
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
     model.to(device)
@@ -201,7 +218,11 @@ def main():
             sys.stdout.flush()
         # save the result or evaluate the result.
         ave_score = tbLogger.showLossVal()
-        json_path = os.path.join(savePath, task_cfg[task_id]['val_split'])   
+
+        if args.split:
+            json_path = os.path.join(savePath, args.split)           
+        else:
+            json_path = os.path.join(savePath, task_cfg[task_id]['val_split'])   
         json.dump(results, open(json_path+ '_result.json', 'w'))
         json.dump(others, open(json_path+ '_others.json', 'w'))
 

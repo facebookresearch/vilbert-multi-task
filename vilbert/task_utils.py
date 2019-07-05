@@ -299,11 +299,16 @@ def LoadDatasetEval(args, task_cfg, ids):
         num_workers = int(args.num_workers / len(ids))
         logger.info("Loading %s Dataset with batch size %d" %(task_cfg[task]['name'], batch_size))
 
+        if args.split:
+            eval_split = args.split
+        else:
+            eval_split = task_cfg[task]['val_split']
+
         task_datasets_val[task] = DatasetMapVal[task](
                             task=task_cfg[task]['name'],
                             dataroot=task_cfg[task]['dataroot'],
                             annotations_jsonpath=task_cfg[task]['val_annotations_jsonpath'],
-                            split=task_cfg[task]['val_split'],
+                            split=eval_split,
                             image_features_reader= task_feature_reader1[task_cfg[task]['features_h5path1']], 
                             gt_image_features_reader= task_feature_reader2[task_cfg[task]['features_h5path2']],
                             tokenizer=tokenizer, 
