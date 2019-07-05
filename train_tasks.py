@@ -141,7 +141,7 @@ def main():
         help="till which layer of textual stream of vilbert need to fixed."
     )
     parser.add_argument("--predict_feature", action="store_true", help="visual target.")
-    parser.add_argument("--vision_pretrained", action="store_true", help="whether pre-trained the image or not.")
+    parser.add_argument("--vision_scratch", action="store_true", help="whether pre-trained the image or not.")
     parser.add_argument("--evaluation_interval", default=1, type=int, help="evaluate very n epoch.")
     parser.add_argument("--lr_scheduler", default=True, type=bool, help="whether use learning rate scheduler.")  
     parser.add_argument("--baseline", action="store_true", help="whether use single stream baseline.")
@@ -275,10 +275,15 @@ def main():
             if 'vil_prediction' in key:
                 # if args.learning_rate <= 2e-5:
                 lr = 1e-4
-                # else:
-                    # lr = args.learning_rate
             else:
-                lr = args.learning_rate
+                if args.vision_scratch:
+                    if key[12:] in bert_weight_name:
+                        lr = args.learning_rate
+                    else:
+                        lr = args.learning_rate * 2
+                else:
+                    lr = args.learning_rate
+            
             if any(nd in key for nd in no_decay):
                 optimizer_grouped_parameters += [
                     {"params": [value], "lr": lr, "weight_decay": 0.01}
