@@ -140,11 +140,21 @@ def main():
         "--freeze", default = -1, type=int, 
         help="till which layer of textual stream of vilbert need to fixed."
     )
-    parser.add_argument("--predict_feature", action="store_true", help="visual target.")
-    parser.add_argument("--vision_pretrained", action="store_true", help="whether pre-trained the image or not.")
-    parser.add_argument("--evaluation_interval", default=1, type=int, help="evaluate very n epoch.")
-    parser.add_argument("--lr_scheduler", default=True, type=bool, help="whether use learning rate scheduler.")  
-    parser.add_argument("--baseline", action="store_true", help="whether use single stream baseline.")
+    parser.add_argument(
+        "--predict_feature", action="store_true", help="visual target."
+    )
+    parser.add_argument(
+        "--vision_pretrained", action="store_true", help="whether pre-trained the image or not."
+    )
+    parser.add_argument(
+        "--evaluation_interval", default=1, type=int, help="evaluate very n epoch."
+    )
+    parser.add_argument(
+        "--lr_scheduler", default=True, type=bool, help="whether use learning rate scheduler."
+    )  
+    parser.add_argument(
+        "--baseline", action="store_true", help="whether use single stream baseline."
+    )
 
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
