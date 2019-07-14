@@ -599,17 +599,20 @@ class BertBiAttention(nn.Module):
         )
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
+        # self.scale = nn.Linear(1, self.num_attention_heads, bias=False)
+        # self.scale_act_fn = ACT2FN['relu']
+
         self.query1 = nn.Linear(config.v_hidden_size, self.all_head_size)
         self.key1 = nn.Linear(config.v_hidden_size, self.all_head_size)
         self.value1 = nn.Linear(config.v_hidden_size, self.all_head_size)
-        self.logit1 = nn.Linear(config.v_hidden_size, self.num_attention_heads)
+        # self.logit1 = nn.Linear(config.hidden_size, self.num_attention_heads)
 
         self.dropout1 = nn.Dropout(config.v_attention_probs_dropout_prob)
 
         self.query2 = nn.Linear(config.hidden_size, self.all_head_size)
         self.key2 = nn.Linear(config.hidden_size, self.all_head_size)
         self.value2 = nn.Linear(config.hidden_size, self.all_head_size)
-        self.logit2 = nn.Linear(config.hidden_size, self.num_attention_heads)
+        # self.logit2 = nn.Linear(config.hidden_size, self.num_attention_heads)
 
         self.dropout2 = nn.Dropout(config.attention_probs_dropout_prob)
 
@@ -621,13 +624,13 @@ class BertBiAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def transpose_for_logits(self, x):
-        new_x_shape = x.size()[:-1] + (
-            self.num_attention_heads,
-            1,
-        )
-        x = x.view(*new_x_shape)
-        return x.permute(0, 2, 1, 3)
+    # def transpose_for_logits(self, x):
+    #     new_x_shape = x.size()[:-1] + (
+    #         self.num_attention_heads,
+    #         1,
+    #     )
+    #     x = x.view(*new_x_shape)
+    #     return x.permute(0, 2, 1, 3)
 
     def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask=None, use_co_attention_mask=False):
 
@@ -635,23 +638,23 @@ class BertBiAttention(nn.Module):
         mixed_query_layer1 = self.query1(input_tensor1)
         mixed_key_layer1 = self.key1(input_tensor1)
         mixed_value_layer1 = self.value1(input_tensor1)
-        mixed_logit_layer1 = self.logit1(input_tensor1)
+        # mixed_logit_layer1 = self.logit1(input_tensor1)
 
         query_layer1 = self.transpose_for_scores(mixed_query_layer1)
         key_layer1 = self.transpose_for_scores(mixed_key_layer1)
         value_layer1 = self.transpose_for_scores(mixed_value_layer1)
-        logit_layer1 = self.transpose_for_logits(mixed_logit_layer1)
+        # logit_layer1 = self.transpose_for_logits(mixed_logit_layer1)
 
         # for text input:
         mixed_query_layer2 = self.query2(input_tensor2)
         mixed_key_layer2 = self.key2(input_tensor2)
         mixed_value_layer2 = self.value2(input_tensor2)
-        mixed_logit_layer2 = self.logit2(input_tensor2)
+        # mixed_logit_layer2 = self.logit2(input_tensor2)
 
         query_layer2 = self.transpose_for_scores(mixed_query_layer2)
         key_layer2 = self.transpose_for_scores(mixed_key_layer2)
         value_layer2 = self.transpose_for_scores(mixed_value_layer2)
-        logit_layer2 = self.transpose_for_logits(mixed_logit_layer2)
+        # logit_layer2 = self.transpose_for_logits(mixed_logit_layer2)
 
         # Take the dot product between "query2" and "key1" to get the raw attention scores for value 1.
         attention_scores1 = torch.matmul(query_layer2, key_layer1.transpose(-1, -2))
@@ -660,9 +663,11 @@ class BertBiAttention(nn.Module):
 
         # pdb.set_trace()
         # if use_co_attention_mask:
-        # attention_scores1 = attention_scores1 + co_attention_mask.transpose(-1,-2) * logit_layer1.transpose(-1,-2)
+        attention_scores1 = attention_scores1 + co_attention_mask.permute(0,1,3,2)
 
-        attention_scores1 = attention_scores1 + co_attention_mask.transpose(-1,-2) * logit_layer2
+        # scale_co_attention_mask = self.scale(co_attention_mask)
+        # scale_co_attention_mask = self.scale_act_fn(scale_co_attention_mask)
+        # attention_scores1 = attention_scores1 + scale_co_attention_mask.permute(0,3,2,1)
 
         # Normalize the attention scores to probabilities.
         attention_probs1 = nn.Softmax(dim=-1)(attention_scores1)
@@ -680,12 +685,13 @@ class BertBiAttention(nn.Module):
         attention_scores2 = torch.matmul(query_layer1, key_layer2.transpose(-1, -2))
         attention_scores2 = attention_scores2 / math.sqrt(self.attention_head_size)
         # Apply the attention mask is (precomputed for all layers in BertModel forward() function)
-    
+
         # we can comment this line for single flow. 
         attention_scores2 = attention_scores2 + attention_mask2
         # if use_co_attention_mask:
-        # attention_scores2 = attention_scores2 + co_attention_mask * logit_layer2.transpose(-1,-2)
-        attention_scores2 = attention_scores2 + co_attention_mask * logit_layer1
+        attention_scores2 = attention_scores2 + co_attention_mask
+
+        # attention_scores2 = attention_scores2 + scale_co_attention_mask.permute(0,3,1,2)
 
         # Normalize the attention scores to probabilities.
         attention_probs2 = nn.Softmax(dim=-1)(attention_scores2)
@@ -1368,7 +1374,9 @@ class BertModel(BertPreTrainedModel):
             co_attention_mask = torch.zeros(input_txt.size(0), input_imgs.size(1), input_txt.size(1)).type_as(extended_image_attention_mask)         
 
         extended_co_attention_mask = co_attention_mask.unsqueeze(1)
-        # extended_co_attention_mask = extended_co_attention_mask * 1000000.0
+
+        # extended_co_attention_mask = co_attention_mask.unsqueeze(-1)
+        extended_co_attention_mask = extended_co_attention_mask * 100.0
         
         extended_co_attention_mask = extended_co_attention_mask.to(
             dtype=next(self.parameters()).dtype

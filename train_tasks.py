@@ -23,10 +23,8 @@ from pytorch_pretrained_bert.optimization import WarmupLinearSchedule
 from parallel.parallel import DataParallelModel, DataParallelCriterion
 
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
-from vilbert.vilbert import VILBertForVLTasks
-from vilbert.basebert import BaseBertForVLTasks
 from vilbert.optimization import BertAdam, Adam, Adamax
-from torch import optim
+from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
 import vilbert.utils as utils
 import torch.distributed as dist
@@ -140,23 +138,18 @@ def main():
         "--freeze", default = -1, type=int, 
         help="till which layer of textual stream of vilbert need to fixed."
     )
-
     parser.add_argument(
-        "--predict_feature", action="store_true", help="visual target."
-    )
-    parser.add_argument(
-        "--vision_pretrained", action="store_true", help="whether pre-trained the image or not."
+        "--vision_scratch", action="store_true", help="whether pre-trained the image or not."
     )
     parser.add_argument(
         "--evaluation_interval", default=1, type=int, help="evaluate very n epoch."
     )
     parser.add_argument(
-        "--lr_scheduler", default=True, type=bool, help="whether use learning rate scheduler."
+        "--lr_scheduler", default='mannul', type=str, help="whether use learning rate scheduler."
     )  
     parser.add_argument(
         "--baseline", action="store_true", help="whether use single stream baseline."
     )
-
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.load(f))
@@ -167,8 +160,10 @@ def main():
 
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
+        from vilbert.basebert import BaseBertForVLTasks
     else:
         from vilbert.vilbert import BertConfig
+        from vilbert.vilbert import VILBertForVLTasks
 
     task_names = []
     for i, task_id in enumerate(args.tasks.split('-')):
@@ -232,7 +227,7 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    num_train_optimization_steps = max(task_num_iters.values()) * args.num_train_epochs
+    num_train_optimization_steps = max(task_num_iters.values()) * args.num_train_epochs // args.gradient_accumulation_steps
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
     if args.baseline:
@@ -291,10 +286,9 @@ def main():
                     if key[12:] in bert_weight_name:
                         lr = args.learning_rate
                     else:
-                        lr = args.learning_rate * 2
+                        lr = 1e-4
                 else:
                     lr = args.learning_rate
-            
             if any(nd in key for nd in no_decay):
                 optimizer_grouped_parameters += [
                     {"params": [value], "lr": lr, "weight_decay": 0.01}
@@ -335,17 +329,24 @@ def main():
             schedule='warmup_constant',
         )        
 
-    lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, \
-                    mode='max',
-                    factor=0.2, 
-                    patience=1, 
-                    cooldown=1,
-                    threshold=0.001)
+    if args.lr_scheduler == 'automatic':
+        lr_scheduler = ReduceLROnPlateau(optimizer, \
+                        mode='max',
+                        factor=0.2, 
+                        patience=1, 
+                        cooldown=1,
+                        threshold=0.001)
+    elif args.lr_scheduler == 'mannul':
+        lr_reduce_list = np.array([12, 16])
+        # lr_reduce_list = np.array([6, 8, 10])        
+        def lr_lambda_fun(epoch):
+            return pow(0.1, np.sum(lr_reduce_list <= epoch))
+        lr_scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda_fun)
 
     if default_gpu:
         print("***** Running training *****")
         print("  Num Iters: ", task_num_iters)
-        print("  Batch size: ", task_batch_size)    
+        print("  Batch size: ", task_batch_size)
         print("  Num steps: %d" %num_train_optimization_steps)
 
     startIterID = 0
@@ -358,14 +359,18 @@ def main():
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
                 loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task_iter_train, task_dataloader_train, model, task_losses)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                if args.gradient_accumulation_steps > 1:
+                    loss = loss / args.gradient_accumulation_steps
+                
+                if (step + 1) % args.gradient_accumulation_steps == 0:
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
 
-                if default_gpu:
-                    tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.show_lr(), task_id, 'train')
+                    if default_gpu:
+                        tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.show_lr(), task_id, 'train')
 
-            if step % 20 == 0 and default_gpu:
+            if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
                 tbLogger.showLossTrain()
 
         model.eval()
@@ -380,8 +385,11 @@ def main():
         
         # pdb.set_trace()
         ave_score = tbLogger.showLossVal()
-        lr_scheduler.step(ave_score)
-        logger.info("best average score is %3f" %lr_scheduler.best)
+        if args.lr_scheduler == 'automatic':
+            lr_scheduler.step(ave_score)
+            logger.info("best average score is %3f" %lr_scheduler.best)
+        else:
+            lr_scheduler.step()
 
         if default_gpu:
             # Save a trained model

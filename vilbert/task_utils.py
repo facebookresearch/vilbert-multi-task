@@ -389,7 +389,7 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         loss = task_losses[task_id](vil_logit, target)
         _, preds = torch.max(vil_logit, 1)
         batch_score = (preds == target).sum()
-
+        
         probs = torch.softmax(vil_logit, dim=1)
         for i in range(vil_logit.size(0)):
             results.append({'question_id':question_id[i].item(), 'answer':[prob.item() for prob in probs[i]]})

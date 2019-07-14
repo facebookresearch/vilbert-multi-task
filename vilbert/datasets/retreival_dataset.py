@@ -230,15 +230,39 @@ class RetreivalDataset(Dataset):
     def __len__(self):
         return len(self._entries)
 
+def _load_annotationsVal(annotations_jsonpath):
+
+    with jsonlines.open(annotations_jsonpath) as reader:
+
+        # Build an index which maps image id with a list of caption annotations.
+        image_entries = []
+        caption_entries = []
+
+        for annotation in reader:
+            if task == 'RetrievalCOCO':
+                image_id = annotation['id']
+            elif task == 'RetrievalFlickr30k':
+                image_id = int(annotation['img_path'].split('.')[0])
+
+            for sentences in annotation['sentences']:
+                image_entries.append(image_id)
+                caption_entries.append(sentences)
+
+    return image_entries, caption_entries
 
 class RetreivalDatasetVal(Dataset):
     def __init__(
         self,
+        task: str,
+        dataroot: str,
         annotations_jsonpath: str,
+        split: str,
         image_features_reader: ImageFeaturesH5Reader,
+        gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
         padding_index: int = 0,
-        max_caption_length: int = 20,
+        max_seq_length: int = 20,
+        max_region_num: int = 37,
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
 
@@ -259,14 +283,14 @@ class RetreivalDatasetVal(Dataset):
             # print('loading entries from %s' %(cap_cache_path))
             # self._entries = cPickle.load(open(cap_cache_path, "rb"))
 # 
-        self.features_all = np.zeros((1000, 37, 2048))
-        self.spatials_all = np.zeros((1000, 37, 5))
-        self.image_mask_all = np.zeros((1000, 37))
+        self.features_all = np.zeros((1000, 101, 2048))
+        self.spatials_all = np.zeros((1000, 101, 5))
+        self.image_mask_all = np.zeros((1000, 101))
 
         for i, image_id in enumerate(self._image_entries):
             features, num_boxes, boxes, _ = self._image_features_reader[image_id]
             image_mask = [1] * (int(num_boxes))
-
+        
             while len(image_mask) < 37:
                 image_mask.append(0)
 
