@@ -624,14 +624,6 @@ class BertBiAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    # def transpose_for_logits(self, x):
-    #     new_x_shape = x.size()[:-1] + (
-    #         self.num_attention_heads,
-    #         1,
-    #     )
-    #     x = x.view(*new_x_shape)
-    #     return x.permute(0, 2, 1, 3)
-
     def forward(self, input_tensor1, attention_mask1, input_tensor2, attention_mask2, co_attention_mask=None, use_co_attention_mask=False):
 
         # for vision input.
@@ -661,13 +653,8 @@ class BertBiAttention(nn.Module):
         attention_scores1 = attention_scores1 / math.sqrt(self.attention_head_size)
         attention_scores1 = attention_scores1 + attention_mask1
 
-        # pdb.set_trace()
-        # if use_co_attention_mask:
-        attention_scores1 = attention_scores1 + co_attention_mask.permute(0,1,3,2)
-
-        # scale_co_attention_mask = self.scale(co_attention_mask)
-        # scale_co_attention_mask = self.scale_act_fn(scale_co_attention_mask)
-        # attention_scores1 = attention_scores1 + scale_co_attention_mask.permute(0,3,2,1)
+        if use_co_attention_mask:
+            attention_scores1 = attention_scores1 + co_attention_mask.permute(0,1,3,2)
 
         # Normalize the attention scores to probabilities.
         attention_probs1 = nn.Softmax(dim=-1)(attention_scores1)
@@ -688,10 +675,8 @@ class BertBiAttention(nn.Module):
 
         # we can comment this line for single flow. 
         attention_scores2 = attention_scores2 + attention_mask2
-        # if use_co_attention_mask:
-        attention_scores2 = attention_scores2 + co_attention_mask
-
-        # attention_scores2 = attention_scores2 + scale_co_attention_mask.permute(0,3,1,2)
+        if use_co_attention_mask:
+            attention_scores2 = attention_scores2 + co_attention_mask
 
         # Normalize the attention scores to probabilities.
         attention_probs2 = nn.Softmax(dim=-1)(attention_scores2)
@@ -823,7 +808,7 @@ class BertEncoder(nn.Module):
         batch_size, num_words, t_hidden_size = txt_embedding.size()
         _, num_regions, v_hidden_size = image_embedding.size()
         
-        use_co_attention_mask = True
+        use_co_attention_mask = False
         for v_layer_id, t_layer_id in zip(self.v_biattention_id, self.t_biattention_id):
 
             v_end = v_layer_id
@@ -1376,8 +1361,7 @@ class BertModel(BertPreTrainedModel):
         extended_co_attention_mask = co_attention_mask.unsqueeze(1)
 
         # extended_co_attention_mask = co_attention_mask.unsqueeze(-1)
-        extended_co_attention_mask = extended_co_attention_mask * 100.0
-        
+        extended_co_attention_mask = extended_co_attention_mask * 5.0
         extended_co_attention_mask = extended_co_attention_mask.to(
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
@@ -1518,7 +1502,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
         super(VILBertForVLTasks, self).__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(dropout_prob)
+        self.dropout = nn.Dropout(0.2)
         self.cls = BertPreTrainingHeads(
             config, self.bert.embeddings.word_embeddings.weight
         )

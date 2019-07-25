@@ -192,7 +192,7 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
             batch_size = int(batch_size / dist.get_world_size())
             num_workers = int(num_workers / dist.get_world_size())
         
-        num_workers = int(num_workers / len(ids))
+        # num_workers = int(num_workers / len(ids))
         logger.info("Loading %s Dataset with batch size %d" %(task_cfg[task]['name'], batch_size))
         
         task_datasets_train[task] = None

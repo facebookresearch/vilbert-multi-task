@@ -150,6 +150,9 @@ def main():
     parser.add_argument(
         "--baseline", action="store_true", help="whether use single stream baseline."
     )
+    parser.add_argument(
+        "--compact", action="store_true", help="whether use compact vilbert model."
+    )
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.load(f))
@@ -161,15 +164,26 @@ def main():
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
         from vilbert.basebert import BaseBertForVLTasks
+    elif args.compact:
+        from vilbert.vilbert_compact import BertConfig
+        from vilbert.vilbert_compact import VILBertForVLTasks        
     else:
         from vilbert.vilbert import BertConfig
         from vilbert.vilbert import VILBertForVLTasks
 
     task_names = []
+    task_lr = []
     for i, task_id in enumerate(args.tasks.split('-')):
         task = 'TASK' + task_id
         name = task_cfg[task]['name']
         task_names.append(name)
+        task_lr.append(task_cfg[task]['lr'])
+
+    base_lr = min(task_lr)
+    loss_scale = {}
+    for i, task_id in enumerate(args.tasks.split('-')):
+        task = 'TASK' + task_id
+        loss_scale[task] = task_lr[i] / base_lr
 
     if args.save_name:
         prefix = '-' + args.save_name
@@ -315,7 +329,7 @@ def main():
     elif args.optimizer == 'Adam':
         optimizer = Adam(
             optimizer_grouped_parameters,
-            lr=args.learning_rate,
+            lr=base_lr,
             warmup=args.warmup_proportion,
             t_total=num_train_optimization_steps,
             schedule='warmup_constant',
@@ -323,7 +337,7 @@ def main():
     elif args.optimizer == 'Adamax':
         optimizer = Adamax(
             optimizer_grouped_parameters,
-            lr=args.learning_rate,
+            lr=base_lr,
             warmup=args.warmup_proportion,
             t_total=num_train_optimization_steps,
             schedule='warmup_constant',
@@ -359,8 +373,10 @@ def main():
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
                 loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task_iter_train, task_dataloader_train, model, task_losses)
+                loss = loss * loss_scale[task_id]
+
                 if args.gradient_accumulation_steps > 1:
-                    loss = loss / args.gradient_accumulation_steps
+                    loss = loss / args.gradient_accumulation_steps 
                 
                 if (step + 1) % args.gradient_accumulation_steps == 0:
                     optimizer.zero_grad()
@@ -383,7 +399,6 @@ def main():
                     sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
                     sys.stdout.flush()
         
-        # pdb.set_trace()
         ave_score = tbLogger.showLossVal()
         if args.lr_scheduler == 'automatic':
             lr_scheduler.step(ave_score)

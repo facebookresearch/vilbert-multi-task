@@ -101,7 +101,7 @@ class tbLogger(object):
             score = self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
             ave_score += score
             ave_loss += loss
-            lossInfo += '[%s]: loss %.3f score %.3f' %(self.task_id2name[task_id], loss, score * 100.0)
+            lossInfo += '[%s]: loss %.3f score %.3f ' %(self.task_id2name[task_id], loss, score * 100.0)
 
             self.linePlot(self.epochId, loss, 'val', self.task_id2name[task_id] + '_loss')
             self.linePlot(self.epochId, score, 'val', self.task_id2name[task_id] + '_score')
@@ -119,7 +119,7 @@ class tbLogger(object):
         # show the current loss, once showed, reset the loss. 
         lossInfo = ''
         for task_id in self.task_ids:
-            lossInfo += '[%s]: iter %d Ep: %.2f loss %.3f score %.3f lr %.6g' %(self.task_id2name[task_id], \
+            lossInfo += '[%s]: iter %d Ep: %.2f loss %.3f score %.3f lr %.6g ' %(self.task_id2name[task_id], \
                 self.task_step[task_id], self.task_step[task_id] / float(self.task_num_iters[task_id]), \
                                     self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]), \
                                     self.task_score_tmp[task_id] / float(self.task_step_tmp[task_id]), \
@@ -336,7 +336,6 @@ def read_set_from_file(filename):
         for line in file_:
             collection.add(line.rstrip())
     return collection
-
 
 def get_file_extension(path, dot=True, lower=True):
     ext = os.path.splitext(path)[1]

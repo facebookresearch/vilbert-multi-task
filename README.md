@@ -7,8 +7,8 @@ code and experiment for multi-modal bert to learn the vision and language repres
 1. Create a fresh conda environment, and install all dependencies.
 
 ```text
-conda create -n mmbert python=3.6
-conda activate mmbert
+conda create -n vilbert python=3.6
+conda activate vilbert
 pip install -r requirements.txt
 ```
 

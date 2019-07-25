@@ -25,7 +25,7 @@ TASK1:
   train_split: trainval
   val_split: minval
   start_iteration: 0
-  lr: 0.00001
+  lr: 0.00004
   num_epoch: 20
 TASK2:
   name: VQA-MC
@@ -89,7 +89,7 @@ TASK6:
   train_split: train
   val_split: val
   start_iteration: 0
-  lr: 0.00001
+  lr: 0.00002
   num_epoch: 20
 TASK7:
   name: VCR_QA-R
@@ -107,7 +107,7 @@ TASK7:
   train_split: train
   val_split: val
   start_iteration: 0
-  lr: 0.00001
+  lr: 0.00002
   num_epoch: 20
 TASK8:
   name: RetrievalCOCO
@@ -125,7 +125,7 @@ TASK8:
   train_split: train
   val_split: val
   start_iteration: 0
-  lr: 0.00001
+  lr: 0.00002
   num_epoch: 20
 TASK9:
   name: RetrievalFlickr30k
@@ -143,7 +143,7 @@ TASK9:
   train_split: train
   val_split: val
   start_iteration: 0
-  lr: 0.00001
+  lr: 0.00002
   num_epoch: 20
 TASK10:
   name: refcoco
@@ -161,7 +161,7 @@ TASK10:
   train_split: train
   val_split: val
   start_iteration: 0
-  lr: 0.00001
+  lr: 0.00004
   num_epoch: 20
 TASK11:
   name: refcoco+
@@ -180,7 +180,7 @@ TASK11:
   train_split: train
   val_split: val
   start_iteration: 0
-  lr: 0.00001
+  lr: 0.00004
   num_epoch: 20
 TASK12:
   name: refgoogle
@@ -198,7 +198,7 @@ TASK12:
   train_split: train
   val_split: val
   start_iteration: 0
-  lr: 0.00001
+  lr: 0.00004
   num_epoch: 20
 TASK13:
   name: refDenseCaption

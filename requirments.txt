@@ -1,0 +1,8 @@
+h5py==2.9.0
+pytorch-transformers
+lmdb==0.94
+tensorboardX==1.2
+tensorflow==1.13.1
+tensorpack==0.9.4
+torch==1.1.0
+tqdm==4.31.1
