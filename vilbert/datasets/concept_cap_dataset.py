@@ -111,7 +111,8 @@ class ConceptCapLoaderTrain(object):
         cache=50000,
         drop_last=False,
         cuda=False,
-        distributed=False
+        distributed=False,
+        visualization=False,
     ):
 
         if dist.is_available() and distributed:
@@ -124,9 +125,9 @@ class ConceptCapLoaderTrain(object):
         else:
             # lmdb_file = "/coc/dataset/conceptual_caption/training_feat_all.lmdb"
             # if not os.path.exists(lmdb_file):
-            lmdb_file = "data/conceptual_caption/training_feat_all.lmdb"
+            lmdb_file = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/training_feat_all.lmdb"
             
-        caption_path = "data/conceptual_caption/caption_train.json"
+        caption_path = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/caption_train.json"
         print("Loading from %s" % lmdb_file)
 
         ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
@@ -216,13 +217,14 @@ class ConceptCapLoaderVal(object):
         cache=50000,
         drop_last=False,
         cuda=False,
-        distributed=False
+        distributed=False,
+        visualization=False,
     ):
     
         lmdb_file = "/coc/dataset/conceptual_caption/validation_feat_all.lmdb"
         if not os.path.exists(lmdb_file):
-            lmdb_file = "data/conceptual_caption/validation_feat_all.lmdb"
-        caption_path = "data/conceptual_caption/caption_val.json"
+            lmdb_file = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/validation_feat_all.lmdb"
+        caption_path = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/caption_val.json"
 
         print("Loading from %s" % lmdb_file)
 
@@ -236,6 +238,7 @@ class ConceptCapLoaderVal(object):
             self.num_dataset,
             encoding="utf-8",
             predict_feature=predict_feature,
+            visualization=visualization,
         )
 
         ds = td.MapData(ds, preprocess_function)
@@ -262,10 +265,13 @@ class ConceptCapLoaderVal(object):
             g_image_mask = np.repeat(np.array([[1]]), batch_size, axis=0)
             image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
 
+            # batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
+            # image_loc, image_target, image_label, image_mask, image_id)
             batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_label, image_mask, image_id)
+                image_loc, image_target, image_label, image_mask)
 
-            yield tuple(torch.tensor(data) for data in batch)
+
+            yield tuple([torch.tensor(data) for data in batch] + [image_id])
 
     def __len__(self):
         return self.ds.size()
@@ -282,6 +288,7 @@ class BertPreprocessBatch(object):
         split="Train",
         encoding="utf-8",
         predict_feature=False,
+        visualization=False
     ):
 
         self.split = split
@@ -291,6 +298,7 @@ class BertPreprocessBatch(object):
         self.predict_feature = predict_feature
         self.num_caps = data_size
         self.captions = list(json.load(open(caption_path, 'r')).values())
+        self.visualization = visualization
 
     def __call__(self, data):
 
@@ -345,7 +353,7 @@ class BertPreprocessBatch(object):
             cur_features.image_target,
             cur_features.image_label,
             cur_features.image_mask,
-            float(image_id),
+            image_id,
         )
         return cur_tensors
 
@@ -356,6 +364,10 @@ class BertPreprocessBatch(object):
         :param index: int, index of sample.
         :return: (str, str, int), sentence 1, sentence 2, isNextSentence Label
         """
+
+        if self.visualization:
+            return caption, 0
+
         if random.random() > 0.5:
             label = 0
         else:
@@ -516,7 +528,8 @@ class BertPreprocessBatch(object):
         for i, token in enumerate(tokens):
             prob = random.random()
             # mask token with 15% probability
-            if prob < 0.15:
+            
+            if prob < 0.15 and not self.visualization:
                 prob /= 0.15
 
                 # 80% randomly change token to mask token
@@ -552,7 +565,7 @@ class BertPreprocessBatch(object):
         for i in range(num_boxes):
             prob = random.random()
             # mask token with 15% probability
-            if prob < 0.15:
+            if prob < 0.15 and not self.visualization:
                 prob /= 0.15
 
                 # 80% randomly change token to mask token
@@ -614,8 +627,8 @@ class ConceptCapLoaderRetrieval(object):
     
         lmdb_file = "/coc/dataset/conceptual_caption/validation_feat_all.lmdb"
         if not os.path.exists(lmdb_file):
-            lmdb_file = "data/conceptual_caption/validation_feat_all.lmdb"
-        caption_path = "data/conceptual_caption/caption_val.json"
+            lmdb_file = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/validation_feat_all.lmdb"
+        caption_path = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/caption_val.json"
 
         print("Loading from %s" % lmdb_file)
 

@@ -24,7 +24,6 @@ TASK1:
   eval_batch_size: 1024
   train_split: trainval
   val_split: minval
-  start_iteration: 0
   lr: 0.00004
   num_epoch: 20
 TASK2:
@@ -42,7 +41,6 @@ TASK2:
   batch_size: 128
   train_split: trainval
   val_split: minval
-  start_iteration: 0
 TASK3:
   name: GenomeQA
   type: VL-classifier
@@ -65,7 +63,6 @@ TASK4:
   batch_size: 64
   train_split: train
   val_split: val
-  start_iteration: 0
   lr: 0.00001
   num_epoch: 20
 TASK5:
@@ -88,7 +85,6 @@ TASK6:
   batch_size: 64
   train_split: train
   val_split: val
-  start_iteration: 0
   lr: 0.00002
   num_epoch: 20
 TASK7:
@@ -106,7 +102,6 @@ TASK7:
   batch_size: 64
   train_split: train
   val_split: val
-  start_iteration: 0
   lr: 0.00002
   num_epoch: 20
 TASK8:
@@ -124,7 +119,6 @@ TASK8:
   batch_size: 64
   train_split: train
   val_split: val
-  start_iteration: 0
   lr: 0.00002
   num_epoch: 20
 TASK9:
@@ -142,7 +136,6 @@ TASK9:
   batch_size: 64
   train_split: train
   val_split: val
-  start_iteration: 0
   lr: 0.00002
   num_epoch: 20
 TASK10:
@@ -160,7 +153,6 @@ TASK10:
   batch_size: 256
   train_split: train
   val_split: val
-  start_iteration: 0
   lr: 0.00004
   num_epoch: 20
 TASK11:
@@ -179,7 +171,6 @@ TASK11:
   eval_batch_size: 1024
   train_split: train
   val_split: val
-  start_iteration: 0
   lr: 0.00004
   num_epoch: 20
 TASK12:
@@ -215,7 +206,6 @@ TASK13:
   batch_size: 256
   train_split: train
   val_split: val
-  start_iteration: 0
 TASK14:
   name: Flickr30kGround
   type: L-logit

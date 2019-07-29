@@ -12,6 +12,7 @@ from pytorch_pretrained_bert.tokenization import BertTokenizer
 from ._image_features_reader import ImageFeaturesH5Reader
 import jsonlines
 import sys
+import pdb
 
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
@@ -230,12 +231,12 @@ class RetreivalDataset(Dataset):
     def __len__(self):
         return len(self._entries)
 
-def _load_annotationsVal(annotations_jsonpath):
+def _load_annotationsVal(annotations_jsonpath, task):
 
     with jsonlines.open(annotations_jsonpath) as reader:
 
         # Build an index which maps image id with a list of caption annotations.
-        image_entries = []
+        image_entries = {}
         caption_entries = []
 
         for annotation in reader:
@@ -244,9 +245,12 @@ def _load_annotationsVal(annotations_jsonpath):
             elif task == 'RetrievalFlickr30k':
                 image_id = int(annotation['img_path'].split('.')[0])
 
+            image_entries[image_id] = 1
+
             for sentences in annotation['sentences']:
-                image_entries.append(image_id)
-                caption_entries.append(sentences)
+                caption_entries.append({"caption": sentences, 'image_id':image_id})
+
+    image_entries = [*image_entries]
 
     return image_entries, caption_entries
 
@@ -262,16 +266,19 @@ class RetreivalDatasetVal(Dataset):
         tokenizer: BertTokenizer,
         padding_index: int = 0,
         max_seq_length: int = 20,
-        max_region_num: int = 37,
+        max_region_num: int = 101,
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
 
-        self._image_entries, self._caption_entries = _load_annotationsVal(annotations_jsonpath)
+        self._image_entries, self._caption_entries = _load_annotationsVal(annotations_jsonpath, task)
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
 
+        self._split = split
         self._padding_index = padding_index
-        self._max_seq_length = max_caption_length
+        self._max_region_num = max_region_num
+        self._max_seq_length = max_seq_length
+        self.num_labels = 1
 
         # cache file path data/cache/train_ques
         # cap_cache_path = "data/cocoRetreival/cache/val_cap.pkl"
@@ -283,20 +290,27 @@ class RetreivalDatasetVal(Dataset):
             # print('loading entries from %s' %(cap_cache_path))
             # self._entries = cPickle.load(open(cap_cache_path, "rb"))
 # 
-        self.features_all = np.zeros((1000, 101, 2048))
-        self.spatials_all = np.zeros((1000, 101, 5))
-        self.image_mask_all = np.zeros((1000, 101))
+        self.features_all = np.zeros((1000, self._max_region_num, 2048))
+        self.spatials_all = np.zeros((1000, self._max_region_num, 5))
+        self.image_mask_all = np.zeros((1000, self._max_region_num))
 
         for i, image_id in enumerate(self._image_entries):
             features, num_boxes, boxes, _ = self._image_features_reader[image_id]
-            image_mask = [1] * (int(num_boxes))
-        
-            while len(image_mask) < 37:
+
+            mix_num_boxes = min(int(num_boxes), self._max_region_num)
+            mix_boxes_pad = np.zeros((self._max_region_num, 5))
+            mix_features_pad = np.zeros((self._max_region_num, 2048))
+
+            image_mask = [1] * (int(mix_num_boxes))
+            while len(image_mask) < self._max_region_num:
                 image_mask.append(0)
 
-            self.features_all[i] = features
+            mix_boxes_pad[:mix_num_boxes] = boxes[:mix_num_boxes]
+            mix_features_pad[:mix_num_boxes] = features[:mix_num_boxes]
+
+            self.features_all[i] = mix_features_pad
             self.image_mask_all[i] = np.array(image_mask)
-            self.spatials_all[i] = boxes
+            self.spatials_all[i] = mix_boxes_pad
 
             sys.stdout.write('%d/%d\r' % (i, len(self._image_entries)))
             sys.stdout.flush()
@@ -337,13 +351,13 @@ class RetreivalDatasetVal(Dataset):
 
     def tensorize(self):
         for entry in self._caption_entries:
-            token = torch.from_numpy(np.array(entry["token"]))
+            token = torch.from_numpy(np.array(entry["token"])).long()
             entry["token"] = token
 
             input_mask = torch.from_numpy(np.array(entry["input_mask"]))
             entry["input_mask"] = input_mask
 
-            segment_ids = torch.from_numpy(np.array(entry["segment_ids"]))
+            segment_ids = torch.from_numpy(np.array(entry["segment_ids"])).long()
             entry["segment_ids"] = segment_ids
 
     def __getitem__(self, index):

@@ -12,8 +12,8 @@ from ._image_features_reader import ImageFeaturesH5Reader
 import _pickle as cPickle
 
 import sys
-sys.path.append("tools/refer")
-from refer import REFER
+#sys.path.append("tools/refer")
+from tools.refer.refer import REFER
 
 def iou(anchors, gt_boxes):
     """

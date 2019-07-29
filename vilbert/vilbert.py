@@ -164,6 +164,7 @@ class BertConfig(object):
         in_batch_pairs=False,
         fusion_method="mul",
         intra_gate=False,
+        with_coattention=True
     ):
 
         """Constructs BertConfig.
@@ -236,6 +237,7 @@ class BertConfig(object):
             self.in_batch_pairs = in_batch_pairs
             self.fusion_method = fusion_method
             self.intra_gate = intra_gate
+            self.with_coattention=with_coattention
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -764,12 +766,12 @@ class BertEncoder(nn.Module):
         # attention and add on two layers.
 
         self.FAST_MODE = config.fast_mode
+        self.with_coattention = config.with_coattention
         self.v_biattention_id = config.v_biattention_id
         self.t_biattention_id = config.t_biattention_id
         self.in_batch_pairs = config.in_batch_pairs
         self.fixed_t_layer = config.fixed_t_layer
         self.fixed_v_layer = config.fixed_v_layer
-
         layer = BertLayer(config)
         v_layer = BertImageLayer(config)
         connect_layer = BertConnectionLayer(config)
@@ -856,13 +858,14 @@ class BertEncoder(nn.Module):
                 txt_embedding = txt_embedding.expand(image_embedding.size(0), txt_embedding.size(1), txt_embedding.size(2))
                 txt_attention_mask = txt_attention_mask.expand(image_embedding.size(0), txt_attention_mask.size(1), txt_attention_mask.size(2), txt_attention_mask.size(3))
 
-            # do the bi attention.
-            image_embedding, txt_embedding, co_attention_probs = self.c_layer[count](
-                image_embedding, image_attention_mask, txt_embedding, txt_attention_mask, co_attention_mask, use_co_attention_mask)
-            
-            # use_co_attention_mask = False
-            if output_all_attention_masks:
-                all_attention_mask_c.append(co_attention_probs)
+            if self.with_coattention:
+                # do the bi attention.
+                image_embedding, txt_embedding, co_attention_probs = self.c_layer[count](
+                    image_embedding, image_attention_mask, txt_embedding, txt_attention_mask, co_attention_mask, use_co_attention_mask)
+                
+                # use_co_attention_mask = False
+                if output_all_attention_masks:
+                    all_attention_mask_c.append(co_attention_probs)
 
             v_start = v_end
             t_start = t_end
@@ -1502,7 +1505,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
         super(VILBertForVLTasks, self).__init__(config)
         self.num_labels = num_labels
         self.bert = BertModel(config)
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(dropout_prob)
         self.cls = BertPreTrainingHeads(
             config, self.bert.embeddings.word_embeddings.weight
         )

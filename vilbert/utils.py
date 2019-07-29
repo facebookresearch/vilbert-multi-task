@@ -41,7 +41,7 @@ def lr_warmup(step, ):
         return pow(cfg["training_parameters"]["lr_ratio"], idx)
 
 class tbLogger(object):
-    def __init__(self, log_dir, task_names, task_ids, task_num_iters, save_logger=True, txt_name='out.txt'):
+    def __init__(self, log_dir, task_names, task_ids, task_num_iters, gradient_accumulation_steps, save_logger=True, txt_name='out.txt'):
         logger.info("logging file at: " + log_dir)
 
         self.save_logger=save_logger
@@ -59,7 +59,7 @@ class tbLogger(object):
         self.task_step_tmp = {task_id:0 for task_id in task_ids}
         self.task_num_iters = task_num_iters
         self.epochId = 0
-
+        self.gradient_accumulation_steps = gradient_accumulation_steps
         self.task_loss_val = {task_id:0 for task_id in task_ids}
         self.task_score_val = {task_id:0 for task_id in task_ids}
         self.task_step_val = {task_id:0 for task_id in task_ids}
@@ -77,8 +77,8 @@ class tbLogger(object):
         self.task_loss_tmp[task_id] += loss
         self.task_score_tmp[task_id] += score
         self.task_norm_tmp[task_id] += norm
-        self.task_step[task_id] += 1
-        self.task_step_tmp[task_id] += 1
+        self.task_step[task_id] += self.gradient_accumulation_steps
+        self.task_step_tmp[task_id] += self.gradient_accumulation_steps
         self.epochId = epochId
 
         # plot on tensorboard.
@@ -88,7 +88,7 @@ class tbLogger(object):
     def step_val(self, epochId, loss, score, task_id, batch_size, split):
         self.task_loss_val[task_id] += loss
         self.task_score_val[task_id] += score
-        self.task_step_val[task_id] += 1
+        self.task_step_val[task_id] += self.gradient_accumulation_steps
         self.task_datasize_val[task_id] += batch_size
 
     def showLossVal(self):
@@ -119,11 +119,13 @@ class tbLogger(object):
         # show the current loss, once showed, reset the loss. 
         lossInfo = ''
         for task_id in self.task_ids:
-            lossInfo += '[%s]: iter %d Ep: %.2f loss %.3f score %.3f lr %.6g ' %(self.task_id2name[task_id], \
-                self.task_step[task_id], self.task_step[task_id] / float(self.task_num_iters[task_id]), \
-                                    self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]), \
-                                    self.task_score_tmp[task_id] / float(self.task_step_tmp[task_id]), \
-                                    self.task_norm_tmp[task_id] / float(self.task_step_tmp[task_id]))
+            if self.task_num_iters[task_id] > 0:
+                if self.task_step_tmp[task_id]:
+                    lossInfo += '[%s]: iter %d Ep: %.2f loss %.3f score %.3f lr %.6g ' %(self.task_id2name[task_id], \
+                        self.task_step[task_id], self.task_step[task_id] / float(self.task_num_iters[task_id]), \
+                                            self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]), \
+                                            self.task_score_tmp[task_id] / float(self.task_step_tmp[task_id]), \
+                                            self.task_norm_tmp[task_id] / float(self.task_step_tmp[task_id]))
         
         logger.info(lossInfo)
         print(lossInfo, file=self.txt_f)

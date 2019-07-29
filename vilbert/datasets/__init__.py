@@ -36,20 +36,8 @@ DatasetMapTrain = {'TASK0': ConceptCapLoaderTrain,
 				   'TASK13': ReferDenseCpationDataset	   
 				   }		
 
-DatasetMapVal = {'TASK0': ConceptCapLoaderVal,
-				 'TASK1': VQAClassificationDataset,
-				 'TASK2': VQAMultipleChoiceDataset,
-				 'TASK4': VisDialDataset,
-				 'TASK6': VCRDataset,
-				 'TASK7': VCRDataset,				   
-				 'TASK8': RetreivalDataset,
-				 'TASK9': RetreivalDataset,
-				 'TASK11': ReferExpressionDataset,	
-				 'TASK12': ReferExpressionDataset,
-				 'TASK13': ReferDenseCpationDataset	   
-				}
 
-DatasetMapTest = {'TASK0': ConceptCapLoaderVal,
+DatasetMapEval = {'TASK0': ConceptCapLoaderVal,
 				 'TASK1': VQAClassificationDataset,
 				 'TASK2': VQAMultipleChoiceDataset,
 				 'TASK4': VisDialDataset,

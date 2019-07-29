@@ -233,7 +233,7 @@ def main():
     task_batch_size, task_num_iters, task_ids, task_datasets_train, task_datasets_val, \
             task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
 
-    tbLogger = utils.tbLogger(timeStamp, task_names, task_ids, task_num_iters)
+    tbLogger = utils.tbLogger(timeStamp, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
     # if n_gpu > 0:
         # torch.cuda.manual_seed_all(args.seed)
@@ -243,6 +243,10 @@ def main():
 
     num_train_optimization_steps = max(task_num_iters.values()) * args.num_train_epochs // args.gradient_accumulation_steps
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
+
+    task_start_iter = {}
+    for task_id, num_iter in task_num_iters.items():
+        task_start_iter[task_id] = num_train_optimization_steps - (task_cfg[task]['num_epoch'] * num_iter // args.gradient_accumulation_steps)
 
     if args.baseline:
         model = BaseBertForVLTasks.from_pretrained(
@@ -372,19 +376,19 @@ def main():
         for step in range(max_num_iter):
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
-                loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task_iter_train, task_dataloader_train, model, task_losses)
-                loss = loss * loss_scale[task_id]
+                if iterId >= task_start_iter[task_id]:
+                    loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_train, task_dataloader_train, model, task_losses, task_start_iter)
+                    loss = loss * loss_scale[task_id]
+                    if args.gradient_accumulation_steps > 1:
+                        loss = loss / args.gradient_accumulation_steps 
 
-                if args.gradient_accumulation_steps > 1:
-                    loss = loss / args.gradient_accumulation_steps 
-                
-                if (step + 1) % args.gradient_accumulation_steps == 0:
-                    optimizer.zero_grad()
                     loss.backward()
-                    optimizer.step()
+                    if (step + 1) % args.gradient_accumulation_steps == 0:
+                        optimizer.step()
+                        model.zero_grad()
 
-                    if default_gpu:
-                        tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.show_lr(), task_id, 'train')
+                        if default_gpu:
+                            tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.show_lr(), task_id, 'train')
 
             if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
                 tbLogger.showLossTrain()

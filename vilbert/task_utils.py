@@ -11,7 +11,7 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from pytorch_pretrained_bert.tokenization import BertTokenizer
-from vilbert.datasets import DatasetMapTrain, DatasetMapVal, DatasetMapTest
+from vilbert.datasets import DatasetMapTrain, DatasetMapEval
 from vilbert.datasets._image_features_reader import ImageFeaturesH5Reader
 import pdb
 
@@ -72,66 +72,65 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
 
     return float(loss), float(batch_score), batch_size
 
-def ForwardModelsTrain(args, task_cfg, device, task_id, iterId, task_count, task_iter_train, task_dataloader_train, model, task_losses):
+def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_train, task_dataloader_train, model, task_losses, task_start_iter):
     # given the current task, decided whether to forward the model and forward with specific loss.
-    start_iteration = task_cfg[task_id]['start_iteration']
-    if iterId >= start_iteration:
-        # reset the task iteration when needed.
-        if task_count[task_id] % len(task_dataloader_train[task_id]) == 0:
-            task_iter_train[task_id] = iter(task_dataloader_train[task_id])
-        
-        task_count[task_id] += 1
-        # get the batch
-        batch = task_iter_train[task_id].next()
-        batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
-        batch_size = features.size(0)
 
-        if task_id in ['TASK2', 'TASK3', 'TASK5', 'TASK6', 'TASK7']:
-            max_num_bbox = features.size(1)
-            num_options = question.size(1)
-            features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
-            spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
-            image_mask = image_mask.unsqueeze(1).expand(batch_size, num_options, max_num_bbox).contiguous().view(-1, max_num_bbox)
-            question = question.view(-1, question.size(2))
-            input_mask = input_mask.view(-1, input_mask.size(2))
-            segment_ids = segment_ids.view(-1, segment_ids.size(2))
-            co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
+    # reset the task iteration when needed.
+    if task_count[task_id] % len(task_dataloader_train[task_id]) == 0:
+        task_iter_train[task_id] = iter(task_dataloader_train[task_id])
+    
+    task_count[task_id] += 1
+    # get the batch
+    batch = task_iter_train[task_id].next()
+    batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
+    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    batch_size = features.size(0)
 
-        elif task_id in ['TASK8', 'TASK9']:
-            max_num_bbox = features.size(1)
-            num_options = question.size(1)
-            features = features.view(-1, features.size(2), features.size(3))
-            spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
-            image_mask = image_mask.view(-1, image_mask.size(2))
-            question = question.view(-1, question.size(2))
-            input_mask = input_mask.view(-1, input_mask.size(2))
-            segment_ids = segment_ids.view(-1, segment_ids.size(2))
-            co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
+    if task_id in ['TASK2', 'TASK3', 'TASK5', 'TASK6', 'TASK7']:
+        max_num_bbox = features.size(1)
+        num_options = question.size(1)
+        features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
+        spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
+        image_mask = image_mask.unsqueeze(1).expand(batch_size, num_options, max_num_bbox).contiguous().view(-1, max_num_bbox)
+        question = question.view(-1, question.size(2))
+        input_mask = input_mask.view(-1, input_mask.size(2))
+        segment_ids = segment_ids.view(-1, segment_ids.size(2))
+        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-        # get the model output
-        vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
+    elif task_id in ['TASK8', 'TASK9']:
+        max_num_bbox = features.size(1)
+        num_options = question.size(1)
+        features = features.view(-1, features.size(2), features.size(3))
+        spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
+        image_mask = image_mask.view(-1, image_mask.size(2))
+        question = question.view(-1, question.size(2))
+        input_mask = input_mask.view(-1, input_mask.size(2))
+        segment_ids = segment_ids.view(-1, segment_ids.size(2))
+        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-        # for different task, we use different output to calculate the loss.
-        if task_cfg[task_id]['type'] == 'VL-classifier':
-            loss = task_losses[task_id](vil_prediction, target)
-            loss = loss.mean() * target.size(1)
-            batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
-        
-        elif task_cfg[task_id]['type'] == 'VL-logit':
-            vil_logit = vil_logit.view(batch_size, num_options)
-            loss = task_losses[task_id](vil_logit, target)
-            _, preds = torch.max(vil_logit, 1)
-            batch_score = float((preds == target).sum()) / float(batch_size)
-            loss = task_losses[task_id](vil_logit, target)
+    # get the model output
+    vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+            model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
 
-        elif task_cfg[task_id]['type'] == 'V-logit':
-            loss = task_losses[task_id](vision_logit, target)
-            loss = loss.mean() * target.size(1)
-            _, select_idx = torch.max(vision_logit, dim=1)
-            select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
-            batch_score = float(torch.sum(select_target>0.5)) / batch_size
+    # for different task, we use different output to calculate the loss.
+    if task_cfg[task_id]['type'] == 'VL-classifier':
+        loss = task_losses[task_id](vil_prediction, target)
+        loss = loss.mean() * target.size(1)
+        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
+    
+    elif task_cfg[task_id]['type'] == 'VL-logit':
+        vil_logit = vil_logit.view(batch_size, num_options)
+        loss = task_losses[task_id](vil_logit, target)
+        _, preds = torch.max(vil_logit, 1)
+        batch_score = float((preds == target).sum()) / float(batch_size)
+        loss = task_losses[task_id](vil_logit, target)
+
+    elif task_cfg[task_id]['type'] == 'V-logit':
+        loss = task_losses[task_id](vision_logit, target)
+        loss = loss.mean() * target.size(1)
+        _, select_idx = torch.max(vision_logit, dim=1)
+        select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
+        batch_score = float(torch.sum(select_target>0.5)) / batch_size
 
     return loss, batch_score
 
@@ -212,7 +211,7 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
 
         task_datasets_val[task] = None
         if 'val' in split:
-            task_datasets_val[task] = DatasetMapVal[task](
+            task_datasets_val[task] = DatasetMapTrain[task](
                                 task=task_cfg[task]['name'],
                                 dataroot=task_cfg[task]['dataroot'],
                                 annotations_jsonpath=task_cfg[task]['val_annotations_jsonpath'],
@@ -292,7 +291,7 @@ def LoadDatasetEval(args, task_cfg, ids):
     for i, task_id in enumerate(ids):
         task = 'TASK' + task_id
         task_ids.append(task)
-        batch_size = task_cfg[task]['eval_batch_size']
+        batch_size =  args.batch_size
         if args.local_rank != -1:
             batch_size = int(batch_size / dist.get_world_size())
         
@@ -304,7 +303,7 @@ def LoadDatasetEval(args, task_cfg, ids):
         else:
             eval_split = task_cfg[task]['val_split']
 
-        task_datasets_val[task] = DatasetMapVal[task](
+        task_datasets_val[task] = DatasetMapEval[task](
                             task=task_cfg[task]['name'],
                             dataroot=task_cfg[task]['dataroot'],
                             annotations_jsonpath=task_cfg[task]['val_annotations_jsonpath'],
@@ -320,7 +319,7 @@ def LoadDatasetEval(args, task_cfg, ids):
             task_datasets_val[task],
             shuffle=False,
             batch_size=batch_size,
-            num_workers=num_workers,
+            num_workers=0,
             pin_memory=True,
         )
 
@@ -339,52 +338,25 @@ def compute_score_with_logits(logits, labels):
 
 def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataloader, task_losses, results, others):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    features, spatials, image_mask, question, target, input_mask, segment_ids, caption_idx, image_idx = batch
     batch_size = features.size(0)
 
-    if task_id in ['TASK2', 'TASK6', 'TASK7']:
-        max_num_bbox = features.size(1)
-        num_options = question.size(1)
-        features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
-        spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
-        image_mask = image_mask.unsqueeze(1).expand(batch_size, num_options, max_num_bbox).contiguous().view(-1, max_num_bbox)
-        question = question.view(-1, question.size(2))
-        input_mask = input_mask.view(-1, input_mask.size(2))
-        segment_ids = segment_ids.view(-1, segment_ids.size(2))
-        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
-
-    elif task_id in ['TASK8', 'TASK9']:
+    if task_id in ['TASK8', 'TASK9']:
         batch_size = features.size(0)
         max_num_bbox = features.size(1)
         num_options = question.size(1)
-        features = features.view(-1, features.size(2), features.size(3))
-        spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
-        image_mask = image_mask.view(-1, image_mask.size(2))
-        question = question.view(-1, question.size(2))
-        input_mask = input_mask.view(-1, input_mask.size(2))
-        segment_ids = segment_ids.view(-1, segment_ids.size(2))
-        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
+        features = features.squeeze(0)
+        spatials = spatials.squeeze(0)
+        image_mask = image_mask.squeeze(0)
 
     with torch.no_grad():
         vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit \
             = model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
-    
-    if task_cfg[task_id]['type'] == 'VL-classifier':
-        logits = torch.max(vil_prediction, 1)[1].data  # argmax
-        sorted_score, sorted_idx = torch.sort(-vil_prediction) 
-        topk = 8 # top candidate.
-        topkInd = sorted_idx[:,:topk]
-        loss = 0
-        batch_score = 0
-        for i in range(logits.size(0)):
-            results.append({'question_id':question_id[i].item(), \
-                    'answer':task_dataloader[task_id].dataset.label2ans[logits[i].item()]})
-            
-            # save top 8 as options.
-            others.append({'question_id':question_id[i].item(), \
-                'answer':[task_dataloader[task_id].dataset.label2ans[idx.item()] for idx in topkInd[i]]})
- 
-    elif task_cfg[task_id]['type'] == 'VL-logit':
+
+        score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = vil_logit.view(-1).cpu().numpy()
+        target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = vil_logit.float().cpu().numpy()
+        
+        pdb.set_trace()
         vil_logit = vil_logit.view(batch_size, num_options)
         loss = task_losses[task_id](vil_logit, target)
         _, preds = torch.max(vil_logit, 1)
@@ -394,11 +366,6 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         for i in range(vil_logit.size(0)):
             results.append({'question_id':question_id[i].item(), 'answer':[prob.item() for prob in probs[i]]})
 
-    elif task_cfg[task_id]['type'] == 'V-logit':
-        loss = task_losses[task_id](vision_logit, target)
-        loss = loss.mean() * target.size(1)
-        _, select_idx = torch.max(vision_logit, dim=1)
-        select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
-        batch_score = torch.sum(select_target>0.5).item()
+
 
     return float(loss), float(batch_score), batch_size, results, others

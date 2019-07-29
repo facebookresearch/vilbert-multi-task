@@ -196,6 +196,9 @@ def main():
     parser.add_argument(
         "--distributed", action="store_true" , help="whether use chunck for parallel training."
     )
+    parser.add_argument(
+        "--without_coattention", action="store_true" , help="whether pair loss."
+    )
     args = parser.parse_args()
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
@@ -220,6 +223,8 @@ def main():
     if args.freeze > config.t_biattention_id[0]:
         config.fixed_t_layer = config.t_biattention_id[0]
 
+    if args.without_coattention:
+        config.with_coattention = False
     # save all the hidden parameters. 
     with open(os.path.join(savePath, 'command.txt'), 'w') as f:
         print(args, file=f)  # Python 3.x
@@ -476,6 +481,9 @@ def main():
                 image_target,
                 is_next,
             )
+
+            if args.without_coattention:
+                next_sentence_loss = next_sentence_loss * 0
 
             masked_loss_v = masked_loss_v * args.img_weight
             loss = masked_loss_t + masked_loss_v + next_sentence_loss
