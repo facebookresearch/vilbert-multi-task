@@ -338,25 +338,52 @@ def compute_score_with_logits(logits, labels):
 
 def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataloader, task_losses, results, others):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-    features, spatials, image_mask, question, target, input_mask, segment_ids, caption_idx, image_idx = batch
+    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    if task_id in ['TASK8', 'TASK9']:
+    if task_id in ['TASK2', 'TASK6', 'TASK7']:
+        max_num_bbox = features.size(1)
+        num_options = question.size(1)
+        features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
+        spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
+        image_mask = image_mask.unsqueeze(1).expand(batch_size, num_options, max_num_bbox).contiguous().view(-1, max_num_bbox)
+        question = question.view(-1, question.size(2))
+        input_mask = input_mask.view(-1, input_mask.size(2))
+        segment_ids = segment_ids.view(-1, segment_ids.size(2))
+        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
+
+    elif task_id in ['TASK8', 'TASK9']:
         batch_size = features.size(0)
         max_num_bbox = features.size(1)
         num_options = question.size(1)
-        features = features.squeeze(0)
-        spatials = spatials.squeeze(0)
-        image_mask = image_mask.squeeze(0)
+        features = features.view(-1, features.size(2), features.size(3))
+        spatials = spatials.view(-1, spatials.size(2), spatials.size(3))
+        image_mask = image_mask.view(-1, image_mask.size(2))
+        question = question.view(-1, question.size(2))
+        input_mask = input_mask.view(-1, input_mask.size(2))
+        segment_ids = segment_ids.view(-1, segment_ids.size(2))
+        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
     with torch.no_grad():
         vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit \
             = model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
 
-        score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = vil_logit.view(-1).cpu().numpy()
-        target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = vil_logit.float().cpu().numpy()
-        
-        pdb.set_trace()
+    if task_cfg[task_id]['type'] == 'VL-classifier':
+        logits = torch.max(vil_prediction, 1)[1].data  # argmax
+        sorted_score, sorted_idx = torch.sort(-vil_prediction) 
+        topk = 8 # top candidate.
+        topkInd = sorted_idx[:,:topk]
+        loss = 0
+        batch_score = 0
+        for i in range(logits.size(0)):
+            results.append({'question_id':question_id[i].item(), \
+                    'answer':task_dataloader[task_id].dataset.label2ans[logits[i].item()]})
+            
+            # save top 8 as options.
+            others.append({'question_id':question_id[i].item(), \
+                'answer':[task_dataloader[task_id].dataset.label2ans[idx.item()] for idx in topkInd[i]]})
+ 
+    elif task_cfg[task_id]['type'] == 'VL-logit':
         vil_logit = vil_logit.view(batch_size, num_options)
         loss = task_losses[task_id](vil_logit, target)
         _, preds = torch.max(vil_logit, 1)
@@ -366,6 +393,11 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         for i in range(vil_logit.size(0)):
             results.append({'question_id':question_id[i].item(), 'answer':[prob.item() for prob in probs[i]]})
 
-
+    elif task_cfg[task_id]['type'] == 'V-logit':
+        loss = task_losses[task_id](vision_logit, target)
+        loss = loss.mean() * target.size(1)
+        _, select_idx = torch.max(vision_logit, dim=1)
+        select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
+        batch_score = torch.sum(select_target>0.5).item()
 
     return float(loss), float(batch_score), batch_size, results, others

@@ -16,7 +16,7 @@ from tqdm import tqdm, trange
 import torch
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
-from parallel.data_parallel import DataParallel
+# from parallel.data_parallel import DataParallel
 from tensorboardX import SummaryWriter
 
 from pytorch_pretrained_bert.tokenization import BertTokenizer
@@ -342,7 +342,7 @@ def main():
             )
         model = DDP(model)
     elif n_gpu > 1:
-        model = DataParallel(model, use_chuncks=args.use_chuncks)
+        model = torch.nn.DataParallel(model)
 
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 

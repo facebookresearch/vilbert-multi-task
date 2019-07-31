@@ -20,7 +20,7 @@ import torch.nn as nn
 
 from pytorch_pretrained_bert.optimization import WarmupLinearSchedule
 
-from parallel.parallel import DataParallelModel, DataParallelCriterion
+# from parallel.parallel import DataParallelModel, DataParallelCriterion
 
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
 from vilbert.optimization import BertAdam, Adam, Adamax
@@ -269,7 +269,7 @@ def main():
         model = DDP(model, delay_allreduce=True)
 
     elif n_gpu > 1:
-        model = DataParallelModel(model)
+        model = torch.nn.DataParallel(model)
 
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 

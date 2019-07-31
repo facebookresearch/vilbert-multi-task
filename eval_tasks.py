@@ -102,6 +102,9 @@ def main():
         "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
     )
     parser.add_argument(
+        "--batch_size", default=1024, type=int, help="what is the batch size?"
+    )
+    parser.add_argument(
         "--tasks", default='', type=str, help="1-2-3... training task separate by -"
     )
     parser.add_argument(
@@ -134,7 +137,7 @@ def main():
         task_names.append(name)
 
     # timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
-    timeStamp = args.from_pretrained.split('/')[1]
+    timeStamp = args.from_pretrained.split('/')[1] + '-' + args.save_name
     savePath = os.path.join(args.output_dir, timeStamp)
 
     config = BertConfig.from_json_file(args.config_file)
@@ -170,7 +173,7 @@ def main():
     task_batch_size, task_num_iters, task_ids, task_datasets_val, task_dataloader_val \
                         = LoadDatasetEval(args, task_cfg, args.tasks.split('-'))
 
-    tbLogger = utils.tbLogger(timeStamp, task_names, task_ids, task_num_iters, save_logger=False, txt_name='eval.txt')
+    tbLogger = utils.tbLogger(timeStamp, savePath, task_names, task_ids, task_num_iters, 1, save_logger=False, txt_name='eval.txt')
 
     num_labels = max([dataset.num_labels for dataset in task_datasets_val.values()])
 
@@ -222,7 +225,8 @@ def main():
         if args.split:
             json_path = os.path.join(savePath, args.split)           
         else:
-            json_path = os.path.join(savePath, task_cfg[task_id]['val_split'])   
+            json_path = os.path.join(savePath, task_cfg[task_id]['val_split'])
+
         json.dump(results, open(json_path+ '_result.json', 'w'))
         json.dump(others, open(json_path+ '_others.json', 'w'))
 

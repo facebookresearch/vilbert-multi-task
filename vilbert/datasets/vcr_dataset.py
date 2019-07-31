@@ -61,17 +61,26 @@ def _load_annotationsQA_R(annotations_jsonpath, split):
         for annotation in json_lines.reader(f):
             # metadata_fn = json.load(open(os.path.join('data/VCR/vcr1images', annotation["metadata_fn"]), 'r'))
             # det_names = metadata_fn["names"]
-            det_names = ""
-            question = annotation["question"] + ["[SEP]"] + annotation["answer_choices"][annotation['answer_label']]
             if split == 'test':
-                ans_label = 0
+                # for each answer
+                for answer in annotation["answer_choices"]:
+                    question = annotation["question"] + ["[SEP]"] + answer   
+                    img_id = _converId(annotation["img_id"])
+                    ans_label = 0
+                    anno_id = int(annotation["annot_id"].split('-')[1])
+                    entries.append(
+                        {"question": question, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
+                    )
             else:
+                det_names = ""
+                question = annotation["question"] + ["[SEP]"] + annotation["answer_choices"][annotation['answer_label']]    
                 ans_label = annotation["rationale_label"]
-            # img_fn = annotation["img_fn"]
-            img_id = _converId(annotation["img_id"])
-            entries.append(
-                {"question": question, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
-            )
+                # img_fn = annotation["img_fn"]
+                img_id = _converId(annotation["img_id"])
+                anno_id = int(annotation["annot_id"].split('-')[1])
+                entries.append(
+                    {"question": question, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id, 'anno_id':anno_id}
+                )
 
     return entries
 
@@ -309,7 +318,8 @@ class VCRDataset(Dataset):
         target = int(entry["target"])
 
         if self._split == 'test':
-            anno_id = entry["anno_id"]
+            # anno_id = entry["anno_id"]
+            anno_id = 0#entry["anno_id"]
         else:
             anno_id = entry["img_id"]
 

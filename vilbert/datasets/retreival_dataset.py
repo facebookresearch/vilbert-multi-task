@@ -150,7 +150,6 @@ class RetreivalDataset(Dataset):
         caption1 = entry["token"]
         input_mask1 = entry["input_mask"]
         segment_ids1 = entry["segment_ids"]
-
         # negative samples.
         # 1: correct one, 2: random caption wrong, 3: random image wrong. 4: hard image wrong.
         
