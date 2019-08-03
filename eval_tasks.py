@@ -21,8 +21,6 @@ import torch.nn as nn
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
 from vilbert.task_utils import LoadDatasetEval, LoadLosses, ForwardModelsTrain, ForwardModelsVal, EvaluatingModel
-from vilbert.vilbert import VILBertForVLTasks
-from vilbert.basebert import BaseBertForVLTasks
 
 import vilbert.utils as utils
 import torch.distributed as dist
@@ -127,8 +125,10 @@ def main():
 
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
+        from vilbert.basebert import BaseBertForVLTasks     
     else:
         from vilbert.vilbert import BertConfig
+        from vilbert.vilbert import VILBertForVLTasks
 
     task_names = []
     for i, task_id in enumerate(args.tasks.split('-')):

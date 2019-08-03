@@ -319,7 +319,7 @@ def LoadDatasetEval(args, task_cfg, ids):
             task_datasets_val[task],
             shuffle=False,
             batch_size=batch_size,
-            num_workers=0,
+            num_workers=10,
             pin_memory=True,
         )
 
@@ -399,5 +399,8 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         _, select_idx = torch.max(vision_logit, dim=1)
         select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
         batch_score = torch.sum(select_target>0.5).item()
+
+        for i in range(select_idx.size(0)):
+            results.append({'id':question_id[i].item(), 'target':select_idx[i].item(), 'IOU': select_target[i].item()})
 
     return float(loss), float(batch_score), batch_size, results, others

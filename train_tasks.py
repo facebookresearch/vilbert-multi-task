@@ -233,7 +233,7 @@ def main():
     task_batch_size, task_num_iters, task_ids, task_datasets_train, task_datasets_val, \
             task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
 
-    tbLogger = utils.tbLogger(timeStamp, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
+    tbLogger = utils.tbLogger(timeStamp, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
     # if n_gpu > 0:
         # torch.cuda.manual_seed_all(args.seed)
@@ -245,8 +245,10 @@ def main():
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
     task_start_iter = {}
+    task_interval = {}
     for task_id, num_iter in task_num_iters.items():
         task_start_iter[task_id] = num_train_optimization_steps - (task_cfg[task]['num_epoch'] * num_iter // args.gradient_accumulation_steps)
+        task_interval[task_id] = num_train_optimization_steps // (task_cfg[task]['num_epoch'] * num_iter // args.gradient_accumulation_steps)
 
     if args.baseline:
         model = BaseBertForVLTasks.from_pretrained(
@@ -377,6 +379,7 @@ def main():
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
                 if iterId >= task_start_iter[task_id]:
+                # if iterId % task_interval[task_id] == 0:
                     loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_train, task_dataloader_train, model, task_losses, task_start_iter)
                     loss = loss * loss_scale[task_id]
                     if args.gradient_accumulation_steps > 1:
