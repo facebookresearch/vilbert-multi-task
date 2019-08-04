@@ -86,7 +86,7 @@ TASK6:
   train_split: train
   val_split: val
   lr: 0.00002
-  num_epoch: 20
+  num_epoch: 10
 TASK7:
   name: VCR_QA-R
   type: VL-logit
@@ -103,7 +103,7 @@ TASK7:
   train_split: train
   val_split: val
   lr: 0.00002
-  num_epoch: 20
+  num_epoch: 10
 TASK8:
   name: RetrievalCOCO
   type: VL-logit

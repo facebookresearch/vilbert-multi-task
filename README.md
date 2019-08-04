@@ -1,5 +1,13 @@
-# ViLBERT
-Code and experiment for multi-modal bert to learn the vision and language representations. 
+
+# ViLBERT <img src="fig/vilbert_trim.png" width="45">
+
+Code and pre-trained models for **ViLBERT: Pretraining Task-Agnostic VisiolinguisticRepresentations for Vision-and-Language Tasks**. 
+
+<p align="center">
+<img src="fig/vilbert.png" width="400" >
+</p>
+
+
 
 ## Repository Setup
 
@@ -41,7 +49,7 @@ To train the model:
 
 ```
 
-## Vision-Lanugage Benchmark
+## Benchmark Vision-Lanugage Tasks 
 
 | Task    | Sub-Task | Model | LR   | Results (split) |
 |:-------:|:------:|:---:|:------:|:--------------------------------------:|
@@ -65,28 +73,29 @@ To train the model:
 |-|Caption Retrieval|SCAN|-|-|
 
 
-## TASK: VQA 
+## TASKS
+###VQA 
 
 ```
 
 ```
 
-## TASK: VCR
+### VCR
 ```
 
 ```
 
-## TASK: Refer Expression
+### Refer Expression
 ```
 
 ```
 
-## TASK: Image Retrieval
+### Image Retrieval
 ```
 
 ```
 
-## Add your own tasks
+### Add your own tasks
 ```
 
 ```

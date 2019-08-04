@@ -71,7 +71,7 @@ def main():
     )
     parser.add_argument(
         "--num_train_epochs",
-        default=20,
+        default=10,
         type=int,
         help="Total number of training epochs to perform.",
     )
@@ -233,6 +233,7 @@ def main():
 
     task_batch_size, task_num_iters, task_ids, task_datasets_train, task_datasets_val, \
             task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
+    
     logdir = os.path.join('logs', timeStamp)
     tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
@@ -344,8 +345,7 @@ def main():
                         cooldown=1,
                         threshold=0.001)
     elif args.lr_scheduler == 'mannul':
-        lr_reduce_list = np.array([12, 16])
-        # lr_reduce_list = np.array([6, 8, 10])        
+        lr_reduce_list = np.array([6, 8])
         def lr_lambda_fun(epoch):
             return pow(0.1, np.sum(lr_reduce_list <= epoch))
         lr_scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda_fun)
@@ -376,7 +376,6 @@ def main():
                     if (step + 1) % args.gradient_accumulation_steps == 0:
                         scheduler.step()
                         optimizer.step()
-
                         model.zero_grad()
 
                         if default_gpu:
