@@ -44,9 +44,9 @@ To train the model:
 ## Vision-Lanugage Benchmark
 
 Task    | Sub-Task | Model | LR   | Results (split) 
-:-------:|:------:|:---:|:------:|:---:
+:-------:|:------:|:---:|:------:|:--------------------------------------:
  **VQA** | - | **ViLBERT** | 4e-5 | **70.55** (test-dev) 
- | - | DFAF | - |70.22 (test-dev)
+ | - | DFAF | - |70.22 (test-dev) ||
 **VCR**   | Q->A | **ViLBERT** | 2e-5 | **73.3** (test) 
 |Q->A|R2C|-|63.8 (test)
 **VCR** | QA->R | **ViLBERT** | 2e-5 | **74.6** (test) 

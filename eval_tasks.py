@@ -18,8 +18,6 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from pytorch_transformers.optimization import BertAdam, WarmupLinearSchedule
-
 from vilbert.task_utils import LoadDatasetEval, LoadLosses, ForwardModelsTrain, ForwardModelsVal, EvaluatingModel
 
 import vilbert.utils as utils
@@ -117,7 +115,7 @@ def main():
 
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
-        task_cfg = edict(yaml.load(f))
+        task_cfg = edict(yaml.safe_load(f))
 
     random.seed(args.seed)
     np.random.seed(args.seed)
