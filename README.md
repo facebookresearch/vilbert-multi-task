@@ -46,23 +46,23 @@ To train the model:
 Task    | Sub-Task | Model | LR   | Results (split) 
 :-------:|:------:|:---:|:------:|:--------------------------------------:
  **VQA** | - | **ViLBERT** | 4e-5 | **70.55** (test-dev) 
- | - | DFAF | - |70.22 (test-dev) ||
+ - | - | DFAF | - |70.22 (test-dev) 
 **VCR**   | Q->A | **ViLBERT** | 2e-5 | **73.3** (test) 
-|Q->A|R2C|-|63.8 (test)
+-|Q->A|R2C|-|63.8 (test)
 **VCR** | QA->R | **ViLBERT** | 2e-5 | **74.6** (test) 
- | QA->R | R2C | - | 67.3 (test) 
+ - | QA->R | R2C | - | 67.3 (test) 
 **VCR** | Q->AR | **ViLBERT** | 2e-5 |   **54.8** (test)    
- | Q->AR | R2C | - | 44.0 (test) 
+ - | Q->AR | R2C | - | 44.0 (test) 
 **Ref Expression** | RefCOCO+ | **ViLBERT** | 4e-5 | **72.34** (val) - **78.52** (testA) - **62.61** (testB) 
-|RefCOCO+|MAttNet|-|65.33 (val) - 71.62 (testA) - 56.02 (testB)
+-|RefCOCO+|MAttNet|-|65.33 (val) - 71.62 (testA) - 56.02 (testB)
 **Ref Expression**|RefCOCO|**ViLBERT**|4e-5|-
-|RefCOCO|MAttNet|-|-
+-|RefCOCO|MAttNet|-|-
 **Ref Expression**|Refg|**ViLBERT**|4e-5|-
-|Refg|MAttNet|-|-
+-|Refg|MAttNet|-|-
 **Image Caption Ranking**|Image Retrieval|**ViLBERT**|2e-5|**58.20** (R1) - **84.90** (R5) - **91.52** (R10)
-|Image Retrieval|SCAN|-|48.60 (R1) - 77.70 (R5) - 85.20 (R10)
+-|Image Retrieval|SCAN|-|48.60 (R1) - 77.70 (R5) - 85.20 (R10)
 **Image Caption Ranking**|Caption Retrieval|**ViLBERT**|2e-5|-
-|Caption Retrieval|SCAN|-|-
+-|Caption Retrieval|SCAN|-|-
 
 
 ## TASK: VQA 
