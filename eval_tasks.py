@@ -18,7 +18,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
+from pytorch_transformers.optimization import BertAdam, WarmupLinearSchedule
 
 from vilbert.task_utils import LoadDatasetEval, LoadLosses, ForwardModelsTrain, ForwardModelsVal, EvaluatingModel
 

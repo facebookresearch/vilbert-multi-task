@@ -18,12 +18,13 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from pytorch_pretrained_bert.optimization import WarmupLinearSchedule
+# from pytorch_transformers.optimization import WarmupLinearSchedule
+from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
 # from parallel.parallel import DataParallelModel, DataParallelCriterion
 
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
-from vilbert.optimization import BertAdam, Adam, Adamax
+# from vilbert.optimization import BertAdam, Adam
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
 import vilbert.utils as utils
@@ -129,7 +130,7 @@ def main():
         "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
     )
     parser.add_argument(
-        "--optimizer", default='BertAdam', type=str, help="whether use chunck for parallel training."
+        "--optimizer", default='AdamW', type=str, help="whether use chunck for parallel training."
     )
     parser.add_argument(
         "--tasks", default='', type=str, help="1-2-3... training task separate by -"
@@ -155,7 +156,7 @@ def main():
     )
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
-        task_cfg = edict(yaml.load(f))
+        task_cfg = edict(yaml.safe_load(f))
 
     # random.seed(args.seed)
     # np.random.seed(args.seed)
@@ -232,8 +233,8 @@ def main():
 
     task_batch_size, task_num_iters, task_ids, task_datasets_train, task_datasets_val, \
             task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
-
-    tbLogger = utils.tbLogger(timeStamp, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
+    logdir = os.path.join('logs', timeStamp)
+    tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
     # if n_gpu > 0:
         # torch.cuda.manual_seed_all(args.seed)
@@ -324,30 +325,16 @@ def main():
     max_num_iter = max(task_num_iters.values())
     max_batch_size = max(task_batch_size.values())
     
-    if args.optimizer == 'BertAdam':
-        optimizer = BertAdam(
-            optimizer_grouped_parameters,
-            lr=args.learning_rate,
-            warmup=args.warmup_proportion,
-            t_total=num_train_optimization_steps,
-            schedule='warmup_constant',
-        )
-    elif args.optimizer == 'Adam':
-        optimizer = Adam(
-            optimizer_grouped_parameters,
-            lr=base_lr,
-            warmup=args.warmup_proportion,
-            t_total=num_train_optimization_steps,
-            schedule='warmup_constant',
-        )
-    elif args.optimizer == 'Adamax':
-        optimizer = Adamax(
-            optimizer_grouped_parameters,
-            lr=base_lr,
-            warmup=args.warmup_proportion,
-            t_total=num_train_optimization_steps,
-            schedule='warmup_constant',
-        )        
+    if args.optimizer == 'AdamW':
+        # optimizer = BertAdam(
+        #     optimizer_grouped_parameters,
+        #     lr=args.learning_rate,
+        #     warmup=args.warmup_proportion,
+        #     t_total=num_train_optimization_steps,
+        #     schedule='warmup_constant',
+        # )
+        optimizer = AdamW(model.parameters(), lr=lr, correct_bias=False)  # To reproduce BertAdam specific behavior set correct_bias=False
+        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion, t_total=num_train_optimization_steps)  # PyTorch scheduler
 
     if args.lr_scheduler == 'automatic':
         lr_scheduler = ReduceLROnPlateau(optimizer, \
@@ -387,11 +374,13 @@ def main():
 
                     loss.backward()
                     if (step + 1) % args.gradient_accumulation_steps == 0:
+                        scheduler.step()
                         optimizer.step()
+
                         model.zero_grad()
 
                         if default_gpu:
-                            tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.show_lr(), task_id, 'train')
+                            tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer_grouped_parameters[0]['lr'], task_id, 'train')
 
             if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
                 tbLogger.showLossTrain()
@@ -420,8 +409,6 @@ def main():
                 model.module if hasattr(model, "module") else model
             )  # Only save the model it-self
 
-            if not os.path.exists(savePath):
-                os.makedirs(savePath)
             output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
             torch.save(model_to_save.state_dict(), output_model_file)
 
