@@ -1,12 +1,7 @@
 
 # ViLBERT <img src="fig/vilbert_trim.png" width="45">
 
-Code and pre-trained models for **ViLBERT: Pretraining Task-Agnostic VisiolinguisticRepresentations for Vision-and-Language Tasks**. 
-
-<p align="center">
-<img src="fig/vilbert.png" width="400" >
-</p>
-
+Code and pre-trained models for **ViLBERT: Pretraining Task-Agnostic VisiolinguisticRepresentations for Vision-and-Language Tasks**.
 
 
 ## Repository Setup
@@ -33,20 +28,22 @@ conda install pytorch torchvision cudatoolkit=10.0 -c pytorch
 python setup.py develop
 ```
 
-## Visiolinguistic Pre-training
+## Data Setup
 
-```
-mkdir data
-cd data
-mkdir conceptual_caption
-ln -s /srv/share2/jlu347/conceptual_caption/training_2 ./conceptual_caption/training
-ln -s /srv/share2/jlu347/conceptual_caption/validation ./conceptual_caption/validation
-```
+Check `README.md` under `data` for more details.  
+
+## Visiolinguistic Pre-training
 
 To train the model: 
 
 ```
+To be added
+```
 
+For internal use: copy the pre-trained checkpoint from Skynet 
+
+```
+cp -a /srv/share3/jlu347/vilbert/save/* #to_your_directory.
 ```
 
 ## Benchmark Vision-Lanugage Tasks 
@@ -74,29 +71,39 @@ To train the model:
 
 
 ## TASKS
-###VQA 
+### VQA 
 
-```
+To fintune a 6-layer vilbert model for VQA with 8 GPU. `--tasks 1` means VQA tasks. Check `vlbert_tasks.yml` for more settings for VQA tasks.  
 
+```bash
+python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 train_tasks.py --bert_model bert-base-uncased --from_pretrained save/bert_base_6_layer_6_connect_freeze_0/pytorch_model_8.bin  --config_file config/bert_base_6layer_6conect.json  --learning_rate 4e-5 --num_workers 16 --tasks 1 --save_name pretrained
 ```
 
 ### VCR
-```
 
+Similarly, to finetune a 6-layer vilbert model for VCR task, run the following commands. Here we joint train `Q->A ` and `QA->R` tasks, so the tasks is specified as `--tasks 6-7`
+
+```
+python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 train_tasks.py --bert_model bert-base-uncased --from_pretrained save/bert_base_6_layer_6_connect_freeze_0/pytorch_model_8.bin  --config_file config/bert_base_6layer_6conect.json  --learning_rate 2e-5 --num_workers 16 --tasks 6-7 --save_name pretrained
 ```
 
 ### Refer Expression
 ```
-
+python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 train_tasks.py --bert_model bert-base-uncased --from_pretrained save/bert_base_6_layer_6_connect_freeze_0/pytorch_model_8.bin  --config_file config/bert_base_6layer_6conect.json  --learning_rate 4e-5 --num_workers 16 --tasks 11 --save_name pretrained
 ```
 
 ### Image Retrieval
 ```
-
+python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 train_tasks.py --bert_model bert-base-uncased --from_pretrained save/bert_base_6_layer_6_connect_freeze_0/pytorch_model_8.bin  --config_file config/bert_base_6layer_6conect.json  --learning_rate 4e-5 --num_workers 9 --tasks 11 --save_name pretrained
 ```
 
 ### Add your own tasks
 ```
 
 ```
+## Why does ViLBERT look like <img src="fig/vilbert_trim.png" width="45">? 
+
+<p align="center">
+<img src="fig/vilbert.png" width="400" >
+</p>
 
