@@ -22,7 +22,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 class InputExample(object):
     """A single training/test example for the language model."""
 
@@ -115,21 +114,20 @@ class ConceptCapLoaderTrain(object):
         visualization=False,
     ):
 
-        if dist.is_available() and distributed:
-            num_replicas = dist.get_world_size()
+        # if dist.is_available() and distributed:
+            # num_replicas = dist.get_world_size()
             # assert num_replicas == 8
-            rank = dist.get_rank()
-            lmdb_file = "/coc/dataset/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
+            # rank = dist.get_rank()
+            # lmdb_file = "/coc/dataset/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
             # if not os.path.exists(lmdb_file):
             # lmdb_file = "/srv/share/datasets/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
-        else:
+        # else:
             # lmdb_file = "/coc/dataset/conceptual_caption/training_feat_all.lmdb"
             # if not os.path.exists(lmdb_file):
-            lmdb_file = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/training_feat_all.lmdb"
-            
-        caption_path = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/caption_train.json"
-        print("Loading from %s" % lmdb_file)
+        lmdb_file = os.path.join(corpus_path, "training_feat_all.lmdb")
+        caption_path = os.path.join(corpus_path, "caption_train.json")
 
+        print("Loading from %s" % lmdb_file)
         ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
         self.num_dataset = len(ds)
 
@@ -174,9 +172,9 @@ class ConceptCapLoaderTrain(object):
             image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
 
             batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_label, image_mask, image_id)
+            image_loc, image_target, image_label, image_mask)
 
-            yield tuple(torch.tensor(data) for data in batch)
+            yield tuple([torch.tensor(data) for data in batch] + [image_id])
 
     def __len__(self):
         return self.ds.size()
@@ -221,11 +219,13 @@ class ConceptCapLoaderVal(object):
         visualization=False,
     ):
     
-        lmdb_file = "/coc/dataset/conceptual_caption/validation_feat_all.lmdb"
-        if not os.path.exists(lmdb_file):
-            lmdb_file = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/validation_feat_all.lmdb"
-        caption_path = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/caption_val.json"
+        # lmdb_file = "/coc/dataset/conceptual_caption/validation_feat_all.lmdb"
+        # if not os.path.exists(lmdb_file):
+            # lmdb_file = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/validation_feat_all.lmdb"
+        # caption_path = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/caption_val.json"
 
+        lmdb_file = os.path.join(corpus_path, "validation_feat_all.lmdb")
+        caption_path = os.path.join(corpus_path, "caption_val.json")
         print("Loading from %s" % lmdb_file)
 
         ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
