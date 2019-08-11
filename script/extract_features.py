@@ -13,12 +13,9 @@ from maskrcnn_benchmark.layers import nms
 from maskrcnn_benchmark.modeling.detector import build_detection_model
 from maskrcnn_benchmark.structures.image_list import to_image_list
 from maskrcnn_benchmark.utils.model_serialization import load_state_dict
-from pythia.utils.general import download_file
 
 
 class FeatureExtractor:
-    MODEL_URL = "https://dl.fbaipublicfiles.com/vqa-maskrcnn-benchmark/faster_rcnn_resnext_152.pth"
-    CONFIG_URL = "https://dl.fbaipublicfiles.com/vqa-maskrcnn-benchmark/faster_rcnn_resnext_152.yaml"
     MAX_SIZE = 1333
     MIN_SIZE = 800
 
@@ -27,14 +24,6 @@ class FeatureExtractor:
         self.detection_model = self._build_detection_model()
 
         os.makedirs(self.args.output_folder, exist_ok=True)
-
-    def _try_downloading_necessities(self):
-        if self.args.model_file is None:
-            print("Downloading model and configuration")
-            self.args.model_file = self.MODEL_URL.split("/")[-1]
-            self.args.config_file = self.CONFIG_URL.split("/")[-1]
-            download_file(self.MODEL_URL)
-            download_file(self.CONFIG_URL)
 
     def get_parser(self):
         parser = argparse.ArgumentParser()
