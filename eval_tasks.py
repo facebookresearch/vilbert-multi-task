@@ -122,7 +122,7 @@ def main():
     torch.manual_seed(args.seed)
 
     if args.baseline:
-        from pytorch_pretrained_bert.modeling import BertConfig
+        from pytorch_transformers.modeling_bert import BertConfig
         from vilbert.basebert import BaseBertForVLTasks     
     else:
         from vilbert.vilbert import BertConfig

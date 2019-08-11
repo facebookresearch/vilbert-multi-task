@@ -654,9 +654,8 @@ class BertBiAttention(nn.Module):
         attention_scores1 = torch.matmul(query_layer2, key_layer1.transpose(-1, -2))
         attention_scores1 = attention_scores1 / math.sqrt(self.attention_head_size)
         attention_scores1 = attention_scores1 + attention_mask1
-
-        if use_co_attention_mask:
-            attention_scores1 = attention_scores1 + co_attention_mask.permute(0,1,3,2)
+        # if use_co_attention_mask:
+            # attention_scores1 = attention_scores1 + co_attention_mask.permute(0,1,3,2)
 
         # Normalize the attention scores to probabilities.
         attention_probs1 = nn.Softmax(dim=-1)(attention_scores1)
@@ -677,8 +676,8 @@ class BertBiAttention(nn.Module):
 
         # we can comment this line for single flow. 
         attention_scores2 = attention_scores2 + attention_mask2
-        if use_co_attention_mask:
-            attention_scores2 = attention_scores2 + co_attention_mask
+        # if use_co_attention_mask:
+            # attention_scores2 = attention_scores2 + co_attention_mask
 
         # Normalize the attention scores to probabilities.
         attention_probs2 = nn.Softmax(dim=-1)(attention_scores2)

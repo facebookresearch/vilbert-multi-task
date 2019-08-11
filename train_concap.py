@@ -16,11 +16,10 @@ from tqdm import tqdm, trange
 import torch
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
-# from parallel.data_parallel import DataParallel
 from tensorboardX import SummaryWriter
 
-from pytorch_pretrained_bert.tokenization import BertTokenizer
-from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
+from pytorch_transformers.tokenization_bert import BertTokenizer
+from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
 from vilbert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
 from vilbert.vilbert import BertForMultiModalPreTraining, BertConfig
@@ -35,23 +34,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 def main():
     parser = argparse.ArgumentParser()
 
     # Required parameters
     parser.add_argument(
-        "--train_file",
-        default="data/conceptual_caption/training",
+        "--file_path",
+        default="/srv/share/vgoswami8/conceptual_captions",
         type=str,
-        # required=True,
-        help="The input train corpus.",
-    )
-    parser.add_argument(
-        "--validation_file",
-        default="data/conceptual_caption/validation",
-        type=str,
-        # required=True,
         help="The input train corpus.",
     )
     parser.add_argument(
@@ -78,9 +68,8 @@ def main():
 
     parser.add_argument(
         "--config_file",
-        default="config/bert_config.json",
         type=str,
-        # required=True,
+        required=True,
         help="The config file which specified the model details.",
     )
     ## Other parameters
@@ -93,7 +82,6 @@ def main():
         "than this will be padded.",
     )
     parser.add_argument("--predict_feature", action="store_true", help="visual target.")
-
     parser.add_argument(
         "--train_batch_size",
         default=512,
@@ -176,7 +164,6 @@ def main():
         default=3,
         help="Number of workers in the dataloader.",
     )
-
     parser.add_argument(
         "--save_name",
         default='',
@@ -191,14 +178,15 @@ def main():
         help="till which layer of textual stream of vilbert need to fixed."
     )
     parser.add_argument(
-        "--use_chuncks", default=0, type=float, help="whether use chunck for parallel training."
-    )
-    parser.add_argument(
         "--distributed", action="store_true" , help="whether use chunck for parallel training."
     )
     parser.add_argument(
         "--without_coattention", action="store_true" , help="whether pair loss."
     )
+    parser.add_argument("--adam_epsilon", 
+                        default=1e-8, 
+                        type=float,
+                        help="Epsilon for Adam optimizer.")
     args = parser.parse_args()
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
@@ -225,6 +213,7 @@ def main():
 
     if args.without_coattention:
         config.with_coattention = False
+
     # save all the hidden parameters. 
     with open(os.path.join(savePath, 'command.txt'), 'w') as f:
         print(args, file=f)  # Python 3.x
@@ -272,11 +261,10 @@ def main():
     )
 
     num_train_optimization_steps = None
-
     viz = TBlogger("logs", timeStamp)
 
     train_dataset = ConceptCapLoaderTrain(
-        args.train_file,
+        args.file_path,
         tokenizer,
         seq_len=args.max_seq_length,
         batch_size=args.train_batch_size,
@@ -284,9 +272,9 @@ def main():
         num_workers=args.num_workers,
         distributed=args.distributed,
     )
-
+    
     validation_dataset = ConceptCapLoaderVal(
-        args.validation_file,
+        args.file_path,
         tokenizer,
         seq_len=args.max_seq_length,
         batch_size=args.train_batch_size,
@@ -424,21 +412,9 @@ def main():
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
 
     else:
-        if args.from_pretrained:
-            optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
-                
-            )
+        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
 
-        else:
-            optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                lr=args.learning_rate,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
-            )
+    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion*num_train_optimization_steps, t_total=num_train_optimization_steps)
 
     logger.info("***** Running training *****")
     logger.info("  Num examples = %d", train_dataset.num_dataset)
@@ -453,19 +429,17 @@ def main():
     loss_tmp = 0
     start_t = timer()
 
-    # t1 = timer()
     for epochId in range(int(args.start_epoch), int(args.num_train_epochs)):
         model.train()
         tr_loss = 0
         nb_tr_examples, nb_tr_steps = 0, 0
 
-        # iter_dataloader = iter(train_dataloader)
         for step, batch in enumerate(train_dataset):
             iterId = startIterID + step + (epochId * len(train_dataset))
-            # batch = iter_dataloader.next()
-            batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
+            image_ids = batch[-1]
+            batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch[:-1])
 
-            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask, image_ids = (
+            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
                 batch
             )
 
@@ -489,7 +463,7 @@ def main():
             loss = masked_loss_t + masked_loss_v + next_sentence_loss
 
             if n_gpu > 1:
-                loss = loss.mean()  # mean() to average on multi-gpu.
+                loss = loss.mean()
                 masked_loss_t = masked_loss_t.mean()
                 masked_loss_v = masked_loss_v.mean()
                 next_sentence_loss = next_sentence_loss.mean()
@@ -499,14 +473,10 @@ def main():
                 optimizer.backward(loss)
             else:
                 loss.backward()
-
-            if math.isnan(loss.item()):
-                pdb.set_trace()
-
+    
             tr_loss += loss.item()
 
             rank = 0
-
             if dist.is_available() and args.distributed:
                 rank = dist.get_rank()
             else:
@@ -537,7 +507,8 @@ def main():
                     )
                     for param_group in optimizer.param_groups:
                         param_group["lr"] = lr_this_step
-
+                
+                scheduler.step()
                 optimizer.step()
                 optimizer.zero_grad()
                 global_step += 1
@@ -563,7 +534,8 @@ def main():
                     masked_loss_v_tmp,
                     masked_loss_t_tmp,
                     next_sentence_loss_tmp,
-                    optimizer.get_lr()[0],
+                    0,
+                    # optimizer.get_lr()[0],
                 ]
                 
                 start_t = end_t
@@ -585,9 +557,11 @@ def main():
 
         model.eval()
         for step, batch in enumerate(validation_dataset):
-            batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask, image_ids = (
+            image_ids = batch[-1]
+            batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch[:-1])
+
+            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
                 batch
             )
 
@@ -613,7 +587,6 @@ def main():
                 masked_loss_v = masked_loss_v.mean()
                 next_sentence_loss = next_sentence_loss.mean()
 
-            
             eval_masked_loss_t += masked_loss_t.item()
             eval_masked_loss_v += masked_loss_v.item()
             eval_next_sentence_loss += next_sentence_loss.item()
