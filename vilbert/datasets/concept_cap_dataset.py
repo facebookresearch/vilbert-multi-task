@@ -48,7 +48,7 @@ class InputExample(object):
 
 class InputFeatures(object):
     """A single set of features of data."""
-
+    
     def __init__(
         self,
         input_ids=None,
@@ -111,9 +111,9 @@ class ConceptCapLoaderTrain(object):
         drop_last=False,
         cuda=False,
         distributed=False,
+        objective=0,
         visualization=False,
     ):
-
         # if dist.is_available() and distributed:
             # num_replicas = dist.get_world_size()
             # assert num_replicas == 8
@@ -139,6 +139,7 @@ class ConceptCapLoaderTrain(object):
             self.num_dataset,
             encoding="utf-8",
             predict_feature=predict_feature,
+            objective=objective,
         )
 
         ds = td.LocallyShuffleData(ds, cache)
@@ -216,6 +217,7 @@ class ConceptCapLoaderVal(object):
         drop_last=False,
         cuda=False,
         distributed=False,
+        objective=0,
         visualization=False,
     ):
     
@@ -239,6 +241,7 @@ class ConceptCapLoaderVal(object):
             encoding="utf-8",
             predict_feature=predict_feature,
             visualization=visualization,
+            objective=objective,
         )
 
         ds = td.MapData(ds, preprocess_function)
@@ -270,12 +273,10 @@ class ConceptCapLoaderVal(object):
             batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
                 image_loc, image_target, image_label, image_mask)
 
-
             yield tuple([torch.tensor(data) for data in batch] + [image_id])
 
     def __len__(self):
         return self.ds.size()
-
 
 class BertPreprocessBatch(object):
     def __init__(
@@ -288,7 +289,8 @@ class BertPreprocessBatch(object):
         split="Train",
         encoding="utf-8",
         predict_feature=False,
-        visualization=False
+        visualization=False,
+        objective=0,
     ):
 
         self.split = split
@@ -299,7 +301,8 @@ class BertPreprocessBatch(object):
         self.num_caps = data_size
         self.captions = list(json.load(open(caption_path, 'r')).values())
         self.visualization = visualization
-
+        self.objective = objective
+        
     def __call__(self, data):
 
         image_feature_wp, image_target_wp, image_location_wp, num_boxes,  image_h, image_w, image_id, caption = data
@@ -367,12 +370,12 @@ class BertPreprocessBatch(object):
 
         if self.visualization:
             return caption, 0
-
-        if random.random() > 0.5:
-            label = 0
-        else:
+        
+        if self.objective != 2 and random.random() > 0.5:
             caption = self.get_random_caption()
             label = 1
+        else:
+            label = 0
 
         return caption, label
 
@@ -405,10 +408,12 @@ class BertPreprocessBatch(object):
         image_loc = example.image_loc
         image_target = example.image_target
         num_boxes = int(example.num_boxes)
-        self._truncate_seq_pair(caption, max_seq_length - 2)
-        caption, caption_label = self.random_word(caption, tokenizer)
+        is_next = example.is_next
 
-        image_feat, image_loc, image_label = self.random_region(image_feat, image_loc, num_boxes)
+        self._truncate_seq_pair(caption, max_seq_length - 2)
+
+        caption, caption_label = self.random_word(caption, tokenizer, is_next)
+        image_feat, image_loc, image_label = self.random_region(image_feat, image_loc, num_boxes, is_next)
 
         # concatenate lm labels and account for CLS, SEP, SEP
         # lm_label_ids = ([-1] + caption_label + [-1] + image_label + [-1])
@@ -516,7 +521,7 @@ class BertPreprocessBatch(object):
 
             tokens_b.pop()
 
-    def random_word(self, tokens, tokenizer):
+    def random_word(self, tokens, tokenizer, is_next):
         """
         Masking some random tokens for Language Model task with probabilities as in the original BERT paper.
         :param tokens: list of str, tokenized sentence.
@@ -529,7 +534,10 @@ class BertPreprocessBatch(object):
             prob = random.random()
             # mask token with 15% probability
             
-            if prob < 0.15 and not self.visualization:
+            if is_next == 1 and self.objective != 0:
+                prob = 1 # not sample mask
+            
+            if prob < 0.15 and (not self.visualization):
                 prob /= 0.15
 
                 # 80% randomly change token to mask token
@@ -557,7 +565,7 @@ class BertPreprocessBatch(object):
 
         return tokens, output_label
 
-    def random_region(self, image_feat, image_loc, num_boxes):
+    def random_region(self, image_feat, image_loc, num_boxes, is_next):
         """
         """
         output_label = []
@@ -565,6 +573,10 @@ class BertPreprocessBatch(object):
         for i in range(num_boxes):
             prob = random.random()
             # mask token with 15% probability
+            
+            if is_next == 1 and self.objective != 0:
+                prob = 1 # if the target is inaligned mask, then not sample mask
+
             if prob < 0.15 and not self.visualization:
                 prob /= 0.15
 
@@ -583,8 +595,6 @@ class BertPreprocessBatch(object):
                 output_label.append(-1)
 
         return image_feat, image_loc, output_label
-
-
 
 
 class ConceptCapLoaderRetrieval(object):

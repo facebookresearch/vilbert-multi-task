@@ -163,7 +163,7 @@ class BertConfig(object):
         fixed_t_layer=0,
         in_batch_pairs=False,
         fusion_method="mul",
-        intra_gate=False,
+        dynamic_attention=False,
         with_coattention=True
     ):
 
@@ -236,7 +236,7 @@ class BertConfig(object):
             
             self.in_batch_pairs = in_batch_pairs
             self.fusion_method = fusion_method
-            self.intra_gate = intra_gate
+            self.dynamic_attention = dynamic_attention
             self.with_coattention=with_coattention
         else:
             raise ValueError(
@@ -458,7 +458,6 @@ class BertLayer(nn.Module):
         layer_output = self.output(intermediate_output, attention_output)
         return layer_output, attention_probs
 
-
 class BertImageSelfAttention(nn.Module):
     def __init__(self, config):
         super(BertImageSelfAttention, self).__init__()
@@ -467,15 +466,20 @@ class BertImageSelfAttention(nn.Module):
                 "The hidden size (%d) is not a multiple of the number of attention "
                 "heads (%d)" % (config.v_hidden_size, config.v_num_attention_heads)
             )
+        self.dynamic_attention = config.dynamic_attention   
         self.num_attention_heads = config.v_num_attention_heads
         self.attention_head_size = int(
             config.v_hidden_size / config.v_num_attention_heads
         )
-        self.all_head_size = self.num_attention_heads * self.attention_head_size
 
+        self.all_head_size = self.num_attention_heads * self.attention_head_size
         self.query = nn.Linear(config.v_hidden_size, self.all_head_size)
         self.key = nn.Linear(config.v_hidden_size, self.all_head_size)
         self.value = nn.Linear(config.v_hidden_size, self.all_head_size)
+        
+        if self.dynamic_attention:
+            self.dyLinear_q = nn.Linear(config.hidden_size, self.all_head_size)
+            self.dyLinear_k = nn.Linear(config.hidden_size, self.all_head_size)
 
         self.dropout = nn.Dropout(config.v_attention_probs_dropout_prob)
 
@@ -487,10 +491,22 @@ class BertImageSelfAttention(nn.Module):
         x = x.view(*new_x_shape)
         return x.permute(0, 2, 1, 3)
 
-    def forward(self, hidden_states, attention_mask):
+    def forward(self, hidden_states, attention_mask, txt_embedding, txt_attention_mask):
+            
         mixed_query_layer = self.query(hidden_states)
         mixed_key_layer = self.key(hidden_states)
         mixed_value_layer = self.value(hidden_states)
+
+        if self.dynamic_attention:
+            pool_embedding = (txt_embedding * txt_attention_mask).sum(1)
+            pool_embedding = pool_embedding / txt_attention_mask.sum(1)
+            
+            # given pool embedding, Linear and Sigmoid layer.
+            gate_q = 1 + torch.sigmoid(self.dyLinear_q(pool_embedding))
+            gate_k = 1 + torch.sigmoid(self.dyLinear_k(pool_embedding))
+
+            mixed_query_layer = mixed_query_layer * gate_q.unsqueeze(1)
+            mixed_key_layer = mixed_key_layer * gate_k.unsqueeze(1)
 
         query_layer = self.transpose_for_scores(mixed_query_layer)
         key_layer = self.transpose_for_scores(mixed_key_layer)
@@ -535,11 +551,10 @@ class BertImageAttention(nn.Module):
         self.self = BertImageSelfAttention(config)
         self.output = BertImageSelfOutput(config)
 
-    def forward(self, input_tensor, attention_mask):
-        self_output, attention_probs = self.self(input_tensor, attention_mask)
+    def forward(self, input_tensor, attention_mask, txt_embedding, txt_attention_mask):
+        self_output, attention_probs = self.self(input_tensor, attention_mask, txt_embedding, txt_attention_mask)
         attention_output = self.output(self_output, input_tensor)
         return attention_output, attention_probs
-
 
 class BertImageIntermediate(nn.Module):
     def __init__(self, config):
@@ -557,7 +572,6 @@ class BertImageIntermediate(nn.Module):
         hidden_states = self.intermediate_act_fn(hidden_states)
         return hidden_states
 
-
 class BertImageOutput(nn.Module):
     def __init__(self, config):
         super(BertImageOutput, self).__init__()
@@ -571,7 +585,6 @@ class BertImageOutput(nn.Module):
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
 
-
 class BertImageLayer(nn.Module):
     def __init__(self, config):
         super(BertImageLayer, self).__init__()
@@ -579,8 +592,8 @@ class BertImageLayer(nn.Module):
         self.intermediate = BertImageIntermediate(config)
         self.output = BertImageOutput(config)
 
-    def forward(self, hidden_states, attention_mask):
-        attention_output, attention_probs = self.attention(hidden_states, attention_mask)
+    def forward(self, hidden_states, attention_mask, txt_embedding, txt_attention_mask):
+        attention_output, attention_probs = self.attention(hidden_states, attention_mask, txt_embedding, txt_attention_mask)
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
         return layer_output, attention_probs
@@ -790,6 +803,7 @@ class BertEncoder(nn.Module):
         txt_embedding,
         image_embedding,
         txt_attention_mask,
+        txt_attention_mask2,
         image_attention_mask,
         co_attention_mask=None,
         output_all_encoded_layers=True,
@@ -818,20 +832,6 @@ class BertEncoder(nn.Module):
             assert self.fixed_t_layer <= t_end
             assert self.fixed_v_layer <= v_end
 
-            for idx in range(v_start, self.fixed_v_layer):
-                with torch.no_grad():
-                    image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
-                    v_start = self.fixed_v_layer
-
-                    if output_all_attention_masks:
-                        all_attnetion_mask_v.append(image_attention_probs)
-
-            for idx in range(v_start, v_end):
-                image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
-                
-                if output_all_attention_masks:
-                    all_attnetion_mask_v.append(image_attention_probs)
-
             for idx in range(t_start, self.fixed_t_layer):
                 with torch.no_grad():
                     txt_embedding, txt_attention_probs = self.layer[idx](txt_embedding, txt_attention_mask)
@@ -844,6 +844,20 @@ class BertEncoder(nn.Module):
                 if output_all_attention_masks:
                     all_attention_mask_t.append(txt_attention_probs)
 
+            for idx in range(v_start, self.fixed_v_layer):
+                with torch.no_grad():
+                    image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask, txt_embedding, txt_attention_mask2)
+                    v_start = self.fixed_v_layer
+
+                    if output_all_attention_masks:
+                        all_attnetion_mask_v.append(image_attention_probs)
+
+            for idx in range(v_start, v_end):
+                image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask, txt_embedding, txt_attention_mask2)
+                
+                if output_all_attention_masks:
+                    all_attnetion_mask_v.append(image_attention_probs)
+            
             if count == 0 and self.in_batch_pairs:
                 # new batch size is the batch_size ^2
                 image_embedding = image_embedding.unsqueeze(0).expand(batch_size, batch_size, num_regions, v_hidden_size).contiguous().view(batch_size*batch_size, num_regions, v_hidden_size)
@@ -862,7 +876,6 @@ class BertEncoder(nn.Module):
                 image_embedding, txt_embedding, co_attention_probs = self.c_layer[count](
                     image_embedding, image_attention_mask, txt_embedding, txt_attention_mask, co_attention_mask, use_co_attention_mask)
                 
-                # use_co_attention_mask = False
                 if output_all_attention_masks:
                     all_attention_mask_c.append(co_attention_probs)
 
@@ -875,7 +888,7 @@ class BertEncoder(nn.Module):
                 all_encoder_layers_v.append(image_embedding)
 
         for idx in range(v_start, len(self.v_layer)):
-            image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask)
+            image_embedding, image_attention_probs = self.v_layer[idx](image_embedding, image_attention_mask, txt_embedding, txt_attention_mask2)
 
             if output_all_attention_masks:
                 all_attnetion_mask_v.append(image_attention_probs)
@@ -1043,7 +1056,6 @@ class BertImagePredictionHead(nn.Module):
         hidden_states = self.transform(hidden_states)
         hidden_states = self.decoder(hidden_states)
         return hidden_states
-
 
 class BertPreTrainedModel(nn.Module):
     """ An abstract class to handle weights initialization and
@@ -1341,7 +1353,8 @@ class BertModel(BertPreTrainedModel):
         # used in OpenAI GPT, we just need to prepare the broadcast dimension here.
         extended_attention_mask = attention_mask.unsqueeze(1).unsqueeze(2)
         extended_image_attention_mask = image_attention_mask.unsqueeze(1).unsqueeze(2)
-
+        
+        extended_attention_mask2 = attention_mask.unsqueeze(2)
         # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
         # masked positions, this operation will create a tensor which is 0.0 for
         # positions we want to attend and -10000.0 for masked positions.
@@ -1351,6 +1364,10 @@ class BertModel(BertPreTrainedModel):
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
+        
+        extended_attention_mask2 = extended_attention_mask2.to(
+            dtype=next(self.parameters()).dtype
+        )  # fp16 compatibility
 
         extended_image_attention_mask = extended_image_attention_mask.to(
             dtype=next(self.parameters()).dtype
@@ -1370,11 +1387,12 @@ class BertModel(BertPreTrainedModel):
 
         embedding_output = self.embeddings(input_txt, token_type_ids)
         v_embedding_output = self.v_embeddings(input_imgs, image_loc)
-
+        
         encoded_layers_t, encoded_layers_v, all_attention_mask = self.encoder(
             embedding_output,
             v_embedding_output,
             extended_attention_mask,
+            extended_attention_mask2,
             extended_image_attention_mask,
             extended_co_attention_mask,
             output_all_encoded_layers=output_all_encoded_layers,
