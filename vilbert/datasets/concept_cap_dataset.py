@@ -48,7 +48,7 @@ class InputExample(object):
 
 class InputFeatures(object):
     """A single set of features of data."""
-
+    
     def __init__(
         self,
         input_ids=None,
@@ -113,7 +113,6 @@ class ConceptCapLoaderTrain(object):
         distributed=False,
         visualization=False,
     ):
-
         # if dist.is_available() and distributed:
             # num_replicas = dist.get_world_size()
             # assert num_replicas == 8
@@ -270,12 +269,10 @@ class ConceptCapLoaderVal(object):
             batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
                 image_loc, image_target, image_label, image_mask)
 
-
             yield tuple([torch.tensor(data) for data in batch] + [image_id])
 
     def __len__(self):
         return self.ds.size()
-
 
 class BertPreprocessBatch(object):
     def __init__(

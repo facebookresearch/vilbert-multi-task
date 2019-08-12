@@ -65,7 +65,6 @@ def main():
         # required=True,
         help="The output directory where the model checkpoints will be written.",
     )
-
     parser.add_argument(
         "--config_file",
         type=str,
@@ -159,6 +158,9 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
+        "--dynamic_attention", action="store_true" , help="whether use dynamic attention."
+    )
+    parser.add_argument(
         "--num_workers",
         type=int,
         default=3,
@@ -187,6 +189,7 @@ def main():
                         default=1e-8, 
                         type=float,
                         help="Epsilon for Adam optimizer.")
+
     args = parser.parse_args()
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
@@ -213,7 +216,10 @@ def main():
 
     if args.without_coattention:
         config.with_coattention = False
-
+    
+    if args.dynamic_attention:
+        config.dynamic_attention = True
+        
     # save all the hidden parameters. 
     with open(os.path.join(savePath, 'command.txt'), 'w') as f:
         print(args, file=f)  # Python 3.x
