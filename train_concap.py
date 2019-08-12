@@ -185,6 +185,13 @@ def main():
     parser.add_argument(
         "--without_coattention", action="store_true" , help="whether pair loss."
     )
+    parser.add_argument(
+        "--objective", default=0, type=int, 
+        help="which objective to use \
+        0: with ICA loss, \
+        1: with ICA loss, for the not aligned pair, no masking objective, \
+        2: without ICA loss, do not sample negative pair."
+    )
     parser.add_argument("--adam_epsilon", 
                         default=1e-8, 
                         type=float,
@@ -219,7 +226,7 @@ def main():
     
     if args.dynamic_attention:
         config.dynamic_attention = True
-        
+
     # save all the hidden parameters. 
     with open(os.path.join(savePath, 'command.txt'), 'w') as f:
         print(args, file=f)  # Python 3.x
@@ -277,6 +284,7 @@ def main():
         predict_feature=args.predict_feature,
         num_workers=args.num_workers,
         distributed=args.distributed,
+        objective=args.objective,
     )
     
     validation_dataset = ConceptCapLoaderVal(
@@ -287,6 +295,7 @@ def main():
         predict_feature=args.predict_feature,
         num_workers=2,
         distributed=args.distributed,
+        objective=args.objective,
     )
 
     num_train_optimization_steps = (
@@ -310,7 +319,6 @@ def main():
     else:
         default_gpu = True
 
-    # pdb.set_trace()
     if args.predict_feature:
         config.v_target_size = 2048
         config.predict_feature = True
@@ -462,7 +470,7 @@ def main():
                 is_next,
             )
 
-            if args.without_coattention:
+            if args.objective == 2:
                 next_sentence_loss = next_sentence_loss * 0
 
             masked_loss_v = masked_loss_v * args.img_weight
@@ -494,7 +502,6 @@ def main():
             viz.linePlot(
                 iterId, next_sentence_loss.item(), "next_sentence_loss_"+str(rank), "train"
             )
-            # viz.linePlot(iterId, optimizer.get_lr()[0], 'learning_rate', 'train')
 
             loss_tmp += loss.item()
             masked_loss_v_tmp += masked_loss_v.item()
@@ -570,7 +577,7 @@ def main():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
                 batch
             )
-
+            
             masked_loss_t, masked_loss_v, next_sentence_loss = model(
                 input_ids,
                 image_feat,

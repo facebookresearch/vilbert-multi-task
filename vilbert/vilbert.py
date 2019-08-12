@@ -500,7 +500,7 @@ class BertImageSelfAttention(nn.Module):
         if self.dynamic_attention:
             pool_embedding = (txt_embedding * txt_attention_mask).sum(1)
             pool_embedding = pool_embedding / txt_attention_mask.sum(1)
-
+            
             # given pool embedding, Linear and Sigmoid layer.
             gate_q = 1 + torch.sigmoid(self.dyLinear_q(pool_embedding))
             gate_k = 1 + torch.sigmoid(self.dyLinear_k(pool_embedding))
