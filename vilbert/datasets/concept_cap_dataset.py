@@ -1,6 +1,7 @@
 import copy
 import json
 import logging
+import math
 import os
 import random
 
@@ -15,12 +16,31 @@ import torch.distributed as dist
 import sys
 import pdb
 
+import msgpack
+import msgpack_numpy
+
+msgpack_numpy.patch()
+
+MAX_MSGPACK_LEN = 1000000000
+
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
     datefmt="%m/%d/%Y %H:%M:%S",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+
+def deserialize_lmdb(ds):
+    return msgpack.loads(
+        ds[1],
+        raw=False,
+        max_bin_len=MAX_MSGPACK_LEN,
+        max_array_len=MAX_MSGPACK_LEN,
+        max_map_len=MAX_MSGPACK_LEN,
+        max_str_len=MAX_MSGPACK_LEN,
+    )
+
 
 class InputExample(object):
     """A single training/test example for the language model."""
@@ -114,22 +134,30 @@ class ConceptCapLoaderTrain(object):
         objective=0,
         visualization=False,
     ):
-        # if dist.is_available() and distributed:
-            # num_replicas = dist.get_world_size()
-            # assert num_replicas == 8
-            # rank = dist.get_rank()
-            # lmdb_file = "/coc/dataset/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
-            # if not os.path.exists(lmdb_file):
-            # lmdb_file = "/srv/share/datasets/conceptual_caption/training_feat_part_" + str(rank) + ".lmdb"
-        # else:
-            # lmdb_file = "/coc/dataset/conceptual_caption/training_feat_all.lmdb"
-            # if not os.path.exists(lmdb_file):
+        TRAIN_DATASET_SIZE = 3119449
         lmdb_file = os.path.join(corpus_path, "training_feat_all.lmdb")
-        caption_path = os.path.join(corpus_path, "caption_train.json")
-
         print("Loading from %s" % lmdb_file)
-        ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
-        self.num_dataset = len(ds)
+
+        if dist.is_available() and distributed:
+            num_replicas = dist.get_world_size()
+            rank = dist.get_rank()
+
+            keys = range(TRAIN_DATASET_SIZE)
+            partition_size = math.ceil(TRAIN_DATASET_SIZE / num_replicas)
+            keys = [
+                keys[i : i + partition_size]
+                for i in range(0, len(keys), partition_size)
+            ][rank]
+            keys = ["{:0>8d}".format(i).encode() for i in keys]
+
+            df = td.LMDBData(lmdb_file, shuffle=True, keys=keys)
+            ds = td.MapData(df, deserialize_lmdb)
+            self.num_dataset = len(keys)
+        else:
+            ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
+            self.num_dataset = len(ds)
+
+        caption_path = os.path.join(corpus_path, "caption_train.json")
 
         preprocess_function = BertPreprocessBatch(
             caption_path,
