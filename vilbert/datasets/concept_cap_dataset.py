@@ -151,11 +151,13 @@ class ConceptCapLoaderTrain(object):
             keys = ["{:0>8d}".format(i).encode() for i in keys]
 
             df = td.LMDBData(lmdb_file, shuffle=True, keys=keys)
+            df._size = len(keys)
             ds = td.MapData(df, deserialize_lmdb)
             self.num_dataset = len(keys)
         else:
             ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
             self.num_dataset = len(ds)
+            ds = td.LocallyShuffleData(ds, cache)
 
         caption_path = os.path.join(corpus_path, "caption_train.json")
 
@@ -170,7 +172,6 @@ class ConceptCapLoaderTrain(object):
             objective=objective,
         )
 
-        ds = td.LocallyShuffleData(ds, cache)
         ds = td.PrefetchData(ds, 5000, 1)
         ds = td.MapData(ds, preprocess_function)
         # self.ds = td.PrefetchData(ds, 1)
