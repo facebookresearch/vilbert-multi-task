@@ -21,6 +21,7 @@ from tensorboardX import SummaryWriter
 from pytorch_transformers.tokenization_bert import BertTokenizer
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
+import vilbert.utils as utils
 from vilbert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
 from vilbert.vilbert import BertForMultiModalPreTraining, BertConfig
 import torch.distributed as dist
@@ -198,46 +199,28 @@ def main():
                         help="Epsilon for Adam optimizer.")
 
     args = parser.parse_args()
+    
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
         from vilbert.basebert import BertForMultiModalPreTraining
     else:
         from vilbert.vilbert import BertForMultiModalPreTraining, BertConfig
 
-    print(args)
-    if args.save_name is not '':
-        timeStamp = args.save_name
+    if args.save_name:
+        prefix = '-' + args.save_name
     else:
-        timeStamp = strftime("%d-%b-%y-%X-%a", gmtime())
-        timeStamp += "_{:0>6d}".format(random.randint(0, 10e6))
-
+        prefix = ''
+    
+    timeStamp = args.config_file.split('/')[1].split('.')[0] + prefix
     savePath = os.path.join(args.output_dir, timeStamp)
 
     if not os.path.exists(savePath):
         os.makedirs(savePath)
     
-    config = BertConfig.from_json_file(args.config_file)
-    
-    if args.freeze > config.t_biattention_id[0]:
-        config.fixed_t_layer = config.t_biattention_id[0]
-
-    if args.without_coattention:
-        config.with_coattention = False
-    
-    if args.dynamic_attention:
-        config.dynamic_attention = True
-
-    # save all the hidden parameters. 
-    with open(os.path.join(savePath, 'command.txt'), 'w') as f:
-        print(args, file=f)  # Python 3.x
-        print('\n', file=f)
-        print(config, file=f)
-
     bert_weight_name = json.load(open("config/" + args.from_pretrained + "_weight_name.json", "r"))
+
     if args.local_rank == -1 or args.no_cuda:
-        device = torch.device(
-            "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
-        )
+        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         n_gpu = torch.cuda.device_count()
     else:
         torch.cuda.set_device(args.local_rank)
@@ -245,24 +228,39 @@ def main():
         n_gpu = 1
         # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.distributed.init_process_group(backend="nccl")
+    
     logger.info(
         "device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
             device, n_gpu, bool(args.local_rank != -1), args.fp16
         )
     )
 
-    if args.gradient_accumulation_steps < 1:
-        raise ValueError(
-            "Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-                args.gradient_accumulation_steps
-            )
-        )
+    default_gpu = False
+    if dist.is_available() and args.local_rank != -1:
+        rank = dist.get_rank()
+        if rank == 0:
+            default_gpu = True
+    else:
+        default_gpu = True
+
+    if default_gpu:
+        if not os.path.exists(savePath):
+            os.makedirs(savePath)
+
+    config = BertConfig.from_json_file(args.config_file)
+
+    if default_gpu:
+        # save all the hidden parameters. 
+        with open(os.path.join(savePath, 'command.txt'), 'w') as f:
+            print(args, file=f)  # Python 3.x
+            print('\n', file=f)
+            print(config, file=f)
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
-
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
+
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
@@ -274,8 +272,6 @@ def main():
     )
 
     num_train_optimization_steps = None
-    viz = TBlogger("logs", timeStamp)
-
     train_dataset = ConceptCapLoaderTrain(
         args.file_path,
         tokenizer,
@@ -283,7 +279,7 @@ def main():
         batch_size=args.train_batch_size,
         predict_feature=args.predict_feature,
         num_workers=args.num_workers,
-        distributed=args.distributed,
+        local_rank=args.local_rank,
         objective=args.objective,
     )
     
@@ -294,7 +290,6 @@ def main():
         batch_size=args.train_batch_size,
         predict_feature=args.predict_feature,
         num_workers=2,
-        distributed=args.distributed,
         objective=args.objective,
     )
 
@@ -306,18 +301,13 @@ def main():
         )
         * (args.num_train_epochs - args.start_epoch)
     )
-    # if args.local_rank != -1:
-    #     num_train_optimization_steps = (
-    #         num_train_optimization_steps // torch.distributed.get_world_size()
-    #     )
 
-    default_gpu = False
-    if dist.is_available() and args.distributed:
-        rank = dist.get_rank()
-        if rank == 0:
-            default_gpu = True
-    else:
-        default_gpu = True
+    task_names = ['Conceptual_Caption']
+    task_ids = ['TASK0']
+    task_num_iters = {'TASK0':train_dataset.num_dataset / args.train_batch_size}
+
+    logdir = os.path.join('logs', timeStamp)
+    tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
     if args.predict_feature:
         config.v_target_size = 2048
@@ -325,6 +315,15 @@ def main():
     else:
         config.v_target_size = 1601
         config.predict_feature = False
+
+    if args.freeze > config.t_biattention_id[0]:
+        config.fixed_t_layer = config.t_biattention_id[0]
+
+    if args.without_coattention:
+        config.with_coattention = False
+    
+    if args.dynamic_attention:
+        config.dynamic_attention = True
 
     if args.from_pretrained:
         model = BertForMultiModalPreTraining.from_pretrained(args.from_pretrained, config)
@@ -430,10 +429,11 @@ def main():
 
     scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion*num_train_optimization_steps, t_total=num_train_optimization_steps)
 
-    logger.info("***** Running training *****")
-    logger.info("  Num examples = %d", train_dataset.num_dataset)
-    logger.info("  Batch size = %d", args.train_batch_size)
-    logger.info("  Num steps = %d", num_train_optimization_steps)
+    if default_gpu:
+        logger.info("***** Running training *****")
+        logger.info("  Num examples = %d", train_dataset.num_dataset)
+        logger.info("  Batch size = %d", args.train_batch_size)
+        logger.info("  Num steps = %d", num_train_optimization_steps)
 
     startIterID = 0
     global_step = 0
@@ -445,9 +445,6 @@ def main():
 
     for epochId in range(int(args.start_epoch), int(args.num_train_epochs)):
         model.train()
-        tr_loss = 0
-        nb_tr_examples, nb_tr_steps = 0, 0
-
         for step, batch in enumerate(train_dataset):
             iterId = startIterID + step + (epochId * len(train_dataset))
             image_ids = batch[-1]
@@ -488,28 +485,6 @@ def main():
             else:
                 loss.backward()
     
-            tr_loss += loss.item()
-
-            rank = 0
-            if dist.is_available() and args.distributed:
-                rank = dist.get_rank()
-            else:
-                rank = 0
-                
-            viz.linePlot(iterId, loss.item(), "loss_"+str(rank), "train")
-            viz.linePlot(iterId, masked_loss_t.item(), "masked_loss_t_"+str(rank), "train")
-            viz.linePlot(iterId, masked_loss_v.item(), "masked_loss_v_"+str(rank), "train")
-            viz.linePlot(
-                iterId, next_sentence_loss.item(), "next_sentence_loss_"+str(rank), "train"
-            )
-
-            loss_tmp += loss.item()
-            masked_loss_v_tmp += masked_loss_v.item()
-            masked_loss_t_tmp += masked_loss_t.item()
-            next_sentence_loss_tmp += next_sentence_loss.item()
-
-            nb_tr_examples += input_ids.size(0)
-            nb_tr_steps += 1
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 if args.fp16:
                     # modify learning rate with special warm up BERT uses
@@ -526,58 +501,28 @@ def main():
                 optimizer.zero_grad()
                 global_step += 1
 
-            if step % 20 == 0 and step != 0:
-                masked_loss_t_tmp = masked_loss_t_tmp / 20.0
-                masked_loss_v_tmp = masked_loss_v_tmp / 20.0
-                next_sentence_loss_tmp = next_sentence_loss_tmp / 20.0
-                loss_tmp = loss_tmp / 20.0
-
-                end_t = timer()
-                timeStamp = strftime("%a %d %b %y %X", gmtime())
-
-                Ep = epochId + nb_tr_steps / float(len(train_dataset))
-                printFormat = "[%s][Ep: %.2f][Iter: %d][Time: %5.2fs][Loss: %.5g][Loss_v: %.5g][Loss_t: %.5g][Loss_n: %.5g][LR: %.8g]"
-
-                printInfo = [
-                    timeStamp,
-                    Ep,
-                    nb_tr_steps,
-                    end_t - start_t,
-                    loss_tmp,
-                    masked_loss_v_tmp,
-                    masked_loss_t_tmp,
-                    next_sentence_loss_tmp,
-                    0,
-                    # optimizer.get_lr()[0],
-                ]
-                
-                start_t = end_t
-                print(printFormat % tuple(printInfo))
-
-                masked_loss_v_tmp = 0
-                masked_loss_t_tmp = 0
-                next_sentence_loss_tmp = 0
-                loss_tmp = 0
+                if default_gpu:
+                    tbLogger.step_train_CC(epochId, iterId, float(masked_loss_t), \
+                            float(masked_loss_v), float(next_sentence_loss), optimizer.param_groups[0]['lr'], 'TASK0', 'train')
+                        
+            if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
+                tbLogger.showLossTrainCC()
 
         # Do the evaluation 
         torch.set_grad_enabled(False)    
         start_t = timer()
         numBatches = len(validation_dataset)
-        eval_masked_loss_t = 0
-        eval_masked_loss_v = 0
-        eval_next_sentence_loss = 0
-        eval_total_loss = 0
+
 
         model.eval()
         for step, batch in enumerate(validation_dataset):
-
             image_ids = batch[-1]
             batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch[:-1])
 
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
                 batch
             )
-            
+ 
             masked_loss_t, masked_loss_v, next_sentence_loss = model(
                 input_ids,
                 image_feat,
@@ -595,42 +540,16 @@ def main():
             loss = masked_loss_t + masked_loss_v + next_sentence_loss
 
             if n_gpu > 1:
-                loss = loss.mean()  # mean() to average on multi-gpu.
-                masked_loss_t = masked_loss_t.mean()
-                masked_loss_v = masked_loss_v.mean()
-                next_sentence_loss = next_sentence_loss.mean()
+                loss = loss.mean()  
 
-            eval_masked_loss_t += masked_loss_t.item()
-            eval_masked_loss_v += masked_loss_v.item()
-            eval_next_sentence_loss += next_sentence_loss.item()
-            eval_total_loss += loss.item()
+            tbLogger.step_val_CC(epochId, float(loss), 0, 'TASK0', batch_size, 'val')
 
-            end_t = timer()
-            delta_t = " Time: %5.2fs" % (end_t - start_t)
-            start_t = end_t
-            progressString = "\r Evaluating split '%s' [%d/%d]\t" + delta_t
-            sys.stdout.write(progressString % ('val', step + 1, numBatches))
-            sys.stdout.flush()
+            if default_gpu:
+                sys.stdout.write('%d\r' % (i))
+                sys.stdout.flush()
 
-        eval_masked_loss_t = eval_masked_loss_t / float(numBatches)
-        eval_masked_loss_v = eval_masked_loss_v / float(numBatches)
-        eval_next_sentence_loss = eval_next_sentence_loss / float(numBatches)
-        eval_total_loss = eval_total_loss / float(numBatches)
-
-        printFormat = "Evaluation: [Loss: %.5g][Loss_v: %.5g][Loss_t: %.5g][Loss_n: %.5g]"
-        printInfo = [
-            eval_total_loss,
-            eval_masked_loss_v,
-            eval_masked_loss_t,
-            eval_next_sentence_loss]
-
-        print(printFormat % tuple(printInfo))
-        torch.set_grad_enabled(True)   
-
-        viz.linePlot(epochId, eval_total_loss, "loss_" + str(rank), "val")
-        viz.linePlot(epochId, eval_masked_loss_t, "masked_loss_t_" + str(rank), "val")
-        viz.linePlot(epochId, eval_masked_loss_v, "masked_loss_v_" + str(rank), "val")
-        viz.linePlot(epochId, eval_next_sentence_loss, "next_sentence_loss_" + str(rank), "val")
+        ave_score = tbLogger.showLossValCC()
+        torch.set_grad_enabled(True)
 
         if default_gpu:
             # Save a trained model
@@ -641,17 +560,9 @@ def main():
             output_model_file = os.path.join(
                 savePath, "pytorch_model_" + str(epochId) + ".bin"
             )
-
             torch.save(model_to_save.state_dict(), output_model_file)
 
-class TBlogger:
-    def __init__(self, log_dir, exp_name):
-        log_dir = log_dir + "/" + exp_name
-        print("logging file at: " + log_dir)
-        self.logger = SummaryWriter(log_dir=log_dir)
-
-    def linePlot(self, step, val, split, key, xlabel="None"):
-        self.logger.add_scalar(split + "/" + key, val, step)
+    tbLogger.txt_close()
 
 if __name__ == "__main__":
 

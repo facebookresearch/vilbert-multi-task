@@ -65,6 +65,14 @@ class tbLogger(object):
         self.task_step_val = {task_id:0 for task_id in task_ids}
         self.task_datasize_val = {task_id:0 for task_id in task_ids}
 
+        self.masked_t_loss = {task_id:0 for task_id in task_ids}
+        self.masked_v_loss = {task_id:0 for task_id in task_ids}
+        self.next_sentense_loss = {task_id:0 for task_id in task_ids}
+
+        self.masked_t_loss_val = {task_id:0 for task_id in task_ids}
+        self.masked_v_loss_val = {task_id:0 for task_id in task_ids}
+        self.next_sentense_loss_val = {task_id:0 for task_id in task_ids}    
+
     def txt_close(self):
         self.txt_f.close()
 
@@ -73,6 +81,7 @@ class tbLogger(object):
             self.logger.add_scalar(split + "/" + key, val, step)
 
     def step_train(self, epochId, stepId, loss, score, norm, task_id, split):
+        
         self.task_loss[task_id] += loss
         self.task_loss_tmp[task_id] += loss
         self.task_score_tmp[task_id] += score
@@ -85,9 +94,34 @@ class tbLogger(object):
         self.linePlot(stepId, loss, split, self.task_id2name[task_id] + '_loss')
         self.linePlot(stepId, score, split, self.task_id2name[task_id] + '_score')
 
+    def step_train_CC(self, epochId, stepId, masked_loss_t, masked_loss_v, next_sentence_loss, norm, task_id, split):
+        
+        self.masked_t_loss[task_id] += masked_loss_t
+        self.masked_v_loss[task_id] += masked_loss_v
+        self.next_sentense_loss[task_id] += next_sentence_loss
+        self.task_norm_tmp[task_id] += norm
+
+        self.task_step[task_id] += self.gradient_accumulation_steps
+        self.task_step_tmp[task_id] += self.gradient_accumulation_steps
+        self.epochId = epochId
+
+        # plot on tensorboard.
+        self.linePlot(stepId, masked_loss_t, split, self.task_id2name[task_id] + '_masked_loss_t')
+        self.linePlot(stepId, masked_loss_v, split, self.task_id2name[task_id] + '_masked_loss_v')
+        self.linePlot(stepId, next_sentence_loss, split, self.task_id2name[task_id] + '_next_sentence_loss')
+
     def step_val(self, epochId, loss, score, task_id, batch_size, split):
         self.task_loss_val[task_id] += loss
         self.task_score_val[task_id] += score
+        self.task_step_val[task_id] += self.gradient_accumulation_steps
+        self.task_datasize_val[task_id] += batch_size
+
+    def step_val_CC(self, epochId,  masked_loss_t, masked_loss_v, next_sentence_loss, batch_size, split):
+
+        self.masked_t_loss_val[task_id] += masked_loss_t
+        self.masked_v_loss_val[task_id] += masked_loss_v
+        self.next_sentense_loss_val[task_id] += next_sentence_loss
+
         self.task_step_val[task_id] += self.gradient_accumulation_steps
         self.task_datasize_val[task_id] += batch_size
 
@@ -135,6 +169,51 @@ class tbLogger(object):
         self.task_score_tmp =  {task_id:0 for task_id in self.task_ids}
         self.task_norm_tmp = {task_id:0 for task_id in self.task_ids}
 
+    def showLossValCC(self):
+        progressInfo = "Eval Ep: %d " %self.epochId
+        lossInfo = 'Validation '
+        for task_id in self.task_ids:
+            masked_t_loss_val = self.masked_t_loss_val[task_id] / float(self.task_step_val[task_id])
+            masked_v_loss_val = self.masked_v_loss_val[task_id] / float(self.task_step_val[task_id])
+            next_sentense_loss_val = self.next_sentense_loss_val[task_id] / float(self.task_step_val[task_id])
+
+            lossInfo += '[%s]: masked_t %.3f masked_v %.3f NSP %.3f' %(self.task_id2name[task_id], masked_t_loss_val, masked_v_loss_val, next_sentense_loss_val)
+
+            self.linePlot(self.epochId, masked_t_loss_val, 'val', self.task_id2name[task_id] + '_mask_t')
+            self.linePlot(self.epochId, masked_v_loss_val, 'val', self.task_id2name[task_id] + '_maks_v')
+            self.linePlot(self.epochId, next_sentense_loss_val, 'val', self.task_id2name[task_id] + '_nsp')
+
+        self.masked_t_loss_val = {task_id:0 for task_id in self.masked_t_loss_val}
+        self.masked_v_loss_val = {task_id:0 for task_id in self.masked_v_loss_val}
+        self.next_sentense_loss_val = {task_id:0 for task_id in self.next_sentense_loss_val}
+        self.task_datasize_val = {task_id:0 for task_id in self.task_datasize_val}
+        self.task_step_val = {task_id:0 for task_id in self.task_ids}
+
+        logger.info(lossInfo)
+        print(lossInfo, file=self.txt_f)
+
+    def showLossTrainCC(self):
+        # show the current loss, once showed, reset the loss. 
+        lossInfo = ''
+        for task_id in self.task_ids:
+            if self.task_num_iters[task_id] > 0:
+                if self.task_step_tmp[task_id]:
+                    lossInfo += '[%s]: iter %d Ep: %.2f masked_t %.3f masked_v %.3f NSP %.3f lr %.6g' %(self.task_id2name[task_id], \
+                        self.task_step[task_id], self.task_step[task_id] / float(self.task_num_iters[task_id]), \
+                                            self.masked_t_loss[task_id] / float(self.task_step_tmp[task_id]), \
+                                            self.masked_v_loss[task_id] / float(self.task_step_tmp[task_id]), \
+                                            self.next_sentense_loss[task_id] / float(self.task_step_tmp[task_id]), \
+                                            self.task_norm_tmp[task_id] / float(self.task_step_tmp[task_id]))
+        
+        logger.info(lossInfo)
+        print(lossInfo, file=self.txt_f)
+
+        self.task_step_tmp = {task_id:0 for task_id in self.task_ids}
+        self.masked_t_loss = {task_id:0 for task_id in self.task_ids}
+        self.masked_v_loss =  {task_id:0 for task_id in self.task_ids}
+        self.next_sentense_loss = {task_id:0 for task_id in self.task_ids}
+        self.task_norm_tmp = {task_id:0 for task_id in self.task_ids}
+
 def url_to_filename(url, etag=None):
     """
     Convert `url` into a hashed filename in a repeatable way.
@@ -151,7 +230,6 @@ def url_to_filename(url, etag=None):
         filename += "." + etag_hash.hexdigest()
 
     return filename
-
 
 def filename_to_url(filename, cache_dir=None):
     """
@@ -226,7 +304,6 @@ def s3_request(func):
     Wrapper function for s3 requests in order to create more helpful error
     messages.
     """
-
     @wraps(func)
     def wrapper(url, *args, **kwargs):
         try:

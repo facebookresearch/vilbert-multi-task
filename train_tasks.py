@@ -164,10 +164,7 @@ def main():
 
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
-        from vilbert.basebert import BaseBertForVLTasks
-    elif args.compact:
-        from vilbert.vilbert_compact import BertConfig
-        from vilbert.vilbert_compact import VILBertForVLTasks        
+        from vilbert.basebert import BaseBertForVLTasks      
     else:
         from vilbert.vilbert import BertConfig
         from vilbert.vilbert import VILBertForVLTasks
@@ -236,9 +233,6 @@ def main():
     
     logdir = os.path.join('logs', timeStamp)
     tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
-
-    # if n_gpu > 0:
-        # torch.cuda.manual_seed_all(args.seed)
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)

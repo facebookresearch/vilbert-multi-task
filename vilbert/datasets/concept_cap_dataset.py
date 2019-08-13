@@ -130,7 +130,7 @@ class ConceptCapLoaderTrain(object):
         cache=50000,
         drop_last=False,
         cuda=False,
-        distributed=False,
+        local_rank=-1,
         objective=0,
         visualization=False,
     ):
@@ -138,7 +138,7 @@ class ConceptCapLoaderTrain(object):
         lmdb_file = os.path.join(corpus_path, "training_feat_all.lmdb")
         print("Loading from %s" % lmdb_file)
 
-        if dist.is_available():
+        if dist.is_available() and local_rank != -1:
             num_replicas = dist.get_world_size()
             rank = dist.get_rank()
 
@@ -245,16 +245,10 @@ class ConceptCapLoaderVal(object):
         cache=50000,
         drop_last=False,
         cuda=False,
-        distributed=False,
         objective=0,
         visualization=False,
     ):
     
-        # lmdb_file = "/coc/dataset/conceptual_caption/validation_feat_all.lmdb"
-        # if not os.path.exists(lmdb_file):
-            # lmdb_file = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/validation_feat_all.lmdb"
-        # caption_path = "/coc/pskynet2/jlu347/multi-modal-bert/data/conceptual_caption/caption_val.json"
-
         lmdb_file = os.path.join(corpus_path, "validation_feat_all.lmdb")
         caption_path = os.path.join(corpus_path, "caption_val.json")
         print("Loading from %s" % lmdb_file)
