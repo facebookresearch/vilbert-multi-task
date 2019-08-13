@@ -138,7 +138,7 @@ class ConceptCapLoaderTrain(object):
         lmdb_file = os.path.join(corpus_path, "training_feat_all.lmdb")
         print("Loading from %s" % lmdb_file)
 
-        if dist.is_available() and distributed:
+        if dist.is_available():
             num_replicas = dist.get_world_size()
             rank = dist.get_rank()
 
