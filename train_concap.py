@@ -213,9 +213,6 @@ def main():
     
     timeStamp = args.config_file.split('/')[1].split('.')[0] + prefix
     savePath = os.path.join(args.output_dir, timeStamp)
-
-    if not os.path.exists(savePath):
-        os.makedirs(savePath)
     
     bert_weight_name = json.load(open("config/" + args.from_pretrained + "_weight_name.json", "r"))
 
@@ -257,6 +254,7 @@ def main():
             print(config, file=f)
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
+
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -326,7 +324,7 @@ def main():
         config.dynamic_attention = True
 
     if args.from_pretrained:
-        model = BertForMultiModalPreTraining.from_pretrained(args.from_pretrained, config)
+        model = BertForMultiModalPreTraining.from_pretrained(args.from_pretrained, config, default_gpu=default_gpu)
     else:
         model = BertForMultiModalPreTraining(config)
 
