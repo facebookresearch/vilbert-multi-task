@@ -305,7 +305,8 @@ def main():
     task_num_iters = {'TASK0':train_dataset.num_dataset / args.train_batch_size}
 
     logdir = os.path.join('logs', timeStamp)
-    tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
+    if default_gpu:
+        tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
     if args.predict_feature:
         config.v_target_size = 2048
