@@ -539,15 +539,15 @@ def main():
             loss = masked_loss_t + masked_loss_v + next_sentence_loss
 
             if n_gpu > 1:
-                loss = loss.mean()  
-
-            tbLogger.step_val_CC(epochId, float(loss), 0, 'TASK0', batch_size, 'val')
+                loss = loss.mean()
 
             if default_gpu:
-                sys.stdout.write('%d\r' % (i))
+                tbLogger.step_val_CC(epochId, float(loss), 0, 0, 'TASK0', args.train_batch_size, 'val')
+                sys.stdout.write('%d\r' % (step))
                 sys.stdout.flush()
 
-        ave_score = tbLogger.showLossValCC()
+        if default_gpu:
+            ave_score = tbLogger.showLossValCC()
         torch.set_grad_enabled(True)
 
         if default_gpu:
@@ -561,7 +561,8 @@ def main():
             )
             torch.save(model_to_save.state_dict(), output_model_file)
 
-    tbLogger.txt_close()
+    if default_gpu:
+        tbLogger.txt_close()
 
 if __name__ == "__main__":
 
