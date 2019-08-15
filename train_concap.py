@@ -325,7 +325,7 @@ def main():
         config.dynamic_attention = True
 
     if args.from_pretrained:
-        model = BertForMultiModalPreTraining.from_pretrained(args.from_pretrained, config, default_gpu=default_gpu)
+        model = BertForMultiModalPreTraining.from_pretrained(args.from_pretrained, config=config, default_gpu=default_gpu)
     else:
         model = BertForMultiModalPreTraining(config)
 

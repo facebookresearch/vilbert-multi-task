@@ -140,8 +140,8 @@ class ConceptCapLoaderTrain(object):
 
         if dist.is_available() and local_rank != -1:
             num_replicas = dist.get_world_size()
+            num_workers = (num_workers // num_replicas) + 1
             rank = dist.get_rank()
-
             keys = range(TRAIN_DATASET_SIZE)
             partition_size = math.ceil(TRAIN_DATASET_SIZE / num_replicas)
             keys = [
