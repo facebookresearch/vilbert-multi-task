@@ -436,11 +436,6 @@ def main():
 
     startIterID = 0
     global_step = 0
-    masked_loss_v_tmp = 0
-    masked_loss_t_tmp = 0
-    next_sentence_loss_tmp = 0
-    loss_tmp = 0
-    start_t = timer()
 
     for epochId in range(int(args.start_epoch), int(args.num_train_epochs)):
         model.train()
@@ -509,9 +504,7 @@ def main():
 
         # Do the evaluation 
         torch.set_grad_enabled(False)    
-        start_t = timer()
         numBatches = len(validation_dataset)
-
 
         model.eval()
         for step, batch in enumerate(validation_dataset):
@@ -521,7 +514,8 @@ def main():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
                 batch
             )
- 
+            
+            batch_size = input_ids.size(0)
             masked_loss_t, masked_loss_v, next_sentence_loss = model(
                 input_ids,
                 image_feat,
@@ -540,14 +534,19 @@ def main():
 
             if n_gpu > 1:
                 loss = loss.mean()
+                masked_loss_t = masked_loss_t.mean()
+                masked_loss_v = masked_loss_v.mean()
+                next_sentence_loss = next_sentence_loss.mean()
 
             if default_gpu:
-                tbLogger.step_val_CC(epochId, float(loss), 0, 0, 'TASK0', args.train_batch_size, 'val')
-                sys.stdout.write('%d\r' % (step))
+                tbLogger.step_val_CC(epochId, float(masked_loss_t), \
+                            float(masked_loss_v), float(next_sentence_loss), 'TASK0', batch_size, 'val')
+                sys.stdout.write('%d / %d \r' % (step, numBatches))
                 sys.stdout.flush()
 
         if default_gpu:
             ave_score = tbLogger.showLossValCC()
+        
         torch.set_grad_enabled(True)
 
         if default_gpu:

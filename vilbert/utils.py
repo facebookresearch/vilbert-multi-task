@@ -118,7 +118,7 @@ class tbLogger(object):
         self.task_step_val[task_id] += self.gradient_accumulation_steps
         self.task_datasize_val[task_id] += batch_size
 
-    def step_val_CC(self, epochId,  masked_loss_t, masked_loss_v, next_sentence_loss, batch_size, split):
+    def step_val_CC(self, epochId,  masked_loss_t, masked_loss_v, next_sentence_loss, task_id, batch_size, split):
 
         self.masked_t_loss_val[task_id] += masked_loss_t
         self.masked_v_loss_val[task_id] += masked_loss_v
