@@ -255,6 +255,10 @@ def main():
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
+    if dist.is_available() and local_rank != -1:
+        num_replicas = dist.get_world_size()
+        args.train_batch_size = args.train_batch_size // num_replicas
+    
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
