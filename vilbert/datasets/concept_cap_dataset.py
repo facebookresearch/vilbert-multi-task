@@ -135,32 +135,37 @@ class ConceptCapLoaderTrain(object):
         visualization=False,
     ):
         TRAIN_DATASET_SIZE = 3119449
-        lmdb_file = os.path.join(corpus_path, "training_feat_all.lmdb")
-        print("Loading from %s" % lmdb_file)
 
         if dist.is_available() and local_rank != -1:
+
             num_replicas = dist.get_world_size()
-            num_workers = (num_workers // num_replicas) + 1
             rank = dist.get_rank()
-            keys = range(TRAIN_DATASET_SIZE)
-            partition_size = math.ceil(TRAIN_DATASET_SIZE / num_replicas)
-            keys = [
-                keys[i : i + partition_size]
-                for i in range(0, len(keys), partition_size)
-            ][rank]
-            keys = ["{:0>8d}".format(i).encode() for i in keys]
 
-            df = td.LMDBData(lmdb_file, shuffle=True, keys=keys)
-            df._size = len(keys)
-            ds = td.MapData(df, deserialize_lmdb)
-            self.num_dataset = len(keys)
+            lmdb_file = os.path.join(corpus_path, "training_feat_part_" + str(rank) + ".lmdb")
+
+            # num_workers = (num_workers // num_replicas) + 1
+            # keys = range(TRAIN_DATASET_SIZE)
+            # partition_size = math.ceil(TRAIN_DATASET_SIZE / num_replicas)
+            # keys = [
+            #     keys[i : i + partition_size]
+            #     for i in range(0, len(keys), partition_size)
+            # ][rank]
+            # keys = ["{:0>8d}".format(i).encode() for i in keys]
+
+            # df = td.LMDBData(lmdb_file, shuffle=True, keys=keys)
+            # df._size = len(keys)
+            # ds = td.MapData(df, deserialize_lmdb)
+            # self.num_dataset = len(keys)
         else:
-            ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
-            self.num_dataset = len(ds)
-            ds = td.LocallyShuffleData(ds, cache)
+            lmdb_file = os.path.join(corpus_path, "training_feat_all.lmdb")
+            print("Loading from %s" % lmdb_file)
 
+
+        ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
+        self.num_dataset = len(ds)
+
+        ds = td.LocallyShuffleData(ds, cache)
         caption_path = os.path.join(corpus_path, "caption_train.json")
-
         preprocess_function = BertPreprocessBatch(
             caption_path,
             tokenizer,
