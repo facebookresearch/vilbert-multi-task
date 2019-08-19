@@ -170,7 +170,8 @@ class BertConfig(object):
         in_batch_pairs=False,
         fusion_method="mul",
         dynamic_attention=False,
-        with_coattention=True
+        with_coattention=True,
+        objective=0,
     ):
 
         """Constructs BertConfig.
@@ -243,7 +244,8 @@ class BertConfig(object):
             self.in_batch_pairs = in_batch_pairs
             self.fusion_method = fusion_method
             self.dynamic_attention = dynamic_attention
-            self.with_coattention=with_coattention
+            self.with_coattention = with_coattention
+            self.objective = objective
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -1331,6 +1333,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
                 img_loss = self.vis_criterion(
                     F.log_softmax(prediction_scores_v, dim=2), image_target
                 )
+                
                 masked_img_loss = torch.sum(
                     img_loss * (image_label == 1).unsqueeze(2).float()
                 ) / max(torch.sum((image_label == 1)), 0)
@@ -1340,6 +1343,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
                 prediction_scores_t.view(-1, self.config.vocab_size),
                 masked_lm_labels.view(-1),
             )
+            
             next_sentence_loss = self.loss_fct(
                 seq_relationship_score.view(-1, 2), next_sentence_label.view(-1)
             )

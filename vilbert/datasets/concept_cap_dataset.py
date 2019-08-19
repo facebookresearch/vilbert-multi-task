@@ -246,7 +246,7 @@ class ConceptCapLoaderVal(object):
         batch_size=512,
         shuffle=False,
         num_workers=25,
-        cache=50000,
+        cache=5000,
         drop_last=False,
         cuda=False,
         objective=0,
@@ -561,9 +561,8 @@ class BertPreprocessBatch(object):
             prob = random.random()
             # mask token with 15% probability
             
-            if is_next == 1 and self.objective != 0:
-                prob = 1 # not sample mask
-            
+            # if is_next == 1 and self.objective != 0:
+            #     prob = 1 # not sample mask
             if prob < 0.15 and (not self.visualization):
                 prob /= 0.15
 
@@ -601,9 +600,8 @@ class BertPreprocessBatch(object):
             prob = random.random()
             # mask token with 15% probability
             
-            if is_next == 1 and self.objective != 0:
-                prob = 1 # if the target is inaligned mask, then not sample mask
-
+            # if is_next == 1 and self.objective != 0:
+            #     prob = 1 # if the target is inaligned mask, then not sample mask
             if prob < 0.15 and not self.visualization:
                 prob /= 0.15
 

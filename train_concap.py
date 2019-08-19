@@ -164,7 +164,7 @@ def main():
     parser.add_argument(
         "--num_workers",
         type=int,
-        default=3,
+        default=25,
         help="Number of workers in the dataloader.",
     )
     parser.add_argument(
@@ -275,7 +275,7 @@ def main():
     tokenizer = BertTokenizer.from_pretrained(
         args.bert_model, do_lower_case=args.do_lower_case
     )
-
+    # print(cache)
     num_train_optimization_steps = None
     train_dataset = ConceptCapLoaderTrain(
         args.file_path,
@@ -407,6 +407,7 @@ def main():
                     optimizer_grouped_parameters += [
                         {"params": [value], "lr": lr, "weight_decay": 0.0}
                     ]
+
         if default_gpu:
             print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
 
@@ -432,7 +433,11 @@ def main():
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
 
     else:
-        optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
+        optimizer = AdamW(
+                optimizer_grouped_parameters, 
+                lr=args.learning_rate, 
+                eps=args.adam_epsilon, 
+                betas=(0.9, 0.98))
 
     scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion*num_train_optimization_steps, t_total=num_train_optimization_steps)
 
@@ -448,6 +453,7 @@ def main():
     for epochId in range(int(args.start_epoch), int(args.num_train_epochs)):
         model.train()
         for step, batch in enumerate(train_dataset):
+
             iterId = startIterID + step + (epochId * len(train_dataset))
             image_ids = batch[-1]
             batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch[:-1])
@@ -455,6 +461,17 @@ def main():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
                 batch
             )
+
+            if args.objective == 1:
+                # if objective == 1, then, we don't count the un-paired loss.
+                # filter out the objective here.
+                
+                image_label = image_label * (is_next==0).long().unsqueeze(1)
+                image_label[image_label==0] = -1
+                
+                lm_label_ids = lm_label_ids * (is_next==0).long().unsqueeze(1)
+                lm_label_ids[lm_label_ids==0] = -1
+
 
             masked_loss_t, masked_loss_v, next_sentence_loss = model(
                 input_ids,
@@ -480,6 +497,7 @@ def main():
                 masked_loss_t = masked_loss_t.mean()
                 masked_loss_v = masked_loss_v.mean()
                 next_sentence_loss = next_sentence_loss.mean()
+            
             if args.gradient_accumulation_steps > 1:
                 loss = loss / args.gradient_accumulation_steps
             if args.fp16:
