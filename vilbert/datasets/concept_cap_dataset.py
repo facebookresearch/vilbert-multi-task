@@ -127,7 +127,7 @@ class ConceptCapLoaderTrain(object):
         batch_size=512,
         shuffle=False,
         num_workers=25,
-        cache=50000,
+        cache=5000,
         drop_last=False,
         cuda=False,
         local_rank=-1,
@@ -163,7 +163,6 @@ class ConceptCapLoaderTrain(object):
 
         ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
         self.num_dataset = len(ds)
-
         ds = td.LocallyShuffleData(ds, cache)
         caption_path = os.path.join(corpus_path, "caption_train.json")
         preprocess_function = BertPreprocessBatch(

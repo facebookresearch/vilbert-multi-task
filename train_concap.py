@@ -41,7 +41,7 @@ def main():
     # Required parameters
     parser.add_argument(
         "--file_path",
-        default="/srv/share/vgoswami8/conceptual_captions",
+        default="data/conceptual_caption/",
         type=str,
         help="The input train corpus.",
     )
@@ -255,10 +255,13 @@ def main():
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
-    if dist.is_available() and local_rank != -1:
+    cache = 5000
+    if dist.is_available() and args.local_rank != -1:
         num_replicas = dist.get_world_size()
         args.train_batch_size = args.train_batch_size // num_replicas
-    
+        args.num_workers = args.num_workers // num_replicas
+        cache = cache // num_replicas
+
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -283,6 +286,7 @@ def main():
         num_workers=args.num_workers,
         local_rank=args.local_rank,
         objective=args.objective,
+        cache=cache,
     )
     
     validation_dataset = ConceptCapLoaderVal(
