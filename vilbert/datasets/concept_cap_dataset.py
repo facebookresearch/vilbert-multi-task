@@ -122,7 +122,7 @@ class ConceptCapLoaderTrain(object):
         tokenizer,
         seq_len,
         encoding="utf-8",
-        predict_feature=False,
+        visual_target=0,
         hard_negative=False,
         batch_size=512,
         shuffle=False,
@@ -172,7 +172,7 @@ class ConceptCapLoaderTrain(object):
             36,
             self.num_dataset,
             encoding="utf-8",
-            predict_feature=predict_feature,
+            visual_target=visual_target,
             objective=objective,
         )
 
@@ -242,7 +242,7 @@ class ConceptCapLoaderVal(object):
         tokenizer,
         seq_len,
         encoding="utf-8",
-        predict_feature=False,
+        visual_target=0,
         batch_size=512,
         shuffle=False,
         num_workers=25,
@@ -266,7 +266,7 @@ class ConceptCapLoaderVal(object):
             36,
             self.num_dataset,
             encoding="utf-8",
-            predict_feature=predict_feature,
+            visual_target=visual_target,
             visualization=visualization,
             objective=objective,
         )
@@ -295,8 +295,8 @@ class ConceptCapLoaderVal(object):
             g_image_mask = np.repeat(np.array([[1]]), batch_size, axis=0)
             image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
 
-            # batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            # image_loc, image_target, image_label, image_mask, image_id)
+
+            pdb.set_trace()
             batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
                 image_loc, image_target, image_label, image_mask)
 
@@ -315,7 +315,7 @@ class BertPreprocessBatch(object):
         data_size,
         split="Train",
         encoding="utf-8",
-        predict_feature=False,
+        visual_target=0,
         visualization=False,
         objective=0,
     ):
@@ -324,7 +324,7 @@ class BertPreprocessBatch(object):
         self.seq_len = seq_len
         self.region_len = region_len
         self.tokenizer = tokenizer
-        self.predict_feature = predict_feature
+        self.visual_target = visual_target
         self.num_caps = data_size
         self.captions = list(json.load(open(caption_path, 'r')).values())
         self.visualization = visualization
@@ -350,12 +350,12 @@ class BertPreprocessBatch(object):
         image_location[:,2] = image_location[:,2] / float(image_w)
         image_location[:,3] = image_location[:,3] / float(image_h)
 
-        if self.predict_feature:
+        if self.visual_target == 0:
             image_feature = copy.deepcopy(image_feature)
-            image_target = copy.deepcopy(image_feature)
+            image_target = copy.deepcopy(image_target)  
         else:
             image_feature = copy.deepcopy(image_feature)
-            image_target = copy.deepcopy(image_target)            
+            image_target = copy.deepcopy(image_feature)
 
         caption, label = self.random_cap(caption)
 
@@ -411,10 +411,6 @@ class BertPreprocessBatch(object):
         Get random caption from another document for nextSentence task.
         :return: str, content of one line
         """
-        # Similar to original tf repo: This outer loop should rarely go for more than one iteration for large
-        # corpora. However, just to be careful, we try to make sure that
-        # the random document is not the same as the document we're processing.
-
         # add the hard negative mining objective here.
         rand_doc_idx = random.randint(0, self.num_caps - 1)
         caption = self.captions[rand_doc_idx]
@@ -423,12 +419,7 @@ class BertPreprocessBatch(object):
 
     def convert_example_to_features(self, example, max_seq_length, tokenizer, max_region_length):
         """
-        Convert a raw sample (pair of sentences as tokenized strings) into a proper training sample with
-        IDs, LM labels, input_mask, CLS and SEP tokens etc.
-        :param example: InputExample, containing sentence input as strings and is_next label
-        :param max_seq_length: int, maximum length of sequence.
-        :param tokenizer: Tokenizer
-        :return: InputFeatures, containing all inputs and labels of one sample as IDs (as used for model training)
+
         """
         image_feat = example.image_feat
         caption = example.caption
@@ -447,35 +438,12 @@ class BertPreprocessBatch(object):
         lm_label_ids = [-1] + caption_label + [-1]
         # image_label = ([-1] + image_label)
 
-        # The convention in BERT is:
-        # (a) For sequence pairs:
-        #  tokens:   [CLS] is this jack ##son ##ville ? [SEP] no it is not . [SEP]
-        #  type_ids: 0   0  0    0    0     0       0 0    1  1  1  1   1 1
-        # (b) For single sequences:
-        #  tokens:   [CLS] the dog is hairy . [SEP]
-        #  type_ids: 0   0   0   0  0     0 0
-        #
-        # Where "type_ids" are used to indicate whether this is the first
-        # sequence or the second sequence. The embedding vectors for `type=0` and
-        # `type=1` were learned during pre-training and are added to the wordpiece
-        # embedding vector (and position vector). This is not *strictly* necessary
-        # since the [SEP] token unambigiously separates the sequences, but it makes
-        # it easier for the model to learn the concept of sequences.
-        #
-        # For classification tasks, the first vector (corresponding to [CLS]) is
-        # used as as the "sentence vector". Note that this only makes sense because
-        # the entire model is fine-tuned.
         tokens = []
         segment_ids = []
 
         tokens.append("[CLS]")
         segment_ids.append(0)
-        # for i in range(36):
-        #     # tokens.append(0)
-        #     segment_ids.append(0)
 
-        # tokens.append("[SEP]")
-        # segment_ids.append(0)
         for token in caption:
             tokens.append(token)
             segment_ids.append(0)
@@ -507,18 +475,6 @@ class BertPreprocessBatch(object):
         assert len(lm_label_ids) == max_seq_length
         assert len(image_mask) == max_region_length
         assert len(image_label) == max_region_length
-
-        # if example.guid < 5:
-        #     logger.info("*** Example ***")
-        #     logger.info("guid: %s" % (example.guid))
-        #     logger.info("tokens: %s" % " ".join(
-        #             [str(x) for x in tokens]))
-        #     logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-        #     logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-        #     logger.info(
-        #             "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
-        #     logger.info("LM label: %s " % (lm_label_ids))
-        #     logger.info("Is next sentence label: %s " % (example.is_next))
 
         features = InputFeatures(
             input_ids=np.array(input_ids),
@@ -651,7 +607,7 @@ class ConceptCapLoaderRetrieval(object):
         tokenizer,
         seq_len,
         encoding="utf-8",
-        predict_feature=False,
+        visual_target=0,
         batch_size=512,
         shuffle=False,
         num_workers=10,
@@ -676,7 +632,7 @@ class ConceptCapLoaderRetrieval(object):
             36,
             1000,
             encoding="utf-8",
-            predict_feature=predict_feature,
+            visual_target=visual_target,
         )
 
         ds = td.MapData(ds, preprocess_function)
@@ -767,14 +723,14 @@ class BertPreprocessRetrieval(object):
         data_size,
         split="Train",
         encoding="utf-8",
-        predict_feature=False,
+        visual_target=0,
     ):
 
         self.split = split
         self.seq_len = seq_len
         self.region_len = region_len
         self.tokenizer = tokenizer
-        self.predict_feature = predict_feature
+        self.visual_target = visual_target
         self.num_caps = data_size
         self.captions = list(json.load(open(caption_path, 'r')).values())[:data_size]
 

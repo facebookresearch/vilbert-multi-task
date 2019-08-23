@@ -163,7 +163,7 @@ class BertConfig(object):
         v_initializer_range=0.2,
         v_biattention_id=[0, 1],
         t_biattention_id=[10, 11],
-        predict_feature=False,
+        visual_target=0,
         fast_mode=False,
         fixed_v_layer=0,
         fixed_t_layer=0,
@@ -236,7 +236,7 @@ class BertConfig(object):
             self.v_target_size = v_target_size
             self.bi_hidden_size = bi_hidden_size
             self.bi_num_attention_heads = bi_num_attention_heads
-            self.predict_feature = predict_feature
+            self.visual_target = visual_target
             self.fast_mode = fast_mode
             self.fixed_v_layer = fixed_v_layer
             self.fixed_t_layer = fixed_t_layer
@@ -1270,15 +1270,17 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         )
         
         self.apply(self.init_weights)
-        self.predict_feature = config.predict_feature
+        self.visual_target = config.visual_target
         self.loss_fct = CrossEntropyLoss(ignore_index=-1)
 
-        print("model's option for predict_feature is ", config.predict_feature)
+        print("model's visual target is ", config.visual_target)
 
-        if self.predict_feature:
-            self.vis_criterion = nn.MSELoss(reduction="none")
-        else:
+        if self.visual_target == 0:
             self.vis_criterion = nn.KLDivLoss(reduction="none") 
+        elif self.visual_target == 1:
+            self.vis_criterion = nn.MSELoss(reduction="none")
+        elif self.visaul_target == 2:
+            self.vis_criterion = CrossEntropyLoss()
 
         self.tie_weights()
 
@@ -1323,13 +1325,13 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         if masked_lm_labels is not None and next_sentence_label is not None and image_target is not None:
 
             prediction_scores_v = prediction_scores_v[:, 1:]
-            if self.predict_feature:
+            if self.visual_target == 1:
                 img_loss = self.vis_criterion(prediction_scores_v, image_target)
                 masked_img_loss = torch.sum(
                     img_loss * (image_label == 1).unsqueeze(2).float()
                 ) / max(torch.sum((image_label == 1).unsqueeze(2).expand_as(img_loss)),1)
 
-            else:
+            elif self.visual_target == 0:
                 img_loss = self.vis_criterion(
                     F.log_softmax(prediction_scores_v, dim=2), image_target
                 )
@@ -1337,7 +1339,9 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
                 masked_img_loss = torch.sum(
                     img_loss * (image_label == 1).unsqueeze(2).float()
                 ) / max(torch.sum((image_label == 1)), 0)
-            
+            elif self.visual_target == 2:
+                pdb.set_trace()
+
             # masked_img_loss = torch.sum(img_loss) / (img_loss.shape[0] * img_loss.shape[1])
             masked_lm_loss = self.loss_fct(
                 prediction_scores_t.view(-1, self.config.vocab_size),
@@ -1347,7 +1351,6 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             next_sentence_loss = self.loss_fct(
                 seq_relationship_score.view(-1, 2), next_sentence_label.view(-1)
             )
-            # total_loss = masked_lm_loss + next_sentence_loss + masked_img_loss
             return masked_lm_loss.unsqueeze(0), masked_img_loss.unsqueeze(0), next_sentence_loss.unsqueeze(0)
         else:
             return prediction_scores_t, prediction_scores_v, seq_relationship_score, all_attention_mask

@@ -18,13 +18,9 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-# from pytorch_transformers.optimization import WarmupLinearSchedule
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
-# from parallel.parallel import DataParallelModel, DataParallelCriterion
-
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
-# from vilbert.optimization import BertAdam, Adam
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
 import vilbert.utils as utils
@@ -199,7 +195,6 @@ def main():
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
         n_gpu = 1
-        # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.distributed.init_process_group(backend="nccl")
     
     logger.info(
@@ -321,13 +316,7 @@ def main():
     max_batch_size = max(task_batch_size.values())
     
     if args.optimizer == 'AdamW':
-        # optimizer = BertAdam(
-        #     optimizer_grouped_parameters,
-        #     lr=args.learning_rate,
-        #     warmup=args.warmup_proportion,
-        #     t_total=num_train_optimization_steps,
-        #     schedule='warmup_constant',
-        # )
+        
         optimizer = AdamW(model.parameters(), lr=lr, correct_bias=False)  # To reproduce BertAdam specific behavior set correct_bias=False
         scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion, t_total=num_train_optimization_steps)  # PyTorch scheduler
 

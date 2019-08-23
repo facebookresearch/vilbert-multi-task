@@ -26,7 +26,6 @@ from vilbert.datasets import ConceptCapLoaderTrain, ConceptCapLoaderVal
 from vilbert.vilbert import BertForMultiModalPreTraining, BertConfig
 import torch.distributed as dist
 
-import pdb
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -81,7 +80,6 @@ def main():
         "Sequences longer than this will be truncated, and sequences shorter \n"
         "than this will be padded.",
     )
-    parser.add_argument("--predict_feature", action="store_true", help="visual target.")
     parser.add_argument(
         "--train_batch_size",
         default=512,
@@ -187,6 +185,13 @@ def main():
         "--without_coattention", action="store_true" , help="whether pair loss."
     )
     parser.add_argument(
+        "--visual_target", default=0, type=int, 
+        help="which target to use for visual branch. \
+        0: soft label, \
+        1: regress the feature, \
+        2: NCE loss.")
+
+    parser.add_argument(
         "--objective", default=0, type=int, 
         help="which objective to use \
         0: with ICA loss, \
@@ -275,14 +280,13 @@ def main():
     tokenizer = BertTokenizer.from_pretrained(
         args.bert_model, do_lower_case=args.do_lower_case
     )
-    # print(cache)
     num_train_optimization_steps = None
     train_dataset = ConceptCapLoaderTrain(
         args.file_path,
         tokenizer,
         seq_len=args.max_seq_length,
         batch_size=args.train_batch_size,
-        predict_feature=args.predict_feature,
+        visual_target=args.visual_target,
         num_workers=args.num_workers,
         local_rank=args.local_rank,
         objective=args.objective,
@@ -294,7 +298,7 @@ def main():
         tokenizer,
         seq_len=args.max_seq_length,
         batch_size=args.train_batch_size,
-        predict_feature=args.predict_feature,
+        visual_target=args.visual_target,
         num_workers=2,
         objective=args.objective,
     )
@@ -316,12 +320,13 @@ def main():
     if default_gpu:
         tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
-    if args.predict_feature:
-        config.v_target_size = 2048
-        config.predict_feature = True
-    else:
+    if args.visual_target == 0:
         config.v_target_size = 1601
-        config.predict_feature = False
+        config.visual_target = args.visual_target
+    else:
+        config.v_target_size = 2048
+        config.visual_target = args.visual_target
+
 
     if args.freeze > config.t_biattention_id[0]:
         config.fixed_t_layer = config.t_biattention_id[0]
@@ -462,10 +467,7 @@ def main():
                 batch
             )
 
-            if args.objective == 1:
-                # if objective == 1, then, we don't count the un-paired loss.
-                # filter out the objective here.
-                
+            if args.objective == 1:                
                 image_label = image_label * (is_next==0).long().unsqueeze(1)
                 image_label[image_label==0] = -1
                 
@@ -507,8 +509,6 @@ def main():
     
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 if args.fp16:
-                    # modify learning rate with special warm up BERT uses
-                    # if args.fp16 is False, BertAdam is used that handles this automatically
                     lr_this_step = args.learning_rate * warmup_linear(
                         global_step / num_train_optimization_steps,
                         args.warmup_proportion,
