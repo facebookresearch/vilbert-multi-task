@@ -1091,49 +1091,6 @@ class BertPreTrainedModel(PreTrainedModel):
             module.bias.data.zero_()
 
 class BertModel(BertPreTrainedModel):
-    """BERT model ("Bidirectional Embedding Representations from a Transformer").
-
-    Params:
-        config: a BertConfig class instance with the configuration to build a new model
-
-    Inputs:
-        `input_ids`: a torch.LongTensor of shape [batch_size, sequence_length]
-            with the word token indices in the vocabulary(see the tokens preprocessing logic in the scripts
-            `extract_features.py`, `run_classifier.py` and `run_squad.py`)
-        `token_type_ids`: an optional torch.LongTensor of shape [batch_size, sequence_length] with the token
-            types indices selected in [0, 1]. Type 0 corresponds to a `sentence A` and type 1 corresponds to
-            a `sentence B` token (see BERT paper for more details).
-        `attention_mask`: an optional torch.LongTensor of shape [batch_size, sequence_length] with indices
-            selected in [0, 1]. It's a mask to be used if the input sequence length is smaller than the max
-            input sequence length in the current batch. It's the mask that we typically use for attention when
-            a batch has varying length sentences.
-        `output_all_encoded_layers`: boolean which controls the content of the `encoded_layers` output as described below. Default: `True`.
-
-    Outputs: Tuple of (encoded_layers, pooled_output)
-        `encoded_layers`: controled by `output_all_encoded_layers` argument:
-            - `output_all_encoded_layers=True`: outputs a list of the full sequences of encoded-hidden-states at the end
-                of each attention block (i.e. 12 full sequences for BERT-base, 24 for BERT-large), each
-                encoded-hidden-state is a torch.FloatTensor of size [batch_size, sequence_length, hidden_size],
-            - `output_all_encoded_layers=False`: outputs only the full sequence of hidden-states corresponding
-                to the last attention block of shape [batch_size, sequence_length, hidden_size],
-        `pooled_output`: a torch.FloatTensor of size [batch_size, hidden_size] which is the output of a
-            classifier pretrained on top of the hidden state associated to the first character of the
-            input (`CLS`) to train on the Next-Sentence task (see BERT's paper).
-
-    Example usage:
-    ```python
-    # Already been converted into WordPiece token ids
-    input_ids = torch.LongTensor([[31, 51, 99], [15, 5, 0]])
-    input_mask = torch.LongTensor([[1, 1, 1], [1, 1, 0]])
-    token_type_ids = torch.LongTensor([[0, 0, 1], [0, 1, 0]])
-
-    config = modeling.BertConfig(vocab_size_or_config_json_file=32000, hidden_size=768,
-        num_hidden_layers=12, num_attention_heads=12, intermediate_size=3072)
-
-    model = modeling.BertModel(config=config)
-    all_encoder_layers, pooled_output = model(input_ids, token_type_ids, input_mask)
-    ```
-    """
 
     def __init__(self, config):
         super(BertModel, self).__init__(config)
@@ -1279,7 +1236,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             self.vis_criterion = nn.KLDivLoss(reduction="none") 
         elif self.visual_target == 1:
             self.vis_criterion = nn.MSELoss(reduction="none")
-        elif self.visaul_target == 2:
+        elif self.visual_target == 2:
             self.vis_criterion = CrossEntropyLoss()
 
         self.tie_weights()
@@ -1305,7 +1262,6 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         next_sentence_label=None,
         output_all_attention_masks=False
     ):
-
         # in this model, we first embed the images.
         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, all_attention_mask = self.bert(
             input_ids,
@@ -1323,7 +1279,6 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         )
 
         if masked_lm_labels is not None and next_sentence_label is not None and image_target is not None:
-
             prediction_scores_v = prediction_scores_v[:, 1:]
             if self.visual_target == 1:
                 img_loss = self.vis_criterion(prediction_scores_v, image_target)
@@ -1340,8 +1295,31 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
                     img_loss * (image_label == 1).unsqueeze(2).float()
                 ) / max(torch.sum((image_label == 1)), 0)
             elif self.visual_target == 2:
-                pdb.set_trace()
+                # generate negative sampled index.
+                num_negative = 19
+                batch_size, num_regions, _ = prediction_scores_v.size()
+                assert batch_size != 0
+                # random sample batch bias, we need to exclude current batch id.
+                row_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0, batch_size-1)
+                for i in range(batch_size-1):
+                    row_index[i][row_index[i]==i] = batch_size-1
+                col_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0,num_regions)
+                final_index = (row_index * num_regions + col_index)
 
+                # Let's first sample where we need to compute.
+                predict_v = prediction_scores_v[image_label == 1]
+                neg_index_v = final_index[image_label == 1]
+
+                flat_image_target = image_target.view(batch_size*num_regions, -1)
+                # we also need to append the target feature at the begining.
+                negative_v = flat_image_target[neg_index_v]
+                positive_v = image_target[image_label == 1]
+                sample_v = torch.cat((positive_v.unsqueeze(1), negative_v), dim=1)
+
+                # calculate the loss.
+                score = torch.bmm(sample_v, predict_v.unsqueeze(2)).squeeze(2)
+                masked_img_loss = self.vis_criterion(score, input_ids.new(score.size(0)).zero_())
+                
             # masked_img_loss = torch.sum(img_loss) / (img_loss.shape[0] * img_loss.shape[1])
             masked_lm_loss = self.loss_fct(
                 prediction_scores_t.view(-1, self.config.vocab_size),
