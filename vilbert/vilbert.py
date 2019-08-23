@@ -1230,6 +1230,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         
         self.apply(self.init_weights)
         self.visual_target = config.visual_target
+        self.num_negative = config.num_negative
         self.loss_fct = CrossEntropyLoss(ignore_index=-1)
 
         print("model's visual target is ", config.visual_target)
@@ -1298,7 +1299,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
                 ) / max(torch.sum((image_label == 1)), 0)
             elif self.visual_target == 2:
                 # generate negative sampled index.
-                num_negative = config.num_negative
+                num_negative = self.num_negative
                 batch_size, num_regions, _ = prediction_scores_v.size()
                 assert batch_size != 0
                 # random sample batch bias, we need to exclude current batch id.
