@@ -143,8 +143,8 @@ class ConceptCapLoaderTrain(object):
 
             lmdb_file = os.path.join(corpus_path, "training_feat_part_" + str(rank) + ".lmdb")
         else:
-            # lmdb_file = os.path.join(corpus_path, "training_feat_all.lmdb")
-            lmdb_file = os.path.join(corpus_path, "validation_feat_all.lmdb")
+            lmdb_file = os.path.join(corpus_path, "training_feat_all.lmdb")
+            #lmdb_file = os.path.join(corpus_path, "validation_feat_all.lmdb")
 
             print("Loading from %s" % lmdb_file)
 
@@ -152,8 +152,8 @@ class ConceptCapLoaderTrain(object):
         ds = td.LMDBSerializer.load(lmdb_file, shuffle=False)
         self.num_dataset = len(ds)
         ds = td.LocallyShuffleData(ds, cache)
-        # caption_path = os.path.join(corpus_path, "caption_train.json")
-        caption_path = os.path.join(corpus_path, "caption_val.json")
+        caption_path = os.path.join(corpus_path, "caption_train.json")
+        #caption_path = os.path.join(corpus_path, "caption_val.json")
 
         preprocess_function = BertPreprocessBatch(
             caption_path,

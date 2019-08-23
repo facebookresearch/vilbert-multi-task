@@ -198,6 +198,11 @@ def main():
         1: with ICA loss, for the not aligned pair, no masking objective, \
         2: without ICA loss, do not sample negative pair."
     )
+    parser.add_argument(
+        "--num_negative", default=255, type=int, 
+        help="num of negative to use"
+    )
+
     parser.add_argument("--resume_file", 
         default="",
         type=str,
