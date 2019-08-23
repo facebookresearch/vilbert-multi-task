@@ -198,6 +198,11 @@ def main():
         1: with ICA loss, for the not aligned pair, no masking objective, \
         2: without ICA loss, do not sample negative pair."
     )
+    parser.add_argument("--resume_file", 
+        default="",
+        type=str,
+        help="Resume from checkpoint"
+    )
     parser.add_argument("--adam_epsilon", 
                         default=1e-8, 
                         type=float,
@@ -342,21 +347,6 @@ def main():
     else:
         model = BertForMultiModalPreTraining(config)
 
-    model.cuda()
-
-    if args.fp16:
-        model.half()
-    if args.local_rank != -1:
-        try:
-            from apex.parallel import DistributedDataParallel as DDP
-        except ImportError:
-            raise ImportError(
-                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
-            )
-        model = DDP(model)
-    elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
-
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 
     if args.freeze != -1:
@@ -446,14 +436,48 @@ def main():
 
     scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion*num_train_optimization_steps, t_total=num_train_optimization_steps)
 
+    startIterID = 0
+    global_step = 0
+
+    if args.resume_file != "" and os.path.exists(args.resume_file):
+        checkpoint = torch.load(args.resume_file, map_location='cpu')
+        new_dict = {}
+        for attr in checkpoint['model_state_dict']:
+            if attr.startswith("module."):
+                new_dict[attr.replace("module.", "", 1)] = checkpoint['model_state_dict'][attr]
+            else:
+                new_dict[attr] = checkpoint['model_state_dict'][attr]
+        model.load_state_dict(new_dict)
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        global_step = checkpoint['global_step']
+        del checkpoint
+
+    model.cuda()
+
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if torch.is_tensor(v):
+                state[k] = v.cuda()
+
+    if args.fp16:
+        model.half()
+    if args.local_rank != -1:
+        try:
+            from apex.parallel import DistributedDataParallel as DDP
+        except ImportError:
+            raise ImportError(
+                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
+            )
+        model = DDP(model)
+    elif n_gpu > 1:
+        model = torch.nn.DataParallel(model)
+
     if default_gpu:
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", train_dataset.num_dataset)
         logger.info("  Batch size = %d", args.train_batch_size)
         logger.info("  Num steps = %d", num_train_optimization_steps)
-
-    startIterID = 0
-    global_step = 0
 
     for epochId in range(int(args.start_epoch), int(args.num_train_epochs)):
         model.train()
@@ -584,7 +608,17 @@ def main():
             output_model_file = os.path.join(
                 savePath, "pytorch_model_" + str(epochId) + ".bin"
             )
+            output_checkpoint = os.path.join(
+                savePath, "pytorch_ckpt_" + str(epochId) + ".tar"
+            )
             torch.save(model_to_save.state_dict(), output_model_file)
+            torch.save({
+                'model_state_dict': model_to_save.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'global_step': global_step,
+
+            }, output_checkpoint)
 
     if default_gpu:
         tbLogger.txt_close()
