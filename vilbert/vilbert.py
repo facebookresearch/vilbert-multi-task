@@ -172,6 +172,7 @@ class BertConfig(object):
         dynamic_attention=False,
         with_coattention=True,
         objective=0,
+        num_negative = 63,
     ):
 
         """Constructs BertConfig.
@@ -246,6 +247,7 @@ class BertConfig(object):
             self.dynamic_attention = dynamic_attention
             self.with_coattention = with_coattention
             self.objective = objective
+            self.num_negative = num_negative
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -1296,7 +1298,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
                 ) / max(torch.sum((image_label == 1)), 0)
             elif self.visual_target == 2:
                 # generate negative sampled index.
-                num_negative = 19
+                num_negative = config.num_negative
                 batch_size, num_regions, _ = prediction_scores_v.size()
                 assert batch_size != 0
                 # random sample batch bias, we need to exclude current batch id.
@@ -1319,7 +1321,7 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
                 # calculate the loss.
                 score = torch.bmm(sample_v, predict_v.unsqueeze(2)).squeeze(2)
                 masked_img_loss = self.vis_criterion(score, input_ids.new(score.size(0)).zero_())
-                
+
             # masked_img_loss = torch.sum(img_loss) / (img_loss.shape[0] * img_loss.shape[1])
             masked_lm_loss = self.loss_fct(
                 prediction_scores_t.view(-1, self.config.vocab_size),
