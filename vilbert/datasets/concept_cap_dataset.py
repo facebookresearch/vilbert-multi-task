@@ -285,8 +285,6 @@ class ConceptCapLoaderVal(object):
             g_image_mask = np.repeat(np.array([[1]]), batch_size, axis=0)
             image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
 
-
-            pdb.set_trace()
             batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
                 image_loc, image_target, image_label, image_mask)
 
