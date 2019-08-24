@@ -27,7 +27,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     batch_size = features.size(0)
 
     pdb.set_trace()
-    if task_cfg[task_id]['process'] in ['normal', 'expand']:
+    if task_cfg[task_id]['process'] in ['expand']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -84,9 +84,10 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     batch = task_iter_train[task_id].next()
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    batch_size = features.size(0)
 
-    if task_cfg[task_id]['process'] in ['normal', 'expand']:        
-        batch_size, max_num_bbox = features.size(0)
+    if task_cfg[task_id]['process'] in ['expand']:        
+        max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
         spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
@@ -339,7 +340,7 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    if task_cfg[task_id]['process'] in ['normal', 'expand']:        
+    if task_cfg[task_id]['process'] in ['expand']:        
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
