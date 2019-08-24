@@ -26,7 +26,6 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    pdb.set_trace()
     if task_cfg[task_id]['process'] in ['expand']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
@@ -228,7 +227,7 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
             if args.local_rank == -1:
                 train_sampler = RandomSampler(task_datasets_train[task])
             else:
-                #TODO: check if this works with current data generator from disk that relies on next(file)
+                # TODO: check if this works with current data generator from disk that relies on next(file)
                 # (it doesn't return item back by index)
                 train_sampler = DistributedSampler(task_datasets_train[task])
 
