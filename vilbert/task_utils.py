@@ -15,7 +15,7 @@ from vilbert.datasets import DatasetMapTrain, DatasetMapEval
 from vilbert.datasets._image_features_reader import ImageFeaturesH5Reader
 import pdb
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+logger = logging.getLogger(__name__)
 
 LossMap = {'BCEWithLogitLoss': nn.BCEWithLogitsLoss(reduction='mean'),
            'CrossEntropyLoss': nn.CrossEntropyLoss(),
@@ -26,7 +26,8 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    if task_id in ['TASK2', 'TASK3', 'TASK5', 'TASK6', 'TASK7']:
+    pdb.set_trace()
+    if task_cfg[task_id]['process'] in ['normal', 'expand']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -37,8 +38,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    elif task_id in ['TASK8', 'TASK9']:
-        batch_size = features.size(0)
+    elif  task_cfg[task_id]['process'] in ['retrieval']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.view(-1, features.size(2), features.size(3))
@@ -84,10 +84,9 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     batch = task_iter_train[task_id].next()
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
-    batch_size = features.size(0)
 
-    if task_id in ['TASK2', 'TASK3', 'TASK5', 'TASK6', 'TASK7']:
-        max_num_bbox = features.size(1)
+    if task_cfg[task_id]['process'] in ['normal', 'expand']:        
+        batch_size, max_num_bbox = features.size(0)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
         spatials = spatials.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
@@ -97,7 +96,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    elif task_id in ['TASK8', 'TASK9']:
+    elif  task_cfg[task_id]['process'] in ['retrieval']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.view(-1, features.size(2), features.size(3))
@@ -133,7 +132,6 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         batch_score = float(torch.sum(select_target>0.5)) / batch_size
 
     return loss, batch_score
-
 
 def LoadLosses(args, task_cfg, task_ids):
 
@@ -341,7 +339,7 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
     features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
-    if task_id in ['TASK2', 'TASK6', 'TASK7']:
+    if task_cfg[task_id]['process'] in ['normal', 'expand']:        
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -352,7 +350,7 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    elif task_id in ['TASK8', 'TASK9']:
+    elif  task_cfg[task_id]['process'] in ['retrieval']:
         batch_size = features.size(0)
         max_num_bbox = features.size(1)
         num_options = question.size(1)
