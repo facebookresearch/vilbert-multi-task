@@ -4,7 +4,7 @@ TASK1:
   loss: BCEWithLogitLoss
   task_id: 1
   dataroot: data/VQA
-  features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
@@ -16,18 +16,18 @@ TASK1:
   val_split: minval
   lr: 0.00004
   num_epoch: 20
-TASK3:
+TASK2:
   name: GenomeQA
   type: VL-classifier
-  task_id: 3
+  task_id: 2
   features_h5path: data/coco/coco_trainval.h5
   train_file: data/VQA/
   split: train
-TASK4:
+TASK3:
   name: VisualDialog
   type: VL-logit
   loss: CrossEntropyLoss
-  task_id: 4
+  task_id: 3
   dataroot: data/VisualDialog
   features_h5path1: data/coco/coco_trainval.h5
   features_h5path2: ''
@@ -40,16 +40,16 @@ TASK4:
   val_split: val
   lr: 0.00001
   num_epoch: 20
-TASK5:
+TASK4:
   name: Vissual7w
   type: VL-logit
-  task_id: 5
+  task_id: 4
   split: train
-TASK6:
+TASK5:
   name: VCR_Q-A
   type: VL-logit
   loss: CrossEntropyLoss
-  task_id: 6
+  task_id: 5
   dataroot: data/VCR
   features_h5path1: /srv/datasets/vilbert/data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: /srv/datasets/vilbert/data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
@@ -62,11 +62,11 @@ TASK6:
   val_split: val
   lr: 0.00002
   num_epoch: 10
-TASK7:
+TASK6:
   name: VCR_QA-R
   type: VL-logit
   loss: CrossEntropyLoss
-  task_id: 7
+  task_id: 6
   dataroot: data/VCR
   features_h5path1: /srv/datasets/vilbert/data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: /srv/datasets/vilbert/data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
@@ -79,11 +79,11 @@ TASK7:
   val_split: val
   lr: 0.00002
   num_epoch: 10
-TASK8:
+TASK7:
   name: RetrievalCOCO
   type: VL-logit
   loss: CrossEntropyLoss
-  task_id: 8
+  task_id: 7
   dataroot: data/cocoRetreival
   features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: ''
@@ -96,11 +96,11 @@ TASK8:
   val_split: val
   lr: 0.00002
   num_epoch: 20
-TASK9:
+TASK8:
   name: RetrievalFlickr30k
   type: VL-logit
   loss: CrossEntropyLoss
-  task_id: 9
+  task_id: 8
   dataroot: data/flickr30k
   features_h5path1: data/flickr30k/flickr30k.lmdb
   features_h5path2: ''
@@ -113,11 +113,11 @@ TASK9:
   val_split: val
   lr: 0.00002
   num_epoch: 20
-TASK10:
+TASK9:
   name: refcoco
   type: V-logit
   loss: BCEWithLogitLoss
-  task_id: 10
+  task_id: 9
   dataroot: data/referExpression
   features_h5path1: data/referExpression/refcoco.h5
   features_h5path2: data/referExpression/refcoco_gt.h5
@@ -130,11 +130,11 @@ TASK10:
   val_split: val
   lr: 0.00004
   num_epoch: 20
-TASK11:
+TASK10:
   name: refcoco+
   type: V-logit
   loss: BCEWithLogitLoss
-  task_id: 11
+  task_id: 10
   dataroot: data/referExpression
   features_h5path1: data/referExpression/refcoco+_resnet101_faster_rcnn_genome.lmdb
   features_h5path2: data/referExpression/refcoco+_gt_resnet101_faster_rcnn_genome.lmdb
@@ -148,11 +148,11 @@ TASK11:
   val_split: val
   lr: 0.00004
   num_epoch: 20
-TASK12:
+TASK11:
   name: refgoogle
   type: V-logit
   loss: BCEWithLogitLoss
-  task_id: 12
+  task_id: 11
   dataroot: data/referExpression
   features_h5path1: data/referExpression/refcoco+.h5
   features_h5path2: data/referExpression/refcoco+_gt.h5
@@ -166,38 +166,23 @@ TASK12:
   start_iteration: 0
   lr: 0.00004
   num_epoch: 20
-TASK13:
-  name: refDenseCaption
-  type: V-logit
-  loss: BCEWithLogitLoss
-  task_id: 13
-  dataroot: data/visgenome
-  features_h5path1: data/referExpression/refcoco+.h5
-  features_h5path2: ''
-  train_annotations_jsonpath: 'data/visgenome/region_descriptions.json'
-  val_annotations_jsonpath: 'data/visgenome/region_descriptions.json'
-  max_seq_length: 20
-  max_region_num: 60
-  batch_size: 256
-  train_split: train
-  val_split: val
-TASK14:
-  name: Flickr30kGround
-  type: L-logit
-  task_id: 14
-  split: train
-TASK15:
-  name: CocoCaption
-  type: L-classifier
-  task_id: 15
-  split: train
-TASK16:
-  name: Flickr30kCaption
-  type: L-classifier
-  task_id: 16
-  split: train
-TASK17:
+TASK12:
   name: NLVR2
   type: VL-logit
-  task_id: 17
+  task_id: 12
   split: train
+TASK13: VisualEntailment
+  name: VL-logit
+  task_id: 13
+  split: train
+TASK14:
+  name: GuessWhat
+  type: VL-classifier
+  task_id: 14
+TASK15:
+  name: GQA
+  type: VL-classifier
+  task_id: 15
+
+  
+
