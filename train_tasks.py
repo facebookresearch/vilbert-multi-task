@@ -244,6 +244,9 @@ def main():
         task_start_iter[task_id] = num_train_optimization_steps - (task_cfg[task]['num_epoch'] * num_iter // args.gradient_accumulation_steps)
         task_interval[task_id] = num_train_optimization_steps // (task_cfg[task]['num_epoch'] * num_iter // args.gradient_accumulation_steps)
 
+    if args.dynamic_attention:
+        config.dynamic_attention = True
+
     if args.baseline:
         model = BaseBertForVLTasks.from_pretrained(
             args.from_pretrained, config=config, num_labels=num_labels, default_gpu=default_gpu
