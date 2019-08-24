@@ -1304,15 +1304,14 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
                 assert batch_size != 0
                 # random sample batch bias, we need to exclude current batch id.
                 # row_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0, batch_size-1)
+                # col_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0,num_regions)
                 # for i in range(batch_size-1):
                 #     row_index[i][row_index[i]==i] = batch_size-1
-                # col_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0,num_regions)
                 
                 row_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0, batch_size)
                 col_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0, num_regions-1)
                 for i in range(num_regions-1):
-                    col_index[:,i,:][row_index[:,i,:]==i] = batch_size-1
-                
+                    col_index[:,i,:][row_index[:,i,:]==i] = num_regions-1
                 final_index = (row_index * num_regions + col_index)
 
                 # Let's first sample where we need to compute.
