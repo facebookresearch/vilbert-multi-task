@@ -318,10 +318,10 @@ def main():
     max_num_iter = max(task_num_iters.values())
     max_batch_size = max(task_batch_size.values())
     
-    if args.optimizer == 'AdamW':
-        
+    if args.optimizer == 'AdamW':    
         optimizer = AdamW(model.parameters(), lr=lr, correct_bias=False)  # To reproduce BertAdam specific behavior set correct_bias=False
-        scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion, t_total=num_train_optimization_steps)  # PyTorch scheduler
+    
+    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion*num_train_optimization_steps, t_total=num_train_optimization_steps)
 
     if args.lr_scheduler == 'automatic':
         lr_scheduler = ReduceLROnPlateau(optimizer, \
@@ -380,7 +380,7 @@ def main():
                         model.zero_grad()
 
                         if default_gpu:
-                            tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer_grouped_parameters[0]['lr'], task_id, 'train')
+                            tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.param_groups[0]['lr'], task_id, 'train')
 
             if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
                 tbLogger.showLossTrain()
