@@ -1352,7 +1352,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
         self.vision_logit = nn.Linear(config.v_hidden_size, 1)
         self.linguisic_logit = nn.Linear(config.hidden_size, 1)
         self.fusion_method = config.fusion_method
-        self.apply(self.init_bert_weights)
+        self.apply(self.init_weights)
 
         self.tie_weights()
 

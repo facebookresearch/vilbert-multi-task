@@ -67,7 +67,7 @@ def main():
     )
     parser.add_argument(
         "--num_train_epochs",
-        default=10,
+        default=20,
         type=int,
         help="Total number of training epochs to perform.",
     )
@@ -120,9 +120,6 @@ def main():
         help="save name for training.", 
     )
     parser.add_argument(
-        "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
-    )
-    parser.add_argument(
         "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
     )
     parser.add_argument(
@@ -147,16 +144,22 @@ def main():
     parser.add_argument(
         "--baseline", action="store_true", help="whether use single stream baseline."
     )
-    parser.add_argument(
-        "--compact", action="store_true", help="whether use compact vilbert model."
+    parser.add_argument("--resume_file", 
+        default="",
+        type=str,
+        help="Resume from checkpoint"
     )
+    parser.add_argument(
+        "--dynamic_attention", action="store_true" , help="whether use dynamic attention."
+    )
+
     args = parser.parse_args()
     with open('vlbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.safe_load(f))
 
-    # random.seed(args.seed)
-    # np.random.seed(args.seed)
-    # torch.manual_seed(args.seed)
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
@@ -243,11 +246,11 @@ def main():
 
     if args.baseline:
         model = BaseBertForVLTasks.from_pretrained(
-            args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
+            args.from_pretrained, config=config, num_labels=num_labels, default_gpu=default_gpu
             )
     else:
         model = VILBertForVLTasks.from_pretrained(
-            args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
+            args.from_pretrained, config=config, num_labels=num_labels, default_gpu=default_gpu
             )
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
@@ -340,6 +343,21 @@ def main():
         print("  Num steps: %d" %num_train_optimization_steps)
 
     startIterID = 0
+
+    if args.resume_file != "" and os.path.exists(args.resume_file):
+        checkpoint = torch.load(args.resume_file, map_location='cpu')
+        new_dict = {}
+        for attr in checkpoint['model_state_dict']:
+            if attr.startswith("module."):
+                new_dict[attr.replace("module.", "", 1)] = checkpoint['model_state_dict'][attr]
+            else:
+                new_dict[attr] = checkpoint['model_state_dict'][attr]
+        model.load_state_dict(new_dict)
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        global_step = checkpoint['global_step']
+        del checkpoint
+
     # initialize the data iteration.
     task_iter_train = {name:None for name in task_ids}
     task_count = {name:0 for name in task_ids}
@@ -386,13 +404,24 @@ def main():
 
         if default_gpu:
             # Save a trained model
-            logger.info("** ** * Saving fine - tuned model on " + timeStamp + "** ** * ")
+            logger.info("** ** * Saving fine - tuned model ** ** * ")
             model_to_save = (
                 model.module if hasattr(model, "module") else model
             )  # Only save the model it-self
-
-            output_model_file = os.path.join(savePath, "pytorch_model_" + str(epochId) + ".bin")
+            output_model_file = os.path.join(
+                savePath, "pytorch_model_" + str(epochId) + ".bin"
+            )
+            output_checkpoint = os.path.join(
+                savePath, "pytorch_ckpt_" + str(epochId) + ".tar"
+            )
             torch.save(model_to_save.state_dict(), output_model_file)
+            torch.save({
+                'model_state_dict': model_to_save.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'global_step': global_step,
+
+            }, output_checkpoint)
 
     tbLogger.txt_close()
     

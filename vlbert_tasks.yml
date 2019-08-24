@@ -1,13 +1,3 @@
-TASK0:
-  name: ConceptualCaption
-  type: L-classifier
-  task_id: 0
-  features_h5path: 
-  train_file: 
-  max_seq_length: 30
-  batch_size: 128
-  train_split: train
-  eval_split: val
 TASK1:
   name: VQA
   type: VL-classifier
@@ -20,27 +10,12 @@ TASK1:
   val_annotations_jsonpath: ''
   max_seq_length: 16
   max_region_num: 100
-  batch_size: 256
+  batch_size: 10
   eval_batch_size: 1024
   train_split: trainval
   val_split: minval
   lr: 0.00004
   num_epoch: 20
-TASK2:
-  name: VQA-MC
-  type: VL-logit
-  loss: CrossEntropyLoss
-  task_id: 2
-  dataroot: data/VQA
-  features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: ''
-  train_annotations_jsonpath: ''
-  val_annotations_jsonpath: ''
-  max_seq_length: 20
-  max_region_num: 100
-  batch_size: 128
-  train_split: trainval
-  val_split: minval
 TASK3:
   name: GenomeQA
   type: VL-classifier
@@ -127,7 +102,7 @@ TASK9:
   loss: CrossEntropyLoss
   task_id: 9
   dataroot: data/flickr30k
-  features_h5path1: data/flickr30k/flickr30k_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: data/flickr30k/flickr30k.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: data/flickr30k/all_data_final_train_2014.jsonline
   val_annotations_jsonpath: data/flickr30k/all_data_final_val_set0_2014.jsonline

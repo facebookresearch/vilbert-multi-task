@@ -41,7 +41,7 @@ class ImageFeaturesH5Reader(object):
             # If not loaded in memory, then list of None.
         self.env = lmdb.open(self.features_path, max_readers=1, readonly=True,
                             lock=False, readahead=False, meminit=False)
-
+    
         with self.env.begin(write=False) as txn: 
             self._image_ids = pickle.loads(txn.get('keys'.encode()))
 
