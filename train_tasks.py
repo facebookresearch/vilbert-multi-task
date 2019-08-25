@@ -346,6 +346,7 @@ def main():
         print("  Num steps: %d" %num_train_optimization_steps)
 
     startIterID = 0
+    global_step = 0
 
     if args.resume_file != "" and os.path.exists(args.resume_file):
         checkpoint = torch.load(args.resume_file, map_location='cpu')
@@ -378,10 +379,19 @@ def main():
 
                     loss.backward()
                     if (step + 1) % args.gradient_accumulation_steps == 0:
+		                if args.fp16:
+		                    lr_this_step = args.learning_rate * warmup_linear(
+		                        global_step / num_train_optimization_steps,
+		                        args.warmup_proportion,
+		                    )
+		                    for param_group in optimizer.param_groups:
+		                        param_group["lr"] = lr_this_step
+                
                         scheduler.step()
                         optimizer.step()
                         model.zero_grad()
-
+                        global_step += 1
+                        
                         if default_gpu:
                             tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.param_groups[0]['lr'], task_id, 'train')
 
