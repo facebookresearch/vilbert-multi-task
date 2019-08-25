@@ -18,7 +18,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
+from pytorch_transformers.optimization import AdamW, WarmupConstantSchedule
 
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
@@ -323,14 +323,14 @@ def main():
     
     if args.optimizer == 'AdamW':    
         optimizer = AdamW(model.parameters(), lr=lr, correct_bias=False)  # To reproduce BertAdam specific behavior set correct_bias=False
-    
-    scheduler = WarmupLinearSchedule(optimizer, warmup_steps=args.warmup_proportion*num_train_optimization_steps, t_total=num_train_optimization_steps)
+
+    scheduler = WarmupConstantSchedule(optimizer, warmup_steps=args.warmup_proportion*num_train_optimization_steps)
 
     if args.lr_scheduler == 'automatic':
         lr_scheduler = ReduceLROnPlateau(optimizer, \
                         mode='max',
                         factor=0.2, 
-                        patience=1, 
+                        patience=1,
                         cooldown=1,
                         threshold=0.001)
     elif args.lr_scheduler == 'mannul':

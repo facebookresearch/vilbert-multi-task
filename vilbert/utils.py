@@ -31,17 +31,6 @@ PYTORCH_PRETRAINED_BERT_CACHE = Path(
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-def lr_warmup(step, ):
-    if (
-        cfg["training_parameters"]["use_warmup"] is True
-        and i_iter <= cfg["training_parameters"]["warmup_iterations"]
-    ):
-        alpha = float(i_iter) / float(cfg["training_parameters"]["warmup_iterations"])
-        return cfg["training_parameters"]["warmup_factor"] * (1.0 - alpha) + alpha
-    else:
-        idx = bisect(cfg["training_parameters"]["lr_steps"], i_iter)
-        return pow(cfg["training_parameters"]["lr_ratio"], idx)
-
 class tbLogger(object):
     def __init__(self, log_dir, txt_dir, task_names, task_ids, task_num_iters, gradient_accumulation_steps, save_logger=True, txt_name='out.txt'):
         logger.info("logging file at: " + log_dir)

@@ -1300,19 +1300,30 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             elif self.visual_target == 2:
                 # generate negative sampled index.
                 num_negative = self.num_negative
+                num_across_batch = int(self.num_negative * 0.7)
+                num_inside_batch = int(self.num_negative * 0.3)
+
                 batch_size, num_regions, _ = prediction_scores_v.size()
                 assert batch_size != 0
-                # random sample batch bias, we need to exclude current batch id.
-                # row_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0, batch_size-1)
-                # col_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0,num_regions)
-                # for i in range(batch_size-1):
-                #     row_index[i][row_index[i]==i] = batch_size-1
-                
-                row_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0, batch_size)
-                col_index = input_ids.new(batch_size, num_regions, num_negative+1).random_(0, num_regions-1)
+                # random negative across batches.
+                row_across_index = input_ids.new(batch_size, num_regions, num_across_batch).random_(0, batch_size-1)
+                col_across_index = input_ids.new(batch_size, num_regions, num_across_batch).random_(0,num_regions)
+
+                for i in range(batch_size-1):
+                    row_across_index[i][row_across_index[i]==i] = batch_size-1
+                final_across_index = (row_across_index * num_regions + col_across_index)
+
+                # random negative inside batches.                
+                row_inside_index = input_ids.new(batch_size, num_regions, num_inside_batch).zero_()
+                col_inside_index = input_ids.new(batch_size, num_regions, num_inside_batch).random_(0, num_regions-1)
+
+                for i in range(batch_size):
+                    row_inside_index[i] = i
                 for i in range(num_regions-1):
-                    col_index[:,i,:][row_index[:,i,:]==i] = num_regions-1
-                final_index = (row_index * num_regions + col_index)
+                    col_inside_index[:,i,:][col_inside_index[:,i,:]==i] = num_regions-1
+                final_inside_index = (row_inside_index * num_regions + col_inside_index)
+
+                final_index = torch.cat((final_across_index, final_inside_index), dim=2)
 
                 # Let's first sample where we need to compute.
                 predict_v = prediction_scores_v[image_label == 1]
