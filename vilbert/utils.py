@@ -28,7 +28,6 @@ PYTORCH_PRETRAINED_BERT_CACHE = Path(
     os.getenv("PYTORCH_PRETRAINED_BERT_CACHE", Path.home() / ".pytorch_pretrained_bert")
 )
 
-
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class tbLogger(object):

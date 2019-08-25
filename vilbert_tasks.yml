@@ -144,8 +144,8 @@ TASK10:
   loss: BCEWithLogitLoss
   task_id: 10
   dataroot: data/referExpression
-  features_h5path1: data/referExpression/refcoco+_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: data/referExpression/refcoco+_gt_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: /coc/pskynet1/vgoswami8/refer_expression/refcoco+/refcoco+_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: /coc/pskynet1/vgoswami8/refer_expression/refcoco+/refcoco+_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20

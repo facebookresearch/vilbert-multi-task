@@ -323,8 +323,8 @@ def main():
     
     if args.optimizer == 'AdamW':    
         optimizer = AdamW(model.parameters(), lr=lr, correct_bias=False)  # To reproduce BertAdam specific behavior set correct_bias=False
-
-    scheduler = WarmupConstantSchedule(optimizer, warmup_steps=args.warmup_proportion*num_train_optimization_steps)
+    warmpu_steps = args.warmup_proportion*num_train_optimization_steps
+    warmup_scheduler = WarmupConstantSchedule(optimizer, warmup_steps=warmpu_steps)
 
     if args.lr_scheduler == 'automatic':
         lr_scheduler = ReduceLROnPlateau(optimizer, \
@@ -357,7 +357,8 @@ def main():
             else:
                 new_dict[attr] = checkpoint['model_state_dict'][attr]
         model.load_state_dict(new_dict)
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        warmup_scheduler.load_state_dict(checkpoint['warmup_scheduler_state_dict'])
+        lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         global_step = checkpoint['global_step']
         del checkpoint
@@ -386,8 +387,10 @@ def main():
                             )
                             for param_group in optimizer.param_groups:
                                 param_group["lr"] = lr_this_step
-                
-                        scheduler.step()
+
+                        if global_step < warmpu_steps:
+                            warmup_scheduler.step()
+                        
                         optimizer.step()
                         model.zero_grad()
                         global_step += 1
@@ -431,7 +434,8 @@ def main():
             torch.save({
                 'model_state_dict': model_to_save.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
+                'warmup_scheduler_state_dict': warmup_scheduler.state_dict(),
+                'lr_scheduler_state_dict': lr_scheduler.state_dict(),
                 'global_step': global_step,
 
             }, output_checkpoint)

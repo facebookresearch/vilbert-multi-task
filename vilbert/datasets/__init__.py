@@ -23,29 +23,27 @@ __all__ = ["FoilClassificationDataset", \
 		   "ConceptCapLoaderRetrieval", \
 		   "ReferDenseCpationDataset"]
 
-DatasetMapTrain = {'TASK0': ConceptCapLoaderTrain,
-				   'TASK1': VQAClassificationDataset,
-				   'TASK2': VQAMultipleChoiceDataset,
-				   'TASK4': VisDialDataset,
-				   'TASK6': VCRDataset,
-				   'TASK7': VCRDataset,				   
-				   'TASK8': RetreivalDataset,
-				   'TASK9': RetreivalDataset,
-				   'TASK11': ReferExpressionDataset,
-				   'TASK12': ReferExpressionDataset,
-				   'TASK13': ReferDenseCpationDataset	   
+DatasetMapTrain = {
+				   'VQA': VQAClassificationDataset,
+				   'VisualDialog': VisDialDataset,
+				   'VCR_Q-A': VCRDataset,
+				   'VCR_QA-R': VCRDataset,				   
+				   'RetrievalCOCO': RetreivalDataset,
+				   'RetrievalFlickr30k': RetreivalDataset,
+				   'refcoco': ReferExpressionDataset,
+				   'refcoco+': ReferExpressionDataset,
+				   'refgoogle': ReferDenseCpationDataset	   
 				   }		
 
 
-DatasetMapEval = {'TASK0': ConceptCapLoaderVal,
-				 'TASK1': VQAClassificationDataset,
-				 'TASK2': VQAMultipleChoiceDataset,
-				 'TASK4': VisDialDataset,
-				 'TASK6': VCRDataset,
-				 'TASK7': VCRDataset,				   
-				 'TASK8': RetreivalDatasetVal,
-				 'TASK9': RetreivalDatasetVal,
-				 'TASK11': ReferExpressionDataset,			   
-				 'TASK12': ReferExpressionDataset,
-				 'TASK13': ReferDenseCpationDataset
+DatasetMapEval = {
+				 'VQA': VQAClassificationDataset,
+				 'VisualDialog': VisDialDataset,
+				 'VCR_Q-A': VCRDataset,
+				 'VCR_QA-R': VCRDataset,				   
+				 'RetrievalCOCO': RetreivalDatasetVal,
+				 'RetrievalFlickr30k': RetreivalDatasetVal,
+				 'refcoco': ReferExpressionDataset,			   
+				 'refcoco+': ReferExpressionDataset,
+				 'refgoogle': ReferDenseCpationDataset
 				}

@@ -182,6 +182,7 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
 
     for i, task_id in enumerate(ids):
         task = 'TASK' + task_id
+        task_name = task_cfg[task]['name']
         task_ids.append(task)
         batch_size = task_cfg[task]['batch_size'] // args.gradient_accumulation_steps 
         num_workers = args.num_workers
@@ -194,7 +195,7 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
         
         task_datasets_train[task] = None
         if 'train' in split:
-            task_datasets_train[task] = DatasetMapTrain[task](
+            task_datasets_train[task] = DatasetMapTrain[task_name](
                                 task=task_cfg[task]['name'],
                                 dataroot=task_cfg[task]['dataroot'],
                                 annotations_jsonpath=task_cfg[task]['train_annotations_jsonpath'],
@@ -209,7 +210,7 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
 
         task_datasets_val[task] = None
         if 'val' in split:
-            task_datasets_val[task] = DatasetMapTrain[task](
+            task_datasets_val[task] = DatasetMapTrain[task_name](
                                 task=task_cfg[task]['name'],
                                 dataroot=task_cfg[task]['dataroot'],
                                 annotations_jsonpath=task_cfg[task]['val_annotations_jsonpath'],
@@ -289,6 +290,7 @@ def LoadDatasetEval(args, task_cfg, ids):
     for i, task_id in enumerate(ids):
         task = 'TASK' + task_id
         task_ids.append(task)
+        task_name = task_cfg[task]['name']
         batch_size =  args.batch_size
         if args.local_rank != -1:
             batch_size = int(batch_size / dist.get_world_size())
@@ -301,7 +303,7 @@ def LoadDatasetEval(args, task_cfg, ids):
         else:
             eval_split = task_cfg[task]['val_split']
 
-        task_datasets_val[task] = DatasetMapEval[task](
+        task_datasets_val[task] = DatasetMapEval[task_name](
                             task=task_cfg[task]['name'],
                             dataroot=task_cfg[task]['dataroot'],
                             annotations_jsonpath=task_cfg[task]['val_annotations_jsonpath'],
