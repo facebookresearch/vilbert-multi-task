@@ -20,6 +20,7 @@ import torch.nn as nn
 
 from pytorch_transformers.optimization import AdamW, WarmupConstantSchedule
 
+from vilbert.optimization import RAdam
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
@@ -123,7 +124,7 @@ def main():
         "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
     )
     parser.add_argument(
-        "--optimizer", default='AdamW', type=str, help="whether use chunck for parallel training."
+        "--optim", default='AdamW', type=str, help="what to use for the optimization."
     )
     parser.add_argument(
         "--tasks", default='', type=str, help="1-2-3... training task separate by -"
@@ -321,8 +322,20 @@ def main():
     max_num_iter = max(task_num_iters.values())
     max_batch_size = max(task_batch_size.values())
     
-    if args.optimizer == 'AdamW':    
-        optimizer = AdamW(model.parameters(), lr=lr, correct_bias=False)  # To reproduce BertAdam specific behavior set correct_bias=False
+    if args.optim == 'AdamW':    
+        optimizer = AdamW(
+                        model.parameters(), 
+                        lr=lr, 
+                        betas=(0.9, 0.98),
+                        correct_bias=False
+                        )  # To reproduce BertAdam specific behavior set correct_bias=False
+    elif args.optim == 'RAdam':
+        optimizer = RAdam(
+                        model.parameters(), 
+                        betas=(0.9, 0.98),
+                        lr=lr,
+                        )  
+
     warmpu_steps = args.warmup_proportion*num_train_optimization_steps
     warmup_scheduler = WarmupConstantSchedule(optimizer, warmup_steps=warmpu_steps)
 

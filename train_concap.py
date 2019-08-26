@@ -433,6 +433,7 @@ def main():
             optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
 
     else:
+        
         optimizer = AdamW(
                 optimizer_grouped_parameters, 
                 lr=args.learning_rate, 
