@@ -183,7 +183,6 @@ class ReferExpressionDataset(Dataset):
             # given the mix boxes, and ref_box, calculate the overlap. 
             mix_target = iou(torch.tensor(mix_boxes_ori[:,:4]).float(), torch.tensor([ref_box]).float())
             mix_target[mix_target<0.5] = 0
-
         else:
             mix_boxes_ori = boxes_ori
             mix_boxes = boxes
@@ -207,7 +206,7 @@ class ReferExpressionDataset(Dataset):
         spatials = torch.tensor(mix_boxes_pad).float()
 
         target = torch.zeros((self.max_region_num,1)).float()
-        target[:mix_num_boxes] = mix_target
+        target[:mix_num_boxes] = mix_target[:mix_num_boxes]
 
         spatials_ori = torch.tensor(mix_boxes_ori).float()
         co_attention_mask = torch.zeros((self.max_region_num, self._max_seq_length))
