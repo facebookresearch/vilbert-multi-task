@@ -51,6 +51,9 @@ BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {
     'bert-large-uncased-whole-word-masking-finetuned-squad': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-whole-word-masking-finetuned-squad-pytorch_model.bin",
     'bert-large-cased-whole-word-masking-finetuned-squad': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-whole-word-masking-finetuned-squad-pytorch_model.bin",
     'bert-base-cased-finetuned-mrpc': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-finetuned-mrpc-pytorch_model.bin",
+    'roberta-base': "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-base-pytorch_model.bin",
+    'roberta-large': "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-pytorch_model.bin",
+    'roberta-large-mnli': "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-mnli-pytorch_model.bin",
 }
 
 def load_tf_weights_in_bert(model, tf_checkpoint_path):
@@ -172,7 +175,8 @@ class BertConfig(object):
         dynamic_attention=False,
         with_coattention=True,
         objective=0,
-        num_negative = 63,
+        num_negative=128,
+        model="bert"
     ):
 
         """Constructs BertConfig.
@@ -242,6 +246,7 @@ class BertConfig(object):
             self.fixed_v_layer = fixed_v_layer
             self.fixed_t_layer = fixed_t_layer
             
+            self.model = model
             self.in_batch_pairs = in_batch_pairs
             self.fusion_method = fusion_method
             self.dynamic_attention = dynamic_attention
@@ -341,6 +346,23 @@ class BertEmbeddings(nn.Module):
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
+
+class RobertaEmbeddings(BertEmbeddings):
+    """
+    Same as BertEmbeddings with a tiny tweak for positional embeddings indexing.
+    """
+    def __init__(self, config):
+        super(RobertaEmbeddings, self).__init__(config)
+        self.padding_idx = 1
+
+    def forward(self, input_ids, token_type_ids=None, position_ids=None):
+        seq_length = input_ids.size(1)
+        if position_ids is None:
+            # Position numbers begin at padding_idx+1. Padding symbols are ignored.
+            # cf. fairseq's `utils.make_positions`
+            position_ids = torch.arange(self.padding_idx+1, seq_length+self.padding_idx+1, dtype=torch.long, device=input_ids.device)
+            position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
+        return super(RobertaEmbeddings, self).forward(input_ids, token_type_ids=token_type_ids, position_ids=position_ids)
 
 class BertSelfAttention(nn.Module):
     def __init__(self, config):
@@ -1098,7 +1120,10 @@ class BertModel(BertPreTrainedModel):
         super(BertModel, self).__init__(config)
 
         # initilize word embedding
-        self.embeddings = BertEmbeddings(config)
+        if config.model == 'bert':
+            self.embeddings = BertEmbeddings(config)
+        elif config.model == 'roberta':
+            self.embeddings = RobertaEmbeddings(config)
 
         # initlize the vision embedding
         self.v_embeddings = BertImageEmbeddings(config)
@@ -1363,7 +1388,6 @@ class VILBertForVLTasks(BertPreTrainedModel):
             config, self.bert.embeddings.word_embeddings.weight
         )
         self.vil_prediction = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, num_labels, 0.5)
-        # self.vil_prediction = nn.Linear(config.bi_hidden_size, num_labels)
         self.vil_logit = nn.Linear(config.bi_hidden_size, 1)
         self.vision_logit = nn.Linear(config.v_hidden_size, 1)
         self.linguisic_logit = nn.Linear(config.hidden_size, 1)

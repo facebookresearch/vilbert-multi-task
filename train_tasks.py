@@ -247,6 +247,8 @@ def main():
 
     if args.dynamic_attention:
         config.dynamic_attention = True
+    if 'roberta' in args.bert_model:
+        config.model = 'roberta'
 
     if args.baseline:
         model = BaseBertForVLTasks.from_pretrained(

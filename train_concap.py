@@ -19,6 +19,7 @@ from torch.utils.data.distributed import DistributedSampler
 from tensorboardX import SummaryWriter
 
 from pytorch_transformers.tokenization_bert import BertTokenizer
+from pytorch_transformers.tokenization_roberta import RobertaTokenizer
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
 import vilbert.utils as utils
@@ -49,7 +50,7 @@ def main():
         default="",
         type=str,
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
-        "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
+        "bert-base-uncased, roberta-base, roberta-large, ",
     )
     parser.add_argument(
         "--bert_model",
@@ -287,9 +288,14 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    tokenizer = BertTokenizer.from_pretrained(
-        args.bert_model, do_lower_case=args.do_lower_case
-    )
+    if 'roberta' in args.bert_model: 
+        tokenizer = RobertaTokenizer.from_pretrained(
+            args.bert_model, do_lower_case=args.do_lower_case
+        )
+    else:
+        tokenizer = BertTokenizer.from_pretrained(
+            args.bert_model, do_lower_case=args.do_lower_case
+        )
     num_train_optimization_steps = None
     train_dataset = ConceptCapLoaderTrain(
         args.file_path,
@@ -337,6 +343,8 @@ def main():
         config.v_target_size = 2048
         config.visual_target = args.visual_target
 
+    if 'roberta' in args.bert_model:
+        config.model = 'roberta'
 
     if args.freeze > config.t_biattention_id[0]:
         config.fixed_t_layer = config.t_biattention_id[0]
