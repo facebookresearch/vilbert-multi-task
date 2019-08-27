@@ -6,7 +6,6 @@ import logging
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from pytorch_transformers.tokenization_bert import BertTokenizer
 
 from ._image_features_reader import ImageFeaturesH5Reader
 import pdb
@@ -87,16 +86,16 @@ def _load_dataset(dataroot, name):
 class VQAClassificationDataset(Dataset):
     def __init__(
         self,
-        task: str,
-        dataroot: str,
-        annotations_jsonpath: str,
-        split: str,
-        image_features_reader: ImageFeaturesH5Reader,
-        gt_image_features_reader: ImageFeaturesH5Reader,
-        tokenizer: BertTokenizer,
-        padding_index: int = 0,
-        max_seq_length: int = 16,
-        max_region_num: int = 37,
+        task,
+        dataroot,
+        annotations_jsonpath,
+        split,
+        image_features_reader,
+        gt_image_features_reader,
+        tokenizer,
+        padding_index = 0,
+        max_seq_length = 16,
+        max_region_num = 37,
     ):
         super().__init__()
         self.split = split

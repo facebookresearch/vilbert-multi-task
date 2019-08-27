@@ -6,7 +6,6 @@ import _pickle as cPickle
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-from pytorch_transformers.tokenization_bert import BertTokenizer
 
 from ._image_features_reader import ImageFeaturesH5Reader
 
@@ -53,11 +52,11 @@ def _load_dataset(dataroot, name):
 class VMMultipleChoiceDataset(Dataset):
     def __init__(
         self,
-        name: str,
-        image_features_reader: ImageFeaturesH5Reader,
-        tokenizer: BertTokenizer,
+        name,
+        image_features_reader,
+        tokenizer,
         dataroot="data",
-        padding_index: int = 0,
+        padding_index = 0,
     ):
         super().__init__()
         assert name in ["train", "val"]
