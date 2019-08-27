@@ -20,11 +20,22 @@ TASK1:
 TASK2:
   name: GenomeQA
   type: VL-classifier
+  loss: BCEWithLogitLoss
   process: normal
   task_id: 2
-  features_h5path: data/coco/coco_trainval.h5
-  train_file: data/VQA/
-  split: train
+  dataroot: /checkpoint/vedanuj/datasets/visual_genome/
+  features_h5path1: /checkpoint/vedanuj/datasets/visual_genome/vg_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: ''
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 16
+  max_region_num: 100
+  batch_size: 256
+  eval_batch_size: 1024
+  train_split: train
+  val_split: val
+  lr: 0.00004
+  num_epoch: 10
 TASK3:
   name: VisualDialog
   type: VL-logit
