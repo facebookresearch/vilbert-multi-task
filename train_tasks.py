@@ -299,7 +299,6 @@ def main():
     for key, value in dict(model.named_parameters()).items():
         if value.requires_grad:
             if 'vil_prediction' in key:
-                # if args.learning_rate <= 2e-5:
                 lr = 1e-4
             else:
                 if args.vision_scratch:
@@ -330,7 +329,7 @@ def main():
                         lr=lr, 
                         betas=(0.9, 0.98),
                         correct_bias=False
-                        )  # To reproduce BertAdam specific behavior set correct_bias=False
+                        ) 
     elif args.optim == 'RAdam':
         optimizer = RAdam(
                         model.parameters(), 
@@ -378,7 +377,6 @@ def main():
         global_step = checkpoint['global_step']
         del checkpoint
 
-    # initialize the data iteration.
     task_iter_train = {name:None for name in task_ids}
     task_count = {name:0 for name in task_ids}
     for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
@@ -386,9 +384,16 @@ def main():
         for step in range(max_num_iter):
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
+                is_forward = False
                 if iterId >= task_start_iter[task_id]:
-                # if iterId % task_interval[task_id] == 0:
-                    loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_train, task_dataloader_train, model, task_losses, task_start_iter)
+                    is_forward = True
+                if iterId % task_interval[task_id] == 0:
+                    is_forward = True
+
+                if is_forward == True:
+                    loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, task_count, \
+                                task_iter_train, task_dataloader_train, model, task_losses, task_start_iter)
+
                     loss = loss * loss_scale[task_id]
                     if args.gradient_accumulation_steps > 1:
                         loss = loss / args.gradient_accumulation_steps 
@@ -411,13 +416,13 @@ def main():
                         global_step += 1
                         
                         if default_gpu:
-                            tbLogger.step_train(epochId, iterId, float(loss), float(score), optimizer.param_groups[0]['lr'], task_id, 'train')
+                            tbLogger.step_train(epochId, iterId, float(loss), float(score), \
+                                                        optimizer.param_groups[0]['lr'], task_id, 'train')
 
             if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
                 tbLogger.showLossTrain()
 
         model.eval()
-        # when run evaluate, we run each task sequentially. 
         for task_id in task_ids:
             for i, batch in enumerate(task_dataloader_val[task_id]):
                 loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
@@ -454,7 +459,6 @@ def main():
                 'global_step': global_step,
 
             }, output_checkpoint)
-
     tbLogger.txt_close()
     
 if __name__ == "__main__":

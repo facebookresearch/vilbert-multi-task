@@ -17,6 +17,10 @@ TASK1:
   val_split: minval
   lr: 0.00004
   num_epoch: 20
+  multi_task:
+    ep_2: 0
+    ep_8: 1
+    ep_12: 2
 TASK2:
   name: GenomeQA
   type: VL-classifier
