@@ -10,6 +10,7 @@ from .refer_expression_dataset import ReferExpressionDataset
 from .retreival_dataset import RetreivalDataset, RetreivalDatasetVal
 from .vcr_dataset import VCRDataset
 from .visdial_dataset import VisDialDataset
+from .visual_entailment_dataset import VisualEntailmentDataset
 from .refer_dense_caption import ReferDenseCpationDataset
 from .visual_genome_dataset import GenomeQAClassificationDataset
 
@@ -27,6 +28,7 @@ __all__ = [
     "RetreivalDatasetVal",
     "VCRDataset",
     "VisDialDataset",
+    "VisualEntailmentDataset",
     "ConceptCapLoaderRetrieval",
     "ReferDenseCpationDataset",
 ]
@@ -42,6 +44,7 @@ DatasetMapTrain = {
     "refcoco": ReferExpressionDataset,
     "refcoco+": ReferExpressionDataset,
     "refgoogle": ReferDenseCpationDataset,
+    "VisualEntailment": VisualEntailmentDataset,
 }
 
 
@@ -56,4 +59,5 @@ DatasetMapEval = {
     "refcoco": ReferExpressionDataset,
     "refcoco+": ReferExpressionDataset,
     "refgoogle": ReferDenseCpationDataset,
+    "VisualEntailment": VisualEntailmentDataset,
 }
