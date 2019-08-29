@@ -171,11 +171,16 @@ def main():
 
     task_names = []
     task_lr = []
+    multi_task_opt = {}
     for i, task_id in enumerate(args.tasks.split('-')):
         task = 'TASK' + task_id
         name = task_cfg[task]['name']
         task_names.append(name)
         task_lr.append(task_cfg[task]['lr'])
+        
+        mt_epoch = [int(i.split('_')[1]) for i in task_cfg[task]['multi_task'].keys()]
+        mt_option = [i for i in task_cfg[task]['multi_task'].values()]
+        multi_task_opt[task] = [mt_epoch, mt_option]
 
     base_lr = min(task_lr)
     loss_scale = {}
@@ -384,10 +389,15 @@ def main():
         for step in range(max_num_iter):
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:
+                
+                # handel multi-task options here.
+                mt_option = multi_task_opt[task_id][1][sum(np.array(multi_task_opt[task_id][0]) < epochId)]
                 is_forward = False
-                if iterId >= task_start_iter[task_id]:
+                if iterId >= task_start_iter[task_id] and mt_option == 'delay':
                     is_forward = True
-                if iterId % task_interval[task_id] == 0:
+                elif iterId % task_interval[task_id] == 0 and mt_option == 'sparse':
+                    is_forward = True
+                elif mt_option == 'dense':
                     is_forward = True
 
                 if is_forward == True:
