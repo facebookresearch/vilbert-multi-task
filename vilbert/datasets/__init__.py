@@ -6,6 +6,7 @@ from .concept_cap_dataset import (
 from .foil_dataset import FoilClassificationDataset
 from .vqa_dataset import VQAClassificationDataset
 from .vqa_mc_dataset import VQAMultipleChoiceDataset
+from .nlvr2_dataset import NLVR2Dataset
 from .refer_expression_dataset import ReferExpressionDataset
 from .retreival_dataset import RetreivalDataset, RetreivalDatasetVal
 from .vcr_dataset import VCRDataset
@@ -22,6 +23,7 @@ __all__ = [
     "VQAMultipleChoiceDataset",
     "ConceptCapLoaderTrain",
     "ConceptCapLoaderVal",
+    "NLVR2Dataset",
     "ReferExpressionDataset",
     "RetreivalDataset",
     "RetreivalDatasetVal",
@@ -42,6 +44,7 @@ DatasetMapTrain = {
     "refcoco": ReferExpressionDataset,
     "refcoco+": ReferExpressionDataset,
     "refcocog": ReferExpressionDataset,
+    "NLVR2": NLVR2Dataset,
     "VisualEntailment": VisualEntailmentDataset,
 }
 
@@ -57,5 +60,6 @@ DatasetMapEval = {
     "refcoco": ReferExpressionDataset,
     "refcoco+": ReferExpressionDataset,
     "refcocog": ReferExpressionDataset,
+    "NLVR2": NLVR2Dataset,
     "VisualEntailment": VisualEntailmentDataset,
 }

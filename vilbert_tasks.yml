@@ -230,9 +230,23 @@ TASK11:
     ep_20: dense
 TASK12:
   name: NLVR2
-  type: VL-logit
+  type: VL-classifier
+  loss: BCEWithLogitLoss
+  process: normal
   task_id: 12
-  split: train
+  dataroot: /srv/share/vgoswami8/nlvr2/
+  features_h5path1: /srv/share/vgoswami8/nlvr2/nlvr2_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: ''
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 16
+  max_region_num: 100
+  batch_size: 128
+  eval_batch_size: 512
+  train_split: train
+  val_split: dev
+  lr: 0.00004
+  num_epoch: 20
   multi_task:
     ep_2: dense
     ep_10: sparse
