@@ -15,7 +15,6 @@ from .refer_dense_caption import ReferDenseCpationDataset
 from .visual_genome_dataset import GenomeQAClassificationDataset
 
 # from .flickr_retreival_dataset import FlickrRetreivalDatasetTrain, FlickrRetreivalDatasetVal
-
 __all__ = [
     "FoilClassificationDataset",
     "VQAClassificationDataset",
@@ -30,7 +29,6 @@ __all__ = [
     "VisDialDataset",
     "VisualEntailmentDataset",
     "ConceptCapLoaderRetrieval",
-    "ReferDenseCpationDataset",
 ]
 
 DatasetMapTrain = {
@@ -43,7 +41,7 @@ DatasetMapTrain = {
     "RetrievalFlickr30k": RetreivalDataset,
     "refcoco": ReferExpressionDataset,
     "refcoco+": ReferExpressionDataset,
-    "refgoogle": ReferDenseCpationDataset,
+    "refcocog": ReferExpressionDataset,
     "VisualEntailment": VisualEntailmentDataset,
 }
 
@@ -58,6 +56,6 @@ DatasetMapEval = {
     "RetrievalFlickr30k": RetreivalDatasetVal,
     "refcoco": ReferExpressionDataset,
     "refcoco+": ReferExpressionDataset,
-    "refgoogle": ReferDenseCpationDataset,
+    "refcocog": ReferExpressionDataset,
     "VisualEntailment": VisualEntailmentDataset,
 }

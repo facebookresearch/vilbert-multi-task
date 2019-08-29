@@ -59,7 +59,7 @@ def main():
     )
     parser.add_argument(
         "--config_file",
-        default="config/bert_config.json",
+        default="config/bert_base_6layer_6conect.json",
         type=str,
         help="The config file which specified the model details.",
     )

@@ -71,8 +71,8 @@ TASK5:
   process: expand
   task_id: 5
   dataroot: data/VCR
-  features_h5path1: /srv/datasets/vilbert/data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: /srv/datasets/vilbert/data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: data/VCR/VCR_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: data/VCR/VCR_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
@@ -89,8 +89,8 @@ TASK6:
   process: expand
   task_id: 6
   dataroot: data/VCR
-  features_h5path1: /srv/datasets/vilbert/data/VCR/VCR_resnet101_faster_rcnn_genome.lmdb
-  features_h5path2: /srv/datasets/vilbert/data/VCR/VCR_gt_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: data/VCR/VCR_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: data/VCR/VCR_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 80
@@ -140,10 +140,11 @@ TASK9:
   name: refcoco
   type: V-logit
   loss: BCEWithLogitLoss
+  process: normal
   task_id: 9
   dataroot: data/referExpression
-  features_h5path1: data/referExpression/refcoco.h5
-  features_h5path2: data/referExpression/refcoco_gt.h5
+  features_h5path1: /srv/share/vgoswami8/refer_expression/refcoco/refcoco_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/share/vgoswami8/refer_expression/refcoco/refcoco_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
@@ -157,10 +158,11 @@ TASK10:
   name: refcoco+
   type: V-logit
   loss: BCEWithLogitLoss
+  process: normal
   task_id: 10
   dataroot: data/referExpression
-  features_h5path1: /coc/pskynet1/vgoswami8/refer_expression/refcoco+/refcoco+_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: /coc/pskynet1/vgoswami8/refer_expression/refcoco+/refcoco+_gt_resnext152_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/share/vgoswami8/refer_expression/refcoco+/refcoco+_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/share/vgoswami8/refer_expression/refcoco+/refcoco+_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
@@ -172,13 +174,14 @@ TASK10:
   lr: 0.00004
   num_epoch: 20
 TASK11:
-  name: refgoogle
+  name: refcocog
   type: V-logit
   loss: BCEWithLogitLoss
+  process: normal
   task_id: 11
   dataroot: data/referExpression
-  features_h5path1: data/referExpression/refcoco+.h5
-  features_h5path2: data/referExpression/refcoco+_gt.h5
+  features_h5path1: /srv/share/vgoswami8/refer_expression/refcocog/refcocog_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/share/vgoswami8/refer_expression/refcocog/refcocog_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20

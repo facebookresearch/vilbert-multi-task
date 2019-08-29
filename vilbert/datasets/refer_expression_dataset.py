@@ -64,7 +64,12 @@ class ReferExpressionDataset(Dataset):
         max_region_num: int = 60
     ):
         self.split = split
-        self.refer = REFER(dataroot, dataset=task,  splitBy='unc')
+
+        if task == 'refcocog':
+            self.refer = REFER(dataroot, dataset=task,  splitBy='umd')
+        else:
+            self.refer = REFER(dataroot, dataset=task,  splitBy='unc')
+            
         self.ref_ids = self.refer.getRefIds(split=split)
         print('%s refs are in split [%s].' % (len(self.ref_ids), split))
 

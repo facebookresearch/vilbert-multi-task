@@ -24,9 +24,9 @@ def _converId(img_id):
     if 'train' in img_id[0]:
         new_id = int(img_id[1])
     elif 'val' in img_id[0]:
-        new_id = int(img_id[1]) + 1000000        
+        new_id = int(img_id[1])        
     elif 'test' in img_id[0]:
-        new_id = int(img_id[1]) + 2000000    
+        new_id = int(img_id[1])    
     else:
         pdb.set_trace()
 
@@ -46,10 +46,12 @@ def _load_annotationsQ_A(annotations_jsonpath, split):
                 ans_label = 0
             else:
                 ans_label = annotation["answer_label"]
+            
             img_id = _converId(annotation["img_id"])
+            img_fn = annotation["img_fn"]            
             anno_id = int(annotation["annot_id"].split('-')[1])
             entries.append(
-                {"question": question, 'answers':annotation["answer_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id, 'anno_id':anno_id}
+                {"question": question, "img_fn": img_fn, 'answers':annotation["answer_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id, 'anno_id':anno_id}
             )
 
     return entries
@@ -60,16 +62,16 @@ def _load_annotationsQA_R(annotations_jsonpath, split):
     with open(annotations_jsonpath, 'rb') as f: # opening file in binary(rb) mode    
         for annotation in json_lines.reader(f):
             # metadata_fn = json.load(open(os.path.join('data/VCR/vcr1images', annotation["metadata_fn"]), 'r'))
-            # det_names = metadata_fn["names"]
             if split == 'test':
                 # for each answer
                 for answer in annotation["answer_choices"]:
                     question = annotation["question"] + ["[SEP]"] + answer   
                     img_id = _converId(annotation["img_id"])
                     ans_label = 0
+                    img_fn = annotation["img_fn"]            
                     anno_id = int(annotation["annot_id"].split('-')[1])
                     entries.append(
-                        {"question": question, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
+                        {"question": question, "img_fn": img_fn, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id}
                     )
             else:
                 det_names = ""
@@ -77,9 +79,11 @@ def _load_annotationsQA_R(annotations_jsonpath, split):
                 ans_label = annotation["rationale_label"]
                 # img_fn = annotation["img_fn"]
                 img_id = _converId(annotation["img_id"])
+                img_fn = annotation["img_fn"]            
+
                 anno_id = int(annotation["annot_id"].split('-')[1])
                 entries.append(
-                    {"question": question, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id, 'anno_id':anno_id}
+                    {"question": question, "img_fn": img_fn, 'answers':annotation["rationale_choices"], "metadata_fn": annotation["metadata_fn"], 'target':ans_label, 'img_id':img_id, 'anno_id':anno_id}
                 )
 
     return entries
@@ -123,7 +127,7 @@ class VCRDataset(Dataset):
                     self._names.append(row[1])
 
         # cache file path data/cache/train_ques
-        cache_path = "data/VCR/cache/" + split + '_' + task + "_" + str(max_seq_length) + "_" + str(max_region_num) + "_vcr.pkl"
+        cache_path = "data/VCR/cache/" + split + '_' + task + "_" + str(max_seq_length) + "_" + str(max_region_num) + "_vcr_fn.pkl"
         if not os.path.exists(cache_path):
             self.tokenize()
             self.tensorize()
@@ -268,6 +272,8 @@ class VCRDataset(Dataset):
         entry = self._entries[index]
 
         image_id = entry["img_id"]
+        
+        pdb.set_trace()
         features, num_boxes, boxes, _ = self._image_features_reader[image_id]
 
         boxes = boxes[:num_boxes]
