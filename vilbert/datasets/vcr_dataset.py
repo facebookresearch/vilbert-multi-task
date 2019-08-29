@@ -272,14 +272,13 @@ class VCRDataset(Dataset):
         entry = self._entries[index]
 
         image_id = entry["img_id"]
-        
-        pdb.set_trace()
-        features, num_boxes, boxes, _ = self._image_features_reader[image_id]
+        img_query = entry["metadata_fn"][:-5] + ".jpg"
+        features, num_boxes, boxes, _ = self._image_features_reader[img_query]
 
         boxes = boxes[:num_boxes]
         features = features[:num_boxes]
 
-        gt_features, gt_num_boxes, gt_boxes, _ = self._gt_image_features_reader[image_id]
+        gt_features, gt_num_boxes, gt_boxes, _ = self._gt_image_features_reader[img_query]
 
         # merge two features.
         features[0] = (features[0] * num_boxes + gt_features[0] * gt_num_boxes) / (num_boxes + gt_num_boxes)
