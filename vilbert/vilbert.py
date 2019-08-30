@@ -1233,7 +1233,7 @@ class BertImageEmbeddings(nn.Module):
 
         self.image_embeddings = nn.Linear(config.v_feature_size, config.v_hidden_size)
         self.image_location_embeddings = nn.Linear(5, config.v_hidden_size)
-        self.image_type_embeddings = nn.Embedding(2, config.v_hidden_size, padding_idx=0)
+        self.image_type_embeddings = nn.Embedding(2, config.v_hidden_size)
         self.LayerNorm = BertLayerNorm(config.v_hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -1245,7 +1245,7 @@ class BertImageEmbeddings(nn.Module):
 
         # TODO: we want to make the padding_idx == 0, however, with custom initilization, it seems it will have a bias.
         # Let's do masking for now
-        type_embeddings = type_embeddings * input_type.float().unsqueeze(2)
+        # type_embeddings = type_embeddings * input_type.float().unsqueeze(2)
         embeddings = self.LayerNorm(img_embeddings+loc_embeddings+type_embeddings)
         embeddings = self.dropout(embeddings)
         

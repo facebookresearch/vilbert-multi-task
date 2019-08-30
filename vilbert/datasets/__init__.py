@@ -14,7 +14,6 @@ from .visdial_dataset import VisDialDataset
 from .visual_entailment_dataset import VisualEntailmentDataset
 from .refer_dense_caption import ReferDenseCpationDataset
 from .visual_genome_dataset import GenomeQAClassificationDataset
-
 # from .flickr_retreival_dataset import FlickrRetreivalDatasetTrain, FlickrRetreivalDatasetVal
 __all__ = [
     "FoilClassificationDataset",
@@ -31,6 +30,7 @@ __all__ = [
     "VisDialDataset",
     "VisualEntailmentDataset",
     "ConceptCapLoaderRetrieval",
+    ""
 ]
 
 DatasetMapTrain = {
@@ -46,6 +46,7 @@ DatasetMapTrain = {
     "refcocog": ReferExpressionDataset,
     "NLVR2": NLVR2Dataset,
     "VisualEntailment": VisualEntailmentDataset,
+    "Foil": FoilClassificationDataset,
 }
 
 
@@ -62,4 +63,5 @@ DatasetMapEval = {
     "refcocog": ReferExpressionDataset,
     "NLVR2": NLVR2Dataset,
     "VisualEntailment": VisualEntailmentDataset,
+    "Foil": FoilClassificationDataset,
 }

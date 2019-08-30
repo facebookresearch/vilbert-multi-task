@@ -123,7 +123,7 @@ class VQAClassificationDataset(Dataset):
         tokenizer,
         padding_index=0,
         max_seq_length=16,
-        max_region_num=37,
+        max_region_num=101,
     ):
         super().__init__()
         self.split = split
