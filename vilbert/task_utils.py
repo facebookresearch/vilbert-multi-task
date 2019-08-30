@@ -154,9 +154,15 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         _, select_idx = torch.max(vision_logit, dim=1)
         select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
         batch_score = float(torch.sum(select_target>0.5)) / batch_size
+    elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
+        loss = task_losses[task_id](vil_binary_prediction, target)
+        loss = loss.mean() * target.size(1)
+        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
+    elif task_cfg[task_id]['type'] == 'VL-tri-classifier':
+        loss = task_losses[task_id](vil_tri_prediction, target)
+        loss = loss.mean() * target.size(1)
+        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
 
-    elif task_cfg[task_id]['type'] == 'VL-binary-prediction':
-        
 
     return loss, batch_score
 

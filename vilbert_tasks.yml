@@ -292,7 +292,7 @@ TASK15:
     ep_20: dense
 TASK16:
   name: Foil
-  type: VL-binary-prediction
+  type: VL-binary-classifier
   loss: CrossEntropyLoss
   process: normal
   task_id: 1
