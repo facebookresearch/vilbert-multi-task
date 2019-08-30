@@ -1143,6 +1143,7 @@ class BertModel(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         co_attention_mask=None,
+        img_type_ids=None,
         output_all_encoded_layers=False,
         output_all_attention_masks=False,
     ):
@@ -1155,6 +1156,9 @@ class BertModel(BertPreTrainedModel):
                 input_imgs.size(0), input_imgs.size(1)
             ).type_as(input_txt)
 
+        if img_type_ids is None:
+            img_type_ids = torch.zeros(input_imgs.size(0), input_imgs.size(1)).type_as(input_txt)
+        
         # We create a 3D attention mask from a 2D tensor mask.
         # Sizes are [batch_size, 1, 1, to_seq_length]
         # So we can broadcast to [batch_size, num_heads, from_seq_length, to_seq_length]
@@ -1195,7 +1199,7 @@ class BertModel(BertPreTrainedModel):
         )  # fp16 compatibility
 
         embedding_output = self.embeddings(input_txt, token_type_ids)
-        v_embedding_output = self.v_embeddings(input_imgs, image_loc)
+        v_embedding_output = self.v_embeddings(input_imgs, image_loc, img_type_ids)
         
         encoded_layers_t, encoded_layers_v, all_attention_mask = self.encoder(
             embedding_output,
@@ -1229,14 +1233,20 @@ class BertImageEmbeddings(nn.Module):
 
         self.image_embeddings = nn.Linear(config.v_feature_size, config.v_hidden_size)
         self.image_location_embeddings = nn.Linear(5, config.v_hidden_size)
+        self.image_type_embeddings = nn.Embedding(2, config.v_hidden_size, padding_idx=0)
         self.LayerNorm = BertLayerNorm(config.v_hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, input_ids, input_loc):
+    def forward(self, input_ids, input_loc, input_type):
 
         img_embeddings = self.image_embeddings(input_ids)
-        loc_embeddings = self.image_location_embeddings(input_loc)        
-        embeddings = self.LayerNorm(img_embeddings+loc_embeddings)
+        loc_embeddings = self.image_location_embeddings(input_loc)
+        type_embeddings = self.image_type_embeddings(input_type)
+
+        # TODO: we want to make the padding_idx == 0, however, with custom initilization, it seems it will have a bias.
+        # Let's do masking for now
+        type_embeddings = type_embeddings * input_type.float().unsqueeze(2)
+        embeddings = self.LayerNorm(img_embeddings+loc_embeddings+type_embeddings)
         embeddings = self.dropout(embeddings)
         
         return embeddings
@@ -1412,8 +1422,10 @@ class VILBertForVLTasks(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         co_attention_mask=None,
+        img_type_ids=None,
         output_all_encoded_layers=False,
     ):
+
         sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
             input_txt,
             input_imgs,
@@ -1422,8 +1434,10 @@ class VILBertForVLTasks(BertPreTrainedModel):
             attention_mask,
             image_attention_mask,
             co_attention_mask,
-            output_all_encoded_layers=False,
-        )
+            img_type_ids, 
+            output_all_encoded_layers=output_all_encoded_layers,
+            output_all_attention_masks=False
+            )
 
         vil_prediction = 0
         vil_logit = 0

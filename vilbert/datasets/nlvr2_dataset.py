@@ -180,13 +180,19 @@ class NLVR2Dataset(Dataset):
         mix_boxes_pad[:mix_num_boxes] = np.concatenate((boxes_0, boxes_1), axis=0)[
             :mix_num_boxes
         ]
+        
         mix_features_pad[:mix_num_boxes] = np.concatenate(
             (features_0, features_1), axis=0
         )[:mix_num_boxes]
 
+        img_segment_ids = np.zeros((mix_features_pad.shape[0]))
+        img_segment_ids[:boxes_0.shape[0]] = 0
+        img_segment_ids[boxes_0.shape[0]:] = 1
+
         features = torch.tensor(mix_features_pad).float()
         image_mask = torch.tensor(image_mask).long()
         spatials = torch.tensor(mix_boxes_pad).float()
+        img_segment_ids = torch.tensor(img_segment_ids).long()
 
         question = entry["q_token"]
         input_mask = entry["q_input_mask"]
@@ -212,6 +218,7 @@ class NLVR2Dataset(Dataset):
             target,
             input_mask,
             segment_ids,
+            img_segment_ids,
             co_attention_mask,
             question_id,
         )

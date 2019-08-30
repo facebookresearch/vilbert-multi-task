@@ -10,7 +10,7 @@ TASK1:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 16
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 256
   eval_batch_size: 1024
   train_split: trainval
@@ -33,7 +33,7 @@ TASK2:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 16
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 256
   eval_batch_size: 1024
   train_split: train
@@ -56,7 +56,7 @@ TASK3:
   train_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_train.json'
   val_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_val.json'
   max_seq_length: 60
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 64
   train_split: train
   val_split: val
@@ -84,7 +84,7 @@ TASK5:
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 60
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 64
   train_split: train
   val_split: val
@@ -106,7 +106,7 @@ TASK6:
   train_annotations_jsonpath: data/VCR/train.jsonl
   val_annotations_jsonpath: data/VCR/val.jsonl
   max_seq_length: 80
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 64
   train_split: train
   val_split: val
@@ -128,7 +128,7 @@ TASK7:
   train_annotations_jsonpath: data/cocoRetreival/all_data_final_train_2014.jsonline
   val_annotations_jsonpath: data/cocoRetreival/all_data_final_val_set0_2014.jsonline
   max_seq_length: 30
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 64
   train_split: train
   val_split: val
@@ -150,7 +150,7 @@ TASK8:
   train_annotations_jsonpath: data/flickr30k/all_data_final_train_2014.jsonline
   val_annotations_jsonpath: data/flickr30k/all_data_final_val_set0_2014.jsonline
   max_seq_length: 30
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 64
   train_split: train
   val_split: val
@@ -172,7 +172,7 @@ TASK9:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 256
   train_split: train
   val_split: val
@@ -194,7 +194,7 @@ TASK10:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 256
   eval_batch_size: 1024
   train_split: train
@@ -217,7 +217,7 @@ TASK11:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 256
   train_split: train
   val_split: val
@@ -240,8 +240,8 @@ TASK12:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 16
-  max_region_num: 100
-  batch_size: 128
+  max_region_num: 101
+  batch_size: 10
   eval_batch_size: 512
   train_split: train
   val_split: dev
@@ -263,7 +263,7 @@ TASK13:
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 16
-  max_region_num: 100
+  max_region_num: 101
   batch_size: 256
   eval_batch_size: 1024
   train_split: train
