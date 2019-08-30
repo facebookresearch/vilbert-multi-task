@@ -253,7 +253,7 @@ TASK12:
     ep_20: dense
 TASK13: 
   name: VisualEntailment
-  type: VL-classifier
+  type: VL-tri-classifier
   loss: BCEWithLogitLoss
   process: normal
   task_id: 13
