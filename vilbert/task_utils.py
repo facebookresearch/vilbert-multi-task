@@ -24,7 +24,10 @@ LossMap = {'BCEWithLogitLoss': nn.BCEWithLogitsLoss(reduction='mean'),
 
 def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    if task_id == 'TASK12':
+        features, spatials, image_mask, question, target, input_mask, segment_ids, img_segment_ids, co_attention_mask, question_id = batch
+    else:
+        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
     if task_cfg[task_id]['process'] in ['expand']:
@@ -49,9 +52,14 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                                            model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
-    
+    if task_id == 'TASK12':
+        # get the model output
+        vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, img_segment_ids)
+    else:
+        vil_prediction, vil_logit, vil_binary_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
+  
     if task_cfg[task_id]['type'] == 'VL-classifier':
         loss = task_losses[task_id](vil_prediction, target)
         loss = loss.mean() * target.size(1)
