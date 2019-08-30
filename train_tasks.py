@@ -154,6 +154,13 @@ def main():
         "--dynamic_attention", action="store_true" , help="whether use dynamic attention."
     )
 
+    parser.add_argument(
+        "--visual_target", default=0, type=int, 
+        help="which target to use for visual branch. \
+        0: soft label, \
+        1: regress the feature, \
+        2: NCE loss.")
+
     args = parser.parse_args()
     with open('vilbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.safe_load(f))
@@ -237,6 +244,13 @@ def main():
     
     logdir = os.path.join('logs', timeStamp)
     tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
+
+    if args.visual_target == 0:
+        config.v_target_size = 1601
+        config.visual_target = args.visual_target
+    else:
+        config.v_target_size = 2048
+        config.visual_target = args.visual_target
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
