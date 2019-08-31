@@ -56,16 +56,16 @@ class FoilClassificationDataset(Dataset):
         self._padding_index = padding_index
         self._max_seq_length = max_seq_length
         self._max_region_num = max_region_num
-        
+        self.num_labels = 2
         cache_path = os.path.join(
             dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
         )
 
         if not os.path.exists(cache_path):
             self._entries = _load_annotations(annotations_jsonpath)
-            self.tokenize(max_seq_length)
+            self.tokenize()
             self.tensorize()
-            cPickle.dump(self.entries, open(cache_path, "wb"))
+            cPickle.dump(self._entries, open(cache_path, "wb"))
         else:
             logger.info("Loading from %s" % cache_path)
             self._entries = cPickle.load(open(cache_path, "rb"))
@@ -138,12 +138,12 @@ class FoilClassificationDataset(Dataset):
             features,
             spatials,
             image_mask,
-            question,
+            caption,
             target,
             input_mask,
             segment_ids,
             co_attention_mask,
-            question_id,
+            image_id,
         )
 
     def __len__(self):

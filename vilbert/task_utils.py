@@ -59,13 +59,8 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     else:
         vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                 model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
-  
-    if task_cfg[task_id]['type'] == 'VL-tri-classifier':
-        loss = task_losses[task_id](vil_prediction, target)
-        loss = loss.mean() * target.size(1)
-        batch_score = compute_score_with_logits(vil_prediction, target).sum()        
 
-    elif task_cfg[task_id]['type'] == 'VL-classifier':
+    if task_cfg[task_id]['type'] == 'VL-classifier':
         loss = task_losses[task_id](vil_prediction, target)
         loss = loss.mean() * target.size(1)
         batch_score = compute_score_with_logits(vil_prediction, target).sum()
@@ -82,6 +77,15 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         _, select_idx = torch.max(vision_logit, dim=1)
         select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
         batch_score = torch.sum(select_target>0.5).item()
+
+    elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
+        loss = task_losses[task_id](vil_binary_prediction, target)
+        loss = loss.mean()
+        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
+    elif task_cfg[task_id]['type'] == 'VL-tri-classifier':
+        loss = task_losses[task_id](vil_tri_prediction, target)
+        loss = loss.mean()
+        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
 
     return float(loss), float(batch_score), batch_size
 
@@ -156,11 +160,11 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         batch_score = float(torch.sum(select_target>0.5)) / batch_size
     elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
         loss = task_losses[task_id](vil_binary_prediction, target)
-        loss = loss.mean() * target.size(1)
+        loss = loss.mean()
         batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
     elif task_cfg[task_id]['type'] == 'VL-tri-classifier':
         loss = task_losses[task_id](vil_tri_prediction, target)
-        loss = loss.mean() * target.size(1)
+        loss = loss.mean()
         batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
 
 

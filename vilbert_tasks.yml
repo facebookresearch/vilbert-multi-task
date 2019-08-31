@@ -51,16 +51,16 @@ TASK3:
   process: normal
   task_id: 3
   dataroot: data/VisualDialog
-  features_h5path1: data/coco/coco_trainval.h5
+  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_train.json'
   val_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_val.json'
-  max_seq_length: 60
+  max_seq_length: 16
   max_region_num: 101
-  batch_size: 64
+  batch_size: 10
   train_split: train
   val_split: val
-  lr: 0.00001
+  lr: 0.00004
   num_epoch: 20
   multi_task:
     ep_2: dense
@@ -296,14 +296,14 @@ TASK16:
   loss: CrossEntropyLoss
   process: normal
   task_id: 1
-  dataroot: data/Foilit
+  dataroot: data/Foil
   features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: 'data/Foil/foilv1.0_train_2017.json'
   val_annotations_jsonpath: 'data/Foil/foilv1.0_test_2017.json'
   max_seq_length: 20
   max_region_num: 101
-  batch_size: 256
+  batch_size: 25
   eval_batch_size: 1024
   train_split: train
   val_split: val
