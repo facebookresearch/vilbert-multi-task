@@ -48,7 +48,7 @@ TASK3:
   name: VisualDialog
   type: VL-logit
   loss: CrossEntropyLoss
-  process: normal
+  process: dialog
   task_id: 3
   dataroot: data/VisualDialog
   features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
@@ -57,7 +57,7 @@ TASK3:
   val_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_val.json'
   max_seq_length: 16
   max_region_num: 101
-  batch_size: 10
+  batch_size: 1
   train_split: train
   val_split: val
   lr: 0.00004

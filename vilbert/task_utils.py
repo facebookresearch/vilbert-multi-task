@@ -111,7 +111,27 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     
     batch_size = features.size(0)
 
-    if task_cfg[task_id]['process'] in ['expand']:        
+    if task_cfg[task_id]['process'] in ['dialog']:
+        max_num_bbox = features.size(1)
+        nround = question.size(1)
+        num_options = question.size(2)
+        rbatch_size = batch_size * nround
+        question = question.view(rbatch_size, question.size(2), question.size(3))        
+        target = target.view(-1)
+        input_mask = input_mask.view(rbatch_size, input_mask.size(2), input_mask.size(3))
+        segment_ids = segment_ids.view(rbatch_size, segment_ids.size(2), segment_ids.size(3))
+        co_attention_mask = co_attention_mask.view(rbatch_size, co_attention_mask.size(2), co_attention_mask.size(3), co_attention_mask.size(4))
+        
+        features = features.unsqueeze(1).unsqueeze(1).expand(batch_size, nround, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
+        spatials = spatials.unsqueeze(1).unsqueeze(1).expand(batch_size, nround, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
+        image_mask = image_mask.unsqueeze(1).expand(batch_size, nround, num_options, max_num_bbox).contiguous().view(-1, max_num_bbox)
+
+        question = question.view(-1, question.size(2))
+        input_mask = input_mask.view(-1, input_mask.size(2))
+        segment_ids = segment_ids.view(-1, segment_ids.size(2))
+        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
+
+    elif task_cfg[task_id]['process'] in ['expand']:        
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -140,7 +160,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     else:
         vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                 model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
-
+    
     # for different task, we use different output to calculate the loss.
     if task_cfg[task_id]['type'] == 'VL-classifier':
         loss = task_losses[task_id](vil_prediction, target)

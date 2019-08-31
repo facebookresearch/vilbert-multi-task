@@ -60,7 +60,7 @@ class VisDialDataset(Dataset):
         self.num_labels = 1
 
         self.max_round_num = 5
-        self.max_num_option = 10
+        self.max_num_option = 5
         self.ans_option = 100
         self.CLS = self._tokenizer.convert_tokens_to_ids(["[CLS]"])[0]
         self.SEP = self._tokenizer.convert_tokens_to_ids(["[SEP]"])[0]
@@ -223,7 +223,7 @@ class VisDialDataset(Dataset):
         input_mask = torch.from_numpy(np.array(input_mask_all))
         segment_ids = torch.from_numpy(np.array(segment_ids_all))
         co_attention_mask = torch.zeros((10, self.max_num_option, self._max_region_num, self._total_seq_length))
-
+        target = torch.zeros(10)
         return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask, image_id
 
     def __len__(self):
