@@ -29,7 +29,6 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     else:
         features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
-
     if task_cfg[task_id]['process'] in ['expand']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
@@ -81,13 +80,17 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
         loss = task_losses[task_id](vil_binary_prediction, target)
         loss = loss.mean()
-        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
+        _, preds = torch.max(vil_binary_prediction, 1)
+        batch_score = (preds == target).sum()
+
     elif task_cfg[task_id]['type'] == 'VL-tri-classifier':
         loss = task_losses[task_id](vil_tri_prediction, target)
         loss = loss.mean()
-        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
-
+        _, preds = torch.max(vil_binary_prediction, 1)
+        batch_score = (preds == target).sum()
+    
     return float(loss), float(batch_score), batch_size
+
 
 def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_train, task_dataloader_train, model, task_losses, task_start_iter):
     # given the current task, decided whether to forward the model and forward with specific loss.
@@ -130,7 +133,6 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-
     if task_id == 'TASK12':
         # get the model output
         vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
@@ -161,12 +163,14 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
         loss = task_losses[task_id](vil_binary_prediction, target)
         loss = loss.mean()
-        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
+        _, preds = torch.max(vil_binary_prediction, 1)
+        batch_score = float((preds == target).sum()) / batch_size
+
     elif task_cfg[task_id]['type'] == 'VL-tri-classifier':
         loss = task_losses[task_id](vil_tri_prediction, target)
         loss = loss.mean()
-        batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
-
+        _, preds = torch.max(vil_tri_prediction, 1)
+        batch_score = float((preds == target).sum()) / batch_size
 
     return loss, batch_score
 

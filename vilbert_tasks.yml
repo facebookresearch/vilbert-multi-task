@@ -303,7 +303,7 @@ TASK16:
   val_annotations_jsonpath: 'data/Foil/foilv1.0_test_2017.json'
   max_seq_length: 20
   max_region_num: 101
-  batch_size: 25
+  batch_size: 256
   eval_batch_size: 1024
   train_split: train
   val_split: val
