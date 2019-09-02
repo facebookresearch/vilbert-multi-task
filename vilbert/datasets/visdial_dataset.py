@@ -56,11 +56,11 @@ class VisDialDataset(Dataset):
         self._padding_index = padding_index
         self._max_seq_length = max_seq_length
         self._max_region_num = max_region_num
-        self._total_seq_length = 120
+        self._total_seq_length = 50
         self.num_labels = 1
 
-        self.max_round_num = 5
-        self.max_num_option = 5
+        self.max_round_num = 3
+        self.max_num_option = 4
         self.ans_option = 100
         self.CLS = self._tokenizer.convert_tokens_to_ids(["[CLS]"])[0]
         self.SEP = self._tokenizer.convert_tokens_to_ids(["[SEP]"])[0]
@@ -122,7 +122,7 @@ class VisDialDataset(Dataset):
             if total_length <= max_length:
                 break
 
-            tokens_a.pop()
+            tokens_a.pop(0)
 
         return tokens_a
 
@@ -159,8 +159,12 @@ class VisDialDataset(Dataset):
                     else:
                         tokens_fact = tokens_fact + [self.SEP] + fact_q + [self.SEP] + fact_a
 
-            token_q = ques  
-            tokens_f = tokens_fact + [self.SEP] + caption 
+            token_q = ques 
+
+            if len(tokens_fact) == 0:
+                tokens_f = caption
+            else:     
+                tokens_f = tokens_fact + [self.SEP] + caption 
             answer_candidate = []
             answer_candidate.append(entry['dialog'][rnd]['gt_index'])
             rand_idx = np.random.permutation(self.ans_option)
@@ -176,7 +180,7 @@ class VisDialDataset(Dataset):
 
             for i, ans_idx in enumerate(answer_candidate):
                 tokens_a = self._answers[entry['dialog'][rnd]['answer_options'][ans_idx]]
-                tokens_f = self._truncate_seq(copy.deepcopy(tokens_f), self._total_seq_length-len(token_q) - len(tokens_a) - 3)
+                tokens_f_new = self._truncate_seq(copy.deepcopy(tokens_f), self._total_seq_length-len(token_q) - len(tokens_a) - 4)
                 
                 tokens = []
                 segment_ids = []
@@ -197,7 +201,7 @@ class VisDialDataset(Dataset):
                 tokens.append(self.SEP)
                 segment_ids.append(1)
                 
-                for token in tokens_f:
+                for token in tokens_f_new:
                     tokens.append(token)
                     segment_ids.append(0)
 
@@ -223,7 +227,7 @@ class VisDialDataset(Dataset):
         input_mask = torch.from_numpy(np.array(input_mask_all))
         segment_ids = torch.from_numpy(np.array(segment_ids_all))
         co_attention_mask = torch.zeros((10, self.max_num_option, self._max_region_num, self._total_seq_length))
-        target = torch.zeros(10)
+        target = torch.zeros(10).long()
         return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask, image_id
 
     def __len__(self):

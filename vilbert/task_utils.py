@@ -131,6 +131,8 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
+        batch_size = rbatch_size
+        
     elif task_cfg[task_id]['process'] in ['expand']:        
         max_num_bbox = features.size(1)
         num_options = question.size(1)
@@ -172,7 +174,6 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         loss = task_losses[task_id](vil_logit, target)
         _, preds = torch.max(vil_logit, 1)
         batch_score = float((preds == target).sum()) / float(batch_size)
-        loss = task_losses[task_id](vil_logit, target)
 
     elif task_cfg[task_id]['type'] == 'V-logit':
         loss = task_losses[task_id](vision_logit, target)
@@ -180,6 +181,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         _, select_idx = torch.max(vision_logit, dim=1)
         select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
         batch_score = float(torch.sum(select_target>0.5)) / batch_size
+        
     elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
         loss = task_losses[task_id](vil_binary_prediction, target)
         loss = loss.mean()
