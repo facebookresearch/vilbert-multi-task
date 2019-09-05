@@ -170,7 +170,7 @@ def main():
     torch.manual_seed(args.seed)
 
     if args.baseline:
-        from pytorch_pretrained_bert.modeling import BertConfig
+        from pytorch_transformers.modeling_bert import BertConfig
         from vilbert.basebert import BaseBertForVLTasks      
     else:
         from vilbert.vilbert import BertConfig
@@ -280,6 +280,7 @@ def main():
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
     model.to(device)
+
     if args.local_rank != -1:
         try:
             from apex.parallel import DistributedDataParallel as DDP
@@ -340,7 +341,6 @@ def main():
         print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
 
     max_num_iter = max(task_num_iters.values())
-    max_batch_size = max(task_batch_size.values())
     
     if args.optim == 'AdamW':    
         optimizer = AdamW(

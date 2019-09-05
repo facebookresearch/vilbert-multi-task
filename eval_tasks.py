@@ -112,9 +112,11 @@ def main():
     parser.add_argument(
         "--split", default="", type=str, help="which split to use."
     )
-
+    parser.add_argument(
+        "--dynamic_attention", action="store_true" , help="whether use dynamic attention."
+    )
     args = parser.parse_args()
-    with open('vlbert_tasks.yml', 'r') as f:
+    with open('vilbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.safe_load(f))
 
     random.seed(args.seed)
@@ -135,11 +137,10 @@ def main():
         task_names.append(name)
 
     # timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
-    timeStamp = args.from_pretrained.split('/')[1] + '-' + args.save_name
+    timeStamp = args.from_pretrained.split('/')[-1] + '-' + args.save_name
     savePath = os.path.join(args.output_dir, timeStamp)
 
     config = BertConfig.from_json_file(args.config_file)
-    bert_weight_name = json.load(open("config/" + args.bert_model + "_weight_name.json", "r"))
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -175,13 +176,18 @@ def main():
 
     num_labels = max([dataset.num_labels for dataset in task_datasets_val.values()])
 
+    if args.dynamic_attention:
+        config.dynamic_attention = True
+    if 'roberta' in args.bert_model:
+        config.model = 'roberta'
+
     if args.baseline:
         model = BaseBertForVLTasks.from_pretrained(
-            args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
+            args.from_pretrained, config=config, num_labels=num_labels, default_gpu=default_gpu
             )
     else:
         model = VILBertForVLTasks.from_pretrained(
-            args.from_pretrained, config, num_labels=num_labels, default_gpu=default_gpu
+            args.from_pretrained, config=config, num_labels=num_labels, default_gpu=default_gpu
             )
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
@@ -198,9 +204,7 @@ def main():
     elif n_gpu > 1:
         model = nn.DataParallel(model)
 
-    no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
-
-    print("***** Running training *****")
+    print("***** Running evaluation *****")
     print("  Num Iters: ", task_num_iters)
     print("  Batch size: ", task_batch_size)    
 

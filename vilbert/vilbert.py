@@ -345,6 +345,7 @@ class BertEmbeddings(nn.Module):
         embeddings = words_embeddings + position_embeddings + token_type_embeddings
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
+
         return embeddings
 
 class RobertaEmbeddings(BertEmbeddings):
@@ -1200,7 +1201,6 @@ class BertModel(BertPreTrainedModel):
 
         embedding_output = self.embeddings(input_txt, token_type_ids)
         v_embedding_output = self.v_embeddings(input_imgs, image_loc, img_type_ids)
-        
         encoded_layers_t, encoded_layers_v, all_attention_mask = self.encoder(
             embedding_output,
             v_embedding_output,
@@ -1245,8 +1245,9 @@ class BertImageEmbeddings(nn.Module):
 
         # TODO: we want to make the padding_idx == 0, however, with custom initilization, it seems it will have a bias.
         # Let's do masking for now
-        # type_embeddings = type_embeddings * input_type.float().unsqueeze(2)
+        type_embeddings = type_embeddings * input_type.float().unsqueeze(2)
         embeddings = self.LayerNorm(img_embeddings+loc_embeddings+type_embeddings)
+        # embeddings = self.LayerNorm(img_embeddings+loc_embeddings)
         embeddings = self.dropout(embeddings)
         
         return embeddings

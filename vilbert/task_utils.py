@@ -129,7 +129,6 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         input_mask = input_mask.view(-1, input_mask.size(2))
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
-
         batch_size = rbatch_size
         
     elif task_cfg[task_id]['process'] in ['expand']:        
@@ -299,15 +298,14 @@ def LoadDatasets(args, task_cfg, ids, split='trainval'):
                 # (it doesn't return item back by index)
                 train_sampler = DistributedSampler(task_datasets_train[task])
 
-            # num_workers = 1
             task_dataloader_train[task] = DataLoader(
                 task_datasets_train[task],
                 sampler=train_sampler,
-                # shuffle=False,
                 batch_size=batch_size,
                 num_workers=num_workers,
                 pin_memory=True,
             )
+
             task_num_iters[task] = len(task_dataloader_train[task])
             task_batch_size[task] = batch_size
 
@@ -406,10 +404,36 @@ def compute_score_with_logits(logits, labels):
 
 def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataloader, task_losses, results, others):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+
+    if task_id == 'TASK12':
+        features, spatials, image_mask, question, target, input_mask, segment_ids, img_segment_ids, co_attention_mask, question_id = batch
+    else:
+        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    
     batch_size = features.size(0)
 
-    if task_cfg[task_id]['process'] in ['expand']:        
+    if task_cfg[task_id]['process'] in ['dialog']:
+        max_num_bbox = features.size(1)
+        nround = question.size(1)
+        num_options = question.size(2)
+        rbatch_size = batch_size * nround
+        question = question.view(rbatch_size, question.size(2), question.size(3))        
+        target = target.view(-1)
+        input_mask = input_mask.view(rbatch_size, input_mask.size(2), input_mask.size(3))
+        segment_ids = segment_ids.view(rbatch_size, segment_ids.size(2), segment_ids.size(3))
+        co_attention_mask = co_attention_mask.view(rbatch_size, co_attention_mask.size(2), co_attention_mask.size(3), co_attention_mask.size(4))
+        
+        features = features.unsqueeze(1).unsqueeze(1).expand(batch_size, nround, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
+        spatials = spatials.unsqueeze(1).unsqueeze(1).expand(batch_size, nround, num_options, max_num_bbox, 5).contiguous().view(-1, max_num_bbox, 5)
+        image_mask = image_mask.unsqueeze(1).expand(batch_size, nround, num_options, max_num_bbox).contiguous().view(-1, max_num_bbox)
+
+        question = question.view(-1, question.size(2))
+        input_mask = input_mask.view(-1, input_mask.size(2))
+        segment_ids = segment_ids.view(-1, segment_ids.size(2))
+        co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
+        batch_size = rbatch_size
+        
+    elif task_cfg[task_id]['process'] in ['expand']:        
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.unsqueeze(1).expand(batch_size, num_options, max_num_bbox, 2048).contiguous().view(-1, max_num_bbox, 2048)
@@ -421,7 +445,6 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
     elif  task_cfg[task_id]['process'] in ['retrieval']:
-        batch_size = features.size(0)
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.view(-1, features.size(2), features.size(3))
@@ -432,9 +455,15 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
+
     with torch.no_grad():
-        vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit \
-            = model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
+        if task_id == 'TASK12':
+            # get the model output
+            vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+                    model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, img_segment_ids)
+        else:
+            vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+                    model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
 
     if task_cfg[task_id]['type'] == 'VL-classifier':
         logits = torch.max(vil_prediction, 1)[1].data  # argmax
