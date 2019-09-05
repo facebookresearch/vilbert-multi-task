@@ -15,10 +15,8 @@ import pdb
 import csv
 import sys
 
-
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
-
 
 def _converId(img_id):
 
@@ -129,6 +127,7 @@ class VCRDataset(Dataset):
         image_features_reader: ImageFeaturesH5Reader,
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
+        bert_model,
         padding_index: int = 0,
         max_seq_length: int = 40,
         max_region_num: int = 60,
@@ -148,6 +147,7 @@ class VCRDataset(Dataset):
         self._padding_index = padding_index
         self._max_caption_length = max_seq_length
         self._max_region_num = max_region_num
+        self._bert_model = bert_model
         self.num_labels = 1
         self.dataroot = dataroot
 
@@ -159,18 +159,13 @@ class VCRDataset(Dataset):
                     self._names.append(row[1])
 
         # cache file path data/cache/train_ques
-        cache_path = os.path.join(
-            dataroot,
-            "cache",
-            split
-            + "_"
-            + task
-            + "_"
-            + str(max_seq_length)
-            + "_"
-            + str(max_region_num)
-            + "_vcr_fn.pkl",
-        )
+        if 'roberta' in bert_model:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + "_vcr_fn.pkl")
+        else:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + "_vcr_fn.pkl")
+
         if not os.path.exists(cache_path):
             self.tokenize()
             self.tensorize()
@@ -197,40 +192,28 @@ class VCRDataset(Dataset):
             tokens_a, mask_a = self.replace_det_with_name(
                 entry["question"], random_names
             )
+            tokens_a = self._tokenizer.encode(' '.join(tokens_a))
 
             input_ids_all = []
-            co_attention_mask_all = []
+            # co_attention_mask_all = []
             input_mask_all = []
             segment_ids_all = []
 
             for answer in entry["answers"]:
                 tokens_b, mask_b = self.replace_det_with_name(answer, random_names)
 
-                self._truncate_seq_pair(
-                    tokens_a, tokens_b, mask_a, mask_b, self._max_caption_length - 3
-                )
+                # self._truncate_seq_pair(
+                #     tokens_a, tokens_b, mask_a, mask_b, self._max_caption_length - 3
+                # )
+                tokens_b = self._tokenizer.encode(' '.join(tokens_b))
+                self._truncate_seq_pair(tokens_b, self._max_caption_length - 3 - len(tokens_a))
 
-                tokens = []
-                segment_ids = []
-                tokens.append("[CLS]")
-                segment_ids.append(0)
+                if 'roberta' in self._bert_model:
+                    segment_ids = [0] * (len(tokens_a) + 2) +  [1] * (len(tokens_b) + 2)
+                else:
+                    segment_ids = [0] * (len(tokens_a) + 2) +  [1] * (len(tokens_b) + 1)
 
-                for token in tokens_a:
-                    tokens.append(token)
-                    segment_ids.append(0)
-
-                tokens.append("[SEP]")
-                segment_ids.append(0)
-
-                assert len(tokens_b) > 0
-                for token in tokens_b:
-                    tokens.append(token)
-                    segment_ids.append(1)
-                tokens.append("[SEP]")
-                segment_ids.append(1)
-
-                input_ids = self._tokenizer.convert_tokens_to_ids(tokens)
-                co_attention_mask = [-1] + mask_a + [-1] + mask_b + [-1]
+                input_ids = self._tokenizer.add_special_tokens_sentences_pair(tokens_a, tokens_b)
 
                 input_mask = [1] * len(input_ids)
                 # Zero-pad up to the sequence length.
@@ -238,18 +221,18 @@ class VCRDataset(Dataset):
                     input_ids.append(0)
                     input_mask.append(0)
                     segment_ids.append(0)
-                    co_attention_mask.append(-1)
+                    # co_attention_mask.append(-1)
 
                 assert len(input_ids) == self._max_caption_length
                 assert len(input_mask) == self._max_caption_length
                 assert len(segment_ids) == self._max_caption_length
 
-                co_attention_mask_all.append(co_attention_mask)
+                # co_attention_mask_all.append(co_attention_mask)
                 input_ids_all.append(input_ids)
                 input_mask_all.append(input_mask)
                 segment_ids_all.append(segment_ids)
 
-            entry["co_attention_mask"] = co_attention_mask_all
+            # entry["co_attention_mask"] = co_attention_mask_all
             entry["input_ids"] = input_ids_all
             entry["input_mask"] = input_mask_all
             entry["segment_ids"] = segment_ids_all
@@ -298,7 +281,25 @@ class VCRDataset(Dataset):
 
         return tokens, mask
 
-    def _truncate_seq_pair(self, tokens_a, tokens_b, mask_a, mask_b, max_length):
+    # def _truncate_seq_pair(self, tokens_a, tokens_b, mask_a, mask_b, max_length):
+    #     """Truncates a sequence pair in place to the maximum length."""
+
+    #     # This is a simple heuristic which will always truncate the longer sequence
+    #     # one token at a time. This makes more sense than truncating an equal percent
+    #     # of tokens from each, since if one sequence is very short then each token
+    #     # that's truncated likely contains more information than a longer sequence.
+    #     while True:
+    #         total_length = len(tokens_a) + len(tokens_b)
+    #         if total_length <= max_length:
+    #             break
+    #         if len(tokens_a) > len(tokens_b):
+    #             tokens_a.pop()
+    #             mask_a.pop()
+    #         else:
+    #             tokens_b.pop()
+    #             mask_b.pop()
+
+    def _truncate_seq_pair(self, tokens_b, max_length):
         """Truncates a sequence pair in place to the maximum length."""
 
         # This is a simple heuristic which will always truncate the longer sequence
@@ -306,16 +307,11 @@ class VCRDataset(Dataset):
         # of tokens from each, since if one sequence is very short then each token
         # that's truncated likely contains more information than a longer sequence.
         while True:
-            total_length = len(tokens_a) + len(tokens_b)
+            total_length = len(tokens_b)
             if total_length <= max_length:
                 break
-            if len(tokens_a) > len(tokens_b):
-                tokens_a.pop()
-                mask_a.pop()
-            else:
-                tokens_b.pop()
-                mask_b.pop()
-
+            tokens_b.pop()
+                
     def __getitem__(self, index):
 
         entry = self._entries[index]
@@ -381,19 +377,19 @@ class VCRDataset(Dataset):
         else:
             anno_id = entry["img_id"]
 
-        co_attention_idxs = entry["co_attention_mask"]
+        # co_attention_idxs = entry["co_attention_mask"]
         co_attention_mask = torch.zeros(
             (
-                len(entry["co_attention_mask"]),
+                len(entry["input_ids"]),
                 self._max_region_num,
                 self._max_caption_length,
             )
         )
 
-        for ii, co_attention_idx in enumerate(co_attention_idxs):
-            for jj, idx in enumerate(co_attention_idx):
-                if idx != -1 and idx + num_box_preserve < self._max_region_num:
-                    co_attention_mask[ii, idx + num_box_preserve, jj] = 1
+        # for ii, co_attention_idx in enumerate(co_attention_idxs):
+        #     for jj, idx in enumerate(co_attention_idx):
+        #         if idx != -1 and idx + num_box_preserve < self._max_region_num:
+        #             co_attention_mask[ii, idx + num_box_preserve, jj] = 1
 
         return (
             features,

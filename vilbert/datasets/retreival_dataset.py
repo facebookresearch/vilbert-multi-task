@@ -50,6 +50,7 @@ class RetreivalDataset(Dataset):
         image_features_reader: ImageFeaturesH5Reader,
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
+        bert_model,
         padding_index: int = 0,
         max_seq_length: int = 20,
         max_region_num: int = 37,
@@ -73,7 +74,14 @@ class RetreivalDataset(Dataset):
                 setattr(self, key, value)
             self.train_imgId2pool = {imageId:i for i, imageId in enumerate(self.train_image_list)}
 
-        cache_path = os.path.join(dataroot, "cache", task + '_' + split + '_' + str(max_seq_length)+'.pkl')
+        if 'roberta' in bert_model:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+            )
+        else:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+            )
 
         if not os.path.exists(cache_path):
             self.tokenize()
@@ -90,13 +98,17 @@ class RetreivalDataset(Dataset):
         -1 represents nil, and should be treated as padding_idx in embedding.
         """
         for entry in self._entries:
-            sentence_tokens = self._tokenizer.tokenize(entry["caption"])
-            sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
+            # sentence_tokens = self._tokenizer.tokenize(entry["caption"])
+            # sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
 
-            tokens = [
-                self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-                for w in sentence_tokens
-            ]
+            # tokens = [
+            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+            #     for w in sentence_tokens
+            # ]
+
+            tokens = self._tokenizer.encode(entry["question"])
+            tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
+        
             tokens = tokens[:self._max_seq_length]
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)
@@ -263,6 +275,7 @@ class RetreivalDatasetVal(Dataset):
         image_features_reader: ImageFeaturesH5Reader,
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
+        bert_model,
         padding_index: int = 0,
         max_seq_length: int = 20,
         max_region_num: int = 101,

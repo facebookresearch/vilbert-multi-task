@@ -44,6 +44,7 @@ class FoilClassificationDataset(Dataset):
         image_features_reader,
         gt_image_features_reader,
         tokenizer,
+        bert_model,
         padding_index=0,
         max_seq_length=20,
         max_region_num=101,
@@ -57,9 +58,14 @@ class FoilClassificationDataset(Dataset):
         self._max_seq_length = max_seq_length
         self._max_region_num = max_region_num
         self.num_labels = 2
-        cache_path = os.path.join(
-            dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
-        )
+        if 'roberta' in bert_model:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+            )
+        else:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+            )
 
         if not os.path.exists(cache_path):
             self._entries = _load_annotations(annotations_jsonpath)
@@ -77,13 +83,15 @@ class FoilClassificationDataset(Dataset):
         -1 represents nil, and should be treated as padding_idx in embedding.
         """
         for entry in self._entries:
-            sentence_tokens = self._tokenizer.tokenize(entry["caption"])
-            sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
+            # sentence_tokens = self._tokenizer.tokenize(entry["caption"])
+            # sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
 
-            tokens = [
-                self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-                for w in sentence_tokens
-            ]
+            # tokens = [
+            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+            #     for w in sentence_tokens
+            # ]
+            tokens = self._tokenizer.encode(entry["question"])
+            tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             tokens = tokens[:self._max_seq_length]
             segment_ids = [0] * len(tokens)

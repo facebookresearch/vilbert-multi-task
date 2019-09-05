@@ -89,13 +89,16 @@ class VMMultipleChoiceDataset(Dataset):
         -1 represent nil, and should be treated as padding_index in embedding
         """
         for entry in self.entries:
-            sentence_tokens = self._tokenizer.tokenize(entry["question"])
-            sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
+            # sentence_tokens = self._tokenizer.tokenize(entry["question"])
+            # sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
 
-            tokens = [
-                self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-                for w in sentence_tokens
-            ]
+            # tokens = [
+            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+            #     for w in sentence_tokens
+            # ]
+            tokens = self._tokenizer.encode(entry["question"])
+            tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
+            
             tokens = tokens[:max_length]
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)

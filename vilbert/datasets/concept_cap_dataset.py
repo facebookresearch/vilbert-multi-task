@@ -353,10 +353,7 @@ class BertPreprocessBatch(object):
 
         caption, label = self.random_cap(caption)
 
-        if 'roberta' in self.bert_model:
-            tokens_caption = self.tokenizer.encode(caption)
-        else:
-            tokens_caption = self.tokenizer.encode(caption)
+        tokens_caption = self.tokenizer.encode(caption)
 
         cur_example = InputExample(
             image_feat=image_feature,

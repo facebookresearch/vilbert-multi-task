@@ -45,6 +45,7 @@ class VisDialDataset(Dataset):
         image_features_reader,
         gt_image_features_reader,
         tokenizer,
+        bert_model,
         padding_index=0,
         max_seq_length=16,
         max_region_num=101,
@@ -65,9 +66,14 @@ class VisDialDataset(Dataset):
         self.CLS = self._tokenizer.convert_tokens_to_ids(["[CLS]"])[0]
         self.SEP = self._tokenizer.convert_tokens_to_ids(["[SEP]"])[0]
 
-        cache_path = os.path.join(
-            dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
-        )
+        if 'roberta' in bert_model:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+            )
+        else:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+            )
 
         if not os.path.exists(cache_path):
             self._entries, questions, answers, captions = _load_dataset(annotations_jsonpath)

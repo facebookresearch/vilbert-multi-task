@@ -61,6 +61,7 @@ class GQAClassificationDataset(Dataset):
         image_features_reader: ImageFeaturesH5Reader,
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
+        bert_model,
         padding_index: int = 0,
         max_seq_length: int = 16,
         max_region_num: int = 37,
@@ -77,9 +78,15 @@ class GQAClassificationDataset(Dataset):
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
         self._padding_index = padding_index
-        cache_path = os.path.join(
-            dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
-        )
+        if 'roberta' in bert_model:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+            )
+        else:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+            )
+
         if not os.path.exists(cache_path):
             self.entries = _load_dataset(dataroot, split)
             self.tokenize(max_seq_length)
@@ -96,13 +103,16 @@ class GQAClassificationDataset(Dataset):
         -1 represent nil, and should be treated as padding_index in embedding
         """
         for entry in self.entries:
-            tokens = self._tokenizer.tokenize(entry["question"])
-            tokens = ["[CLS]"] + tokens + ["[SEP]"]
+            # tokens = self._tokenizer.tokenize(entry["question"])
+            # tokens = ["[CLS]"] + tokens + ["[SEP]"]
 
-            tokens = [
-                self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-                for w in tokens
-            ]
+            # tokens = [
+            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+            #     for w in tokens
+            # ]
+
+            tokens = self._tokenizer.encode(entry["question"])
+            tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             tokens = tokens[:max_length]
             segment_ids = [0] * len(tokens)

@@ -65,6 +65,7 @@ class ReferExpressionDataset(Dataset):
         image_features_reader: ImageFeaturesH5Reader,
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
+        bert_model,
         padding_index: int = 0,
         max_seq_length: int = 20,
         max_region_num: int = 60,
@@ -90,18 +91,15 @@ class ReferExpressionDataset(Dataset):
 
         self.max_region_num = max_region_num
 
-        cache_path = os.path.join(
-            dataroot,
-            "cache",
-            task
-            + "_"
-            + split
-            + "_"
-            + str(max_seq_length)
-            + "_"
-            + str(max_region_num)
-            + ".pkl",
-        )
+        if 'roberta' in bert_model:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + ".pkl"
+            )
+        else:
+            cache_path = os.path.join(
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + ".pkl"
+            )
+
         if not os.path.exists(cache_path):
             self.tokenize()
             self.tensorize()
@@ -144,13 +142,16 @@ class ReferExpressionDataset(Dataset):
         """
         for entry in self.entries:
 
-            sentence_tokens = self._tokenizer.tokenize(entry["caption"])
-            sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
+            # sentence_tokens = self._tokenizer.tokenize(entry["caption"])
+            # sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
 
-            tokens = [
-                self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-                for w in sentence_tokens
-            ]
+            # tokens = [
+            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+            #     for w in sentence_tokens
+            # ]
+
+            tokens = self._tokenizer.encode(entry["question"])
+            tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             tokens = tokens[: self._max_seq_length]
             segment_ids = [0] * len(tokens)
