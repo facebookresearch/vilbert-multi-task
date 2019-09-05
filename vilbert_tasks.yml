@@ -276,8 +276,23 @@ TASK13:
     ep_20: dense
 TASK14:
   name: GuessWhat
-  type: VL-classifier
+  type: VL-tri-classifier
+  loss: BCEWithLogitLoss
+  process: normal
   task_id: 14
+  dataroot: /srv/share/vgoswami8/guesswhat/
+  features_h5path1: /srv/share/vgoswami8/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: ''
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 25
+  max_region_num: 101
+  batch_size: 256
+  eval_batch_size: 1024
+  train_split: train
+  val_split: valid
+  lr: 0.00004
+  num_epoch: 20
   multi_task:
     ep_2: dense
     ep_10: sparse
