@@ -120,6 +120,7 @@ class ConceptCapLoaderTrain(object):
         self,
         corpus_path,
         tokenizer,
+        bert_model,
         seq_len,
         encoding="utf-8",
         visual_target=0,
@@ -158,6 +159,7 @@ class ConceptCapLoaderTrain(object):
         preprocess_function = BertPreprocessBatch(
             caption_path,
             tokenizer,
+            bert_model,
             seq_len,
             36,
             self.num_dataset,
@@ -230,6 +232,7 @@ class ConceptCapLoaderVal(object):
         self,
         corpus_path,
         tokenizer,
+        bert_model,
         seq_len,
         encoding="utf-8",
         visual_target=0,
@@ -252,6 +255,7 @@ class ConceptCapLoaderVal(object):
         preprocess_function = BertPreprocessBatch(
             caption_path,
             tokenizer,
+            bert_model,
             seq_len,
             36,
             self.num_dataset,
@@ -298,6 +302,7 @@ class BertPreprocessBatch(object):
         self,
         caption_path,
         tokenizer,
+        bert_model,
         seq_len,
         region_len, 
         data_size,
@@ -317,7 +322,8 @@ class BertPreprocessBatch(object):
         self.captions = list(json.load(open(caption_path, 'r')).values())
         self.visualization = visualization
         self.objective = objective
-        
+        self.bert_model = bert_model
+
     def __call__(self, data):
 
         image_feature_wp, image_target_wp, image_location_wp, num_boxes,  image_h, image_w, image_id, caption = data
@@ -347,7 +353,11 @@ class BertPreprocessBatch(object):
 
         caption, label = self.random_cap(caption)
 
-        tokens_caption = self.tokenizer.tokenize(caption)
+        if 'roberta' in self.bert_model:
+            tokens_caption = self.tokenizer.encode(caption)
+        else:
+            tokens_caption = self.tokenizer.encode(caption)
+
         cur_example = InputExample(
             image_feat=image_feature,
             image_target=image_target,
@@ -407,38 +417,25 @@ class BertPreprocessBatch(object):
 
     def convert_example_to_features(self, example, max_seq_length, tokenizer, max_region_length):
         """
-
         """
         image_feat = example.image_feat
-        caption = example.caption
+        tokens = example.caption
         image_loc = example.image_loc
         image_target = example.image_target
         num_boxes = int(example.num_boxes)
         is_next = example.is_next
 
-        self._truncate_seq_pair(caption, max_seq_length - 2)
+        self._truncate_seq_pair(tokens, max_seq_length - 2)
 
-        caption, caption_label = self.random_word(caption, tokenizer, is_next)
+        tokens, tokens_label = self.random_word(tokens, tokenizer, is_next)
         image_feat, image_loc, image_label = self.random_region(image_feat, image_loc, num_boxes, is_next)
 
         # concatenate lm labels and account for CLS, SEP, SEP
-        # lm_label_ids = ([-1] + caption_label + [-1] + image_label + [-1])
-        lm_label_ids = [-1] + caption_label + [-1]
-        # image_label = ([-1] + image_label)
+        lm_label_ids = [-1] + tokens_label + [-1]
+        tokens = tokenizer.add_special_tokens_single_sentence(tokens)
+        segment_ids = [0] * len(tokens)
 
-        tokens = []
-        segment_ids = []
-
-        tokens.append("[CLS]")
-        segment_ids.append(0)
-
-        for token in caption:
-            tokens.append(token)
-            segment_ids.append(0)
-        tokens.append("[SEP]")
-        segment_ids.append(0)
-
-        input_ids = tokenizer.convert_tokens_to_ids(tokens)
+        input_ids = tokens # tokenizer.convert_tokens_to_ids(tokens)
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
         # tokens are attended to.
@@ -478,6 +475,7 @@ class BertPreprocessBatch(object):
         )
         return features
 
+
     def _truncate_seq_pair(self, tokens_b, max_length):
         """Truncates a sequence pair in place to the maximum length."""
 
@@ -493,12 +491,6 @@ class BertPreprocessBatch(object):
             tokens_b.pop()
 
     def random_word(self, tokens, tokenizer, is_next):
-        """
-        Masking some random tokens for Language Model task with probabilities as in the original BERT paper.
-        :param tokens: list of str, tokenized sentence.
-        :param tokenizer: Tokenizer, object used for tokenization (we need it's vocab here)
-        :return: (list of str, list of int), masked tokens and related labels for LM prediction
-        """
         output_label = []
 
         for i, token in enumerate(tokens):
@@ -512,28 +504,22 @@ class BertPreprocessBatch(object):
 
                 # 80% randomly change token to mask token
                 if prob < 0.8:
-                    tokens[i] = "[MASK]"
+                    tokens[i] = tokenizer.convert_tokens_to_ids(tokenizer.mask_token)
 
                 # 10% randomly change token to random token
                 elif prob < 0.9:
-                    tokens[i] = random.choice(list(tokenizer.vocab.items()))[0]
+                    tokens[i] = np.random.randint(len(tokenizer))
+                    #torch.randint(len(tokenizer), labels.shape, dtype=torch.long)
 
                 # -> rest 10% randomly keep current token
-
                 # append current token to output (we will predict these later)
-                try:
-                    output_label.append(tokenizer.vocab[token])
-                except KeyError:
-                    # For unknown words (should not occur with BPE vocab)
-                    output_label.append(tokenizer.vocab["[UNK]"])
-                    logger.warning(
-                        "Cannot find token '{}' in vocab. Using [UNK] insetad".format(token)
-                    )
+                output_label.append(token)
             else:
                 # no masking token (will be ignored by loss function later)
                 output_label.append(-1)
 
-        return tokens, output_label
+        return tokens, output_label        
+
 
     def random_region(self, image_feat, image_loc, num_boxes, is_next):
         """
@@ -786,9 +772,9 @@ class BertPreprocessRetrieval(object):
         # image_target = example.image_target
         num_boxes = int(example.num_boxes)
         self._truncate_seq_pair(caption, max_seq_length - 2)
-        # caption, caption_label = self.random_word(caption, tokenizer)
+        caption, caption_label = self.random_word(caption, tokenizer)
         caption_label = None
-        # image_feat, image_loc, image_label = self.random_region(image_feat, image_loc, num_boxes)
+        image_feat, image_loc, image_label = self.random_region(image_feat, image_loc, num_boxes)
         image_label = None
 
         tokens = []

@@ -47,7 +47,7 @@ def main():
     )
     parser.add_argument(
         "--from_pretrained",
-        default="",
+        default="bert-base-uncased",
         type=str,
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
         "bert-base-uncased, roberta-base, roberta-large, ",
@@ -57,7 +57,7 @@ def main():
         default="bert-base-uncased",
         type=str,
         help="Bert pre-trained model selected in the list: bert-base-uncased, "
-        "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.",
+        "bert-large-uncased, roberta-base",
     )
     parser.add_argument(
         "--output_dir",
@@ -69,7 +69,7 @@ def main():
     parser.add_argument(
         "--config_file",
         type=str,
-        required=True,
+        default="config/bert_base_6layer_6conect.json",
         help="The config file which specified the model details.",
     )
     ## Other parameters
@@ -300,6 +300,7 @@ def main():
     train_dataset = ConceptCapLoaderTrain(
         args.file_path,
         tokenizer,
+        args.bert_model,
         seq_len=args.max_seq_length,
         batch_size=args.train_batch_size,
         visual_target=args.visual_target,
@@ -312,6 +313,7 @@ def main():
     validation_dataset = ConceptCapLoaderVal(
         args.file_path,
         tokenizer,
+        args.bert_model,
         seq_len=args.max_seq_length,
         batch_size=args.train_batch_size,
         visual_target=args.visual_target,
