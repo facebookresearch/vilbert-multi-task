@@ -106,7 +106,7 @@ class RetreivalDataset(Dataset):
             #     for w in sentence_tokens
             # ]
 
-            tokens = self._tokenizer.encode(entry["question"])
+            tokens = self._tokenizer.encode(entry["caption"])
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
         
             tokens = tokens[:self._max_seq_length]

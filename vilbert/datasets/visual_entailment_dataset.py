@@ -122,8 +122,8 @@ class VisualEntailmentDataset(Dataset):
         -1 represent nil, and should be treated as padding_index in embedding
         """
         for entry in self.entries:
-            tokens = self._tokenizer.tokenize(entry["hypothesis"])
-            tokens = ["[CLS]"] + tokens + ["[SEP]"]
+            # tokens = self._tokenizer.tokenize(entry["hypothesis"])
+            # tokens = ["[CLS]"] + tokens + ["[SEP]"]
 
             # tokens = [
             #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
@@ -133,7 +133,7 @@ class VisualEntailmentDataset(Dataset):
             # tokens = tokens[:max_length]
             # segment_ids = [0] * len(tokens)
             # input_mask = [1] * len(tokens)
-            tokens = self._tokenizer.encode(entry["question"])
+            tokens = self._tokenizer.encode(entry["hypothesis"])
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             if len(tokens) < max_length:

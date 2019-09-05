@@ -125,7 +125,7 @@ class NLVR2Dataset(Dataset):
             #     for w in tokens
             # ]
 
-            tokens = self._tokenizer.encode(entry["question"])
+            tokens = self._tokenizer.encode(entry["sentence"])
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             tokens = tokens[:max_length]
