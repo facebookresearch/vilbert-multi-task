@@ -53,16 +53,21 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
 
     if task_id == 'TASK12':
         # get the model output
-        vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                 model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, img_segment_ids)
     else:
-        vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                 model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
 
     if task_cfg[task_id]['type'] == 'VL-classifier':
         loss = task_losses[task_id](vil_prediction, target)
         loss = loss.mean() * target.size(1)
         batch_score = compute_score_with_logits(vil_prediction, target).sum()
+
+    if task_cfg[task_id]['type'] == 'VL-classifier-GQA':
+        loss = task_losses[task_id](vil_prediction_gqa, target)
+        loss = loss.mean() * target.size(1)
+        batch_score = compute_score_with_logits(vil_prediction_gqa, target).sum()
 
     elif task_cfg[task_id]['type'] == 'VL-logit':
         vil_logit = vil_logit.view(batch_size, num_options)
@@ -155,10 +160,10 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
 
     if task_id == 'TASK12':
         # get the model output
-        vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                 model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, img_segment_ids)
     else:
-        vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                 model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
     
     # for different task, we use different output to calculate the loss.
@@ -166,6 +171,11 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         loss = task_losses[task_id](vil_prediction, target)
         loss = loss.mean() * target.size(1)
         batch_score = compute_score_with_logits(vil_prediction, target).sum() / float(batch_size)
+
+    elif task_cfg[task_id]['type'] == 'VL-classifier-GQA':
+        loss = task_losses[task_id](vil_prediction_gqa, target)
+        loss = loss.mean() * target.size(1)
+        batch_score = compute_score_with_logits(vil_prediction_gqa, target).sum() / float(batch_size)
     
     elif task_cfg[task_id]['type'] == 'VL-logit':
         vil_logit = vil_logit.view(batch_size, num_options)
@@ -459,10 +469,10 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
     with torch.no_grad():
         if task_id == 'TASK12':
             # get the model output
-            vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+            vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                     model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, img_segment_ids)
         else:
-            vil_prediction, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+            vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                     model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
 
     if task_cfg[task_id]['type'] == 'VL-classifier':
