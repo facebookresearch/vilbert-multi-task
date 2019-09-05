@@ -86,8 +86,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     elif task_cfg[task_id]['type'] == 'VL-tri-classifier':
         loss = task_losses[task_id](vil_tri_prediction, target)
         loss = loss.mean()
-        _, preds = torch.max(vil_binary_prediction, 1)
-        batch_score = (preds == target).sum()
+        batch_score = compute_score_with_logits(vil_tri_prediction, target).sum()
     
     return float(loss), float(batch_score), batch_size
 
@@ -191,8 +190,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     elif task_cfg[task_id]['type'] == 'VL-tri-classifier':
         loss = task_losses[task_id](vil_tri_prediction, target)
         loss = loss.mean()
-        _, preds = torch.max(vil_tri_prediction, 1)
-        batch_score = float((preds == target).sum()) / batch_size
+        batch_score = compute_score_with_logits(vil_tri_prediction, target).sum() / float(batch_size)
 
     return loss, batch_score
 
