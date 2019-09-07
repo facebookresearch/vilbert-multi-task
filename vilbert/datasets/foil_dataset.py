@@ -91,9 +91,9 @@ class FoilClassificationDataset(Dataset):
             #     for w in sentence_tokens
             # ]
             tokens = self._tokenizer.encode(entry["caption"])
+            tokens = tokens[:self._max_seq_length-2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
-            tokens = tokens[:self._max_seq_length]
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)
 

@@ -107,15 +107,18 @@ class GuessWhatDataset(Dataset):
         -1 represent nil, and should be treated as padding_index in embedding
         """
         for entry in self.entries:
-            tokens = self._tokenizer.tokenize(entry["question"])
-            tokens = ["[CLS]"] + tokens + ["[SEP]"]
+            # tokens = self._tokenizer.tokenize(entry["question"])
+            # tokens = ["[CLS]"] + tokens + ["[SEP]"]
 
-            tokens = [
-                self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-                for w in tokens
-            ]
+            # tokens = [
+            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
+            #     for w in tokens
+            # ]
+            tokens = self._tokenizer.encode(entry["question"])
+            tokens = tokens[:max_length-2]
+            tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
-            tokens = tokens[:max_length]
+            # tokens = tokens[:max_length]
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)
 

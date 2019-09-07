@@ -130,12 +130,12 @@ class VisualEntailmentDataset(Dataset):
             #     for w in tokens
             # ]
 
-            # tokens = tokens[:max_length]
-            # segment_ids = [0] * len(tokens)
-            # input_mask = [1] * len(tokens)
             tokens = self._tokenizer.encode(entry["hypothesis"])
+            tokens = tokens[:max_length-2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
+            segment_ids = [0] * len(tokens)
+            input_mask = [1] * len(tokens)
             if len(tokens) < max_length:
                 # Note here we pad in front of the sentence
                 padding = [self._padding_index] * (max_length - len(tokens))

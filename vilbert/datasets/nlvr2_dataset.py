@@ -126,9 +126,9 @@ class NLVR2Dataset(Dataset):
             # ]
 
             tokens = self._tokenizer.encode(entry["sentence"])
+            tokens = tokens[:max_length-2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
-            tokens = tokens[:max_length]
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)
 
