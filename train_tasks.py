@@ -153,7 +153,9 @@ def main():
     parser.add_argument(
         "--dynamic_attention", action="store_true" , help="whether use dynamic attention."
     )
-
+    parser.add_argument(
+        "--add_task_tokens", default=True , type=bool, help="whether have task token."
+    )
     parser.add_argument(
         "--visual_target", default=0, type=int, 
         help="which target to use for visual branch. \
