@@ -54,14 +54,18 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
+    task_tokens = None
+    if args.add_task_tokens:
+        task_tokens = task_cfg['TASK1']['task_id'] * torch.torch.ones_like(question).cuda(device=device, non_blocking=True).long()
+
     if task_id == 'TASK12':
         # get the model output
         vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, img_segment_ids)
+                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens, img_segment_ids)
     else:
         vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)
-
+                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens)        
+    
     if task_cfg[task_id]['type'] == 'VL-classifier':
         loss = task_losses[task_id](vil_prediction, target)
         loss = loss.mean() * target.size(1)
