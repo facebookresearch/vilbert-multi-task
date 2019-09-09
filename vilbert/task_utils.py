@@ -54,7 +54,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
 
     task_tokens = None
     if args.add_task_tokens:
-        task_tokens = task_cfg['TASK1']['task_id'] * torch.torch.ones_like(question).cuda(device=device, non_blocking=True).long()
+        task_tokens = task_cfg[task_id]['task_id'] * torch.torch.ones_like(question).cuda(device=device, non_blocking=True).long()
 
     if task_id == 'TASK12':
         # get the model output
@@ -164,7 +164,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
 
     # Add task token here. 
     if args.add_task_tokens:
-        task_tokens = task_cfg['TASK1']['task_id'] * torch.torch.ones_like(question).cuda(device=device, non_blocking=True).long()
+        task_tokens = task_cfg[task_id]['task_id'] * torch.torch.ones_like(question).cuda(device=device, non_blocking=True).long()
 
     if task_id == 'TASK12':
         # get the model output
