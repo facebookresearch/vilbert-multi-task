@@ -29,7 +29,7 @@ def _create_entry(question, answer):
     return entry
 
 
-def _load_dataset(dataroot, name):
+def _load_dataset(dataroot, name, clean_datasets):
     """Load entries
 
     dataroot: root path of dataset
@@ -104,7 +104,13 @@ def _load_dataset(dataroot, name):
     else:
         assert_eq(len(questions), len(answers))
         entries = []
+        remove_ids = []
+        if clean_datasets:
+            remove_ids = np.load(os.path.join(dataroot, "cache", "coco_test_ids.npy"))
+            remove_ids = [int(x) for x in remove_ids]
         for question, answer in zip(questions, answers):
+            if int(question["image_id"]) in remove_ids:
+                continue
             assert_eq(question["question_id"], answer["question_id"])
             assert_eq(question["image_id"], answer["image_id"])
             entries.append(_create_entry(question, answer))
@@ -122,6 +128,7 @@ class VQAClassificationDataset(Dataset):
         gt_image_features_reader,
         tokenizer,
         bert_model,
+        clean_datasets,
         padding_index=0,
         max_seq_length=16,
         max_region_num=101,
@@ -139,16 +146,18 @@ class VQAClassificationDataset(Dataset):
         self._tokenizer = tokenizer
         self._padding_index = padding_index
 
+        clean_train = "_cleaned" if clean_datasets else ""
+
         if 'roberta' in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
             )            
         if not os.path.exists(cache_path):
-            self.entries = _load_dataset(dataroot, split)
+            self.entries = _load_dataset(dataroot, split, clean_datasets)
             self.tokenize(max_seq_length)
             self.tensorize()
             cPickle.dump(self.entries, open(cache_path, "wb"))

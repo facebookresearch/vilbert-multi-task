@@ -17,7 +17,7 @@ import pdb
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
 
-def _load_annotations(annotations_jsonpath, task):
+def _load_annotations(annotations_jsonpath, task, clean_datasets):
 
     with jsonlines.open(annotations_jsonpath) as reader:
 
@@ -26,11 +26,21 @@ def _load_annotations(annotations_jsonpath, task):
         imgid2entry = {}
         count = 0
 
+        remove_ids = []
+        if clean_datasets:
+            if task == 'RetrievalCOCO':
+                remove_ids = np.load(os.path.join(dataroot, "cache", "coco_test_ids.npy"))
+            elif task == 'RetrievalFlickr30k':
+                remove_ids = np.load(os.path.join(dataroot, "cache", "flickr_test_ids.npy"))
+            remove_ids = [int(x) for x in remove_ids]
+
         for annotation in reader:
             if task == 'RetrievalCOCO':
                 image_id = annotation['id']
             elif task == 'RetrievalFlickr30k':
                 image_id = int(annotation['img_path'].split('.')[0])
+            if int(image_id) in remove_ids:
+                continue
             imgid2entry[image_id] = []
             for sentences in annotation['sentences']:
                 entries.append({"caption": sentences, 'image_id':image_id})
@@ -51,13 +61,14 @@ class RetreivalDataset(Dataset):
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
         bert_model,
+        clean_datasets,
         padding_index: int = 0,
         max_seq_length: int = 20,
         max_region_num: int = 37,
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
 
-        self._entries, self.imgid2entry = _load_annotations(annotations_jsonpath, task)
+        self._entries, self.imgid2entry = _load_annotations(annotations_jsonpath, task, clean_datasets)
         self.image_id_list = [*self.imgid2entry]
 
         self._image_features_reader = image_features_reader
@@ -74,13 +85,15 @@ class RetreivalDataset(Dataset):
                 setattr(self, key, value)
             self.train_imgId2pool = {imageId:i for i, imageId in enumerate(self.train_image_list)}
 
+        clean_train = "_cleaned" if clean_datasets else ""
+
         if 'roberta' in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
             )
 
         if not os.path.exists(cache_path):

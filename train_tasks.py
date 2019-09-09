@@ -157,6 +157,9 @@ def main():
         "--add_task_tokens", default=True , type=bool, help="whether have task token."
     )
     parser.add_argument(
+        "--clean_train_sets", default=True , type=bool, help="whether clean train sets for multitask data."
+    )
+    parser.add_argument(
         "--visual_target", default=0, type=int, 
         help="which target to use for visual branch. \
         0: soft label, \
@@ -244,7 +247,7 @@ def main():
     task_batch_size, task_num_iters, task_ids, task_datasets_train, task_datasets_val, \
             task_dataloader_train, task_dataloader_val = LoadDatasets(args, task_cfg, args.tasks.split('-'))
     
-    logdir = os.path.join('logs', timeStamp)
+    logdir = os.path.join(savePath, 'logs')
     tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
     if args.visual_target == 0:

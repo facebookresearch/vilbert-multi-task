@@ -30,7 +30,7 @@ def _create_entry(item):
     return entry
 
 
-def _load_dataset(dataroot, name):
+def _load_dataset(dataroot, name, clean_datasets):
     """Load entries
 
     dataroot: root path of dataset
@@ -40,6 +40,10 @@ def _load_dataset(dataroot, name):
         annotations_path = os.path.join(dataroot, "snli_ve_%s.jsonl" % name)
         with jsonlines.open(annotations_path) as reader:
 
+            remove_ids = []
+            if clean_datasets:
+                remove_ids = np.load(os.path.join(dataroot, "cache", "flickr_test_ids.npy"))
+                remove_ids = [int(x) for x in remove_ids]
             # Build an index which maps image id with a list of hypothesis annotations.
             items = []
             count = 0
@@ -47,6 +51,8 @@ def _load_dataset(dataroot, name):
                 # logger.info(annotation)
                 dictionary = {}
                 dictionary["image_id"] = int(annotation["Flikr30kID"].split(".")[0])
+                if dictionary["image_id"] in remove_ids:
+                    continue
                 dictionary["question_id"] = count
                 dictionary["hypothesis"] = str(annotation["sentence2"])
                 if name == "test" or str(annotation["gold_label"]) == "-":
@@ -84,6 +90,7 @@ class VisualEntailmentDataset(Dataset):
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
         bert_model,
+        clean_datasets,
         padding_index: int = 0,
         max_seq_length: int = 16,
         max_region_num: int = 37,
@@ -97,17 +104,19 @@ class VisualEntailmentDataset(Dataset):
         self._tokenizer = tokenizer
         self._padding_index = padding_index
 
+        clean_train = "_cleaned" if clean_datasets else ""
+
         if 'roberta' in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
             )
 
         if not os.path.exists(cache_path):
-            self.entries = _load_dataset(dataroot, split)
+            self.entries = _load_dataset(dataroot, split, clean_datasets)
             self.tokenize(max_seq_length)
             self.tensorize()
             cPickle.dump(self.entries, open(cache_path, "wb"))

@@ -80,6 +80,7 @@ class NLVR2Dataset(Dataset):
         gt_image_features_reader,
         tokenizer,
         bert_model,
+        clean_datasets,
         padding_index=0,
         max_seq_length=16,
         max_region_num=37,

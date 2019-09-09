@@ -21,15 +21,21 @@ os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
 
-def _load_dataset(annotations_jsonpath):
+def _load_dataset(annotations_jsonpath, clean_datasets):
     """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
     entries = []
     captions = []
+    remove_ids = []
+    if clean_datasets:
+        remove_ids = np.load(os.path.join(dataroot, "cache", "genome_test_ids.npy"))
+        remove_ids = [int(x) for x in remove_ids]
     print('Loading dataset from %s' %annotations_jsonpath)
     annotations = json.load(open(annotations_jsonpath, 'r'))['data']
     print('Finish loading ...')
     for i, dialog in enumerate(annotations['dialogs']):
         image_id = dialog['image_id']
+        if int(image_id) in remove_ids:
+            continue
         captions.append(dialog['caption'])
         entries.append({'image_id':image_id, 'dialog': dialog['dialog'], 'caption': i})
 
@@ -46,6 +52,7 @@ class VisDialDataset(Dataset):
         gt_image_features_reader,
         tokenizer,
         bert_model,
+        clean_datasets,
         padding_index=0,
         max_seq_length=16,
         max_region_num=101,
@@ -66,17 +73,19 @@ class VisDialDataset(Dataset):
         self.CLS = self._tokenizer.convert_tokens_to_ids(["[CLS]"])[0]
         self.SEP = self._tokenizer.convert_tokens_to_ids(["[SEP]"])[0]
 
+        clean_train = "_cleaned" if clean_datasets else ""
+
         if 'roberta' in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
             )
 
         if not os.path.exists(cache_path):
-            self._entries, questions, answers, captions = _load_dataset(annotations_jsonpath)
+            self._entries, questions, answers, captions = _load_dataset(annotations_jsonpath, clean_datasets)
             self._questions, self._answers, self._captions = self.tokenizeQA(questions, answers, captions)
             file_save = {}
             file_save['entries'] = self._entries

@@ -66,6 +66,7 @@ class ReferExpressionDataset(Dataset):
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
         bert_model,
+        clean_datasets,
         padding_index: int = 0,
         max_seq_length: int = 20,
         max_region_num: int = 60,
@@ -87,17 +88,20 @@ class ReferExpressionDataset(Dataset):
 
         self._padding_index = padding_index
         self._max_seq_length = max_seq_length
-        self.entries = self._load_annotations()
+        self.entries = self._load_annotations(clean_datasets)
+        self.dataroot = dataroot
 
         self.max_region_num = max_region_num
 
+        clean_train = "_cleaned" if clean_datasets else ""
+
         if 'roberta' in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + ".pkl"
+                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
             )
 
         if not os.path.exists(cache_path):
@@ -108,16 +112,22 @@ class ReferExpressionDataset(Dataset):
             print("loading entries from %s" % (cache_path))
             self.entries = cPickle.load(open(cache_path, "rb"))
 
-    def _load_annotations(self):
+    def _load_annotations(self, clean_datasets):
 
         # annotations_json: Dict[str, Any] = json.load(open(annotations_jsonpath))
 
         # Build an index which maps image id with a list of caption annotations.
         entries = []
+        remove_ids = []
+        if clean_datasets:
+            remove_ids = np.load(os.path.join(self.dataroot, "cache", "coco_test_ids.npy"))
+            remove_ids = [int(x) for x in remove_ids]
 
         for ref_id in self.ref_ids:
             ref = self.refer.Refs[ref_id]
             image_id = ref["image_id"]
+            if int(image_id) in remove_ids:
+                continue
             ref_id = ref["ref_id"]
             refBox = self.refer.getRefBox(ref_id)
             for sent, sent_id in zip(ref["sentences"], ref["sent_ids"]):
