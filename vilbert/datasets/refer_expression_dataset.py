@@ -88,8 +88,8 @@ class ReferExpressionDataset(Dataset):
 
         self._padding_index = padding_index
         self._max_seq_length = max_seq_length
-        self.entries = self._load_annotations(clean_datasets)
         self.dataroot = dataroot
+        self.entries = self._load_annotations(clean_datasets)
 
         self.max_region_num = max_region_num
 
