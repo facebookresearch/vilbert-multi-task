@@ -17,7 +17,7 @@ import pdb
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
 
-def _load_annotations(annotations_jsonpath, task, clean_datasets):
+def _load_annotations(annotations_jsonpath, task, dataroot, clean_datasets):
 
     with jsonlines.open(annotations_jsonpath) as reader:
 
@@ -68,7 +68,7 @@ class RetreivalDataset(Dataset):
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
 
-        self._entries, self.imgid2entry = _load_annotations(annotations_jsonpath, task, clean_datasets)
+        self._entries, self.imgid2entry = _load_annotations(annotations_jsonpath, task, dataroot, clean_datasets)
         self.image_id_list = [*self.imgid2entry]
 
         self._image_features_reader = image_features_reader
@@ -79,13 +79,13 @@ class RetreivalDataset(Dataset):
         self._max_region_num = max_region_num
         self._max_seq_length = max_seq_length
 
+        clean_train = "_cleaned" if clean_datasets else ""
+
         if self._split == 'train':
-            image_info = cPickle.load(open(os.path.join(dataroot, 'hard_negative.pkl'), 'rb'))
+            image_info = cPickle.load(open(os.path.join(dataroot, 'hard_negative' + clean_train + '.pkl'), 'rb'))
             for key, value in image_info.items():
                 setattr(self, key, value)
             self.train_imgId2pool = {imageId:i for i, imageId in enumerate(self.train_image_list)}
-
-        clean_train = "_cleaned" if clean_datasets else ""
 
         if 'roberta' in bert_model:
             cache_path = os.path.join(
