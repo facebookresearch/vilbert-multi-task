@@ -24,10 +24,7 @@ LossMap = {'BCEWithLogitLoss': nn.BCEWithLogitsLoss(reduction='mean'),
 
 def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-    if task_id == 'TASK12':
-        features, spatials, image_mask, question, target, input_mask, segment_ids, img_segment_ids, co_attention_mask, question_id = batch
-    else:
-        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     
     batch_size = features.size(0)
     if task_cfg[task_id]['process'] in ['expand']:
@@ -52,18 +49,9 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    task_tokens = None
-    if args.add_task_tokens:
-        task_tokens = task_cfg[task_id]['task_id'] * torch.torch.ones_like(question).cuda(device=device, non_blocking=True).long()
+    vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+            model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
 
-    if task_id == 'TASK12':
-        # get the model output
-        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens, img_segment_ids)
-    else:
-        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens)        
-    
     if task_cfg[task_id]['type'] == 'VL-classifier':
         loss = task_losses[task_id](vil_prediction, target)
         loss = loss.mean() * target.size(1)
@@ -113,10 +101,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     batch = task_iter_train[task_id].next()
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-    if task_id == 'TASK12':
-        features, spatials, image_mask, question, target, input_mask, segment_ids, img_segment_ids, co_attention_mask, question_id = batch
-    else:
-        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     
     batch_size = features.size(0)
     if task_cfg[task_id]['process'] in ['dialog']:
@@ -162,18 +147,10 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    # Add task token here. 
-    if args.add_task_tokens:
-        task_tokens = task_cfg[task_id]['task_id'] * torch.torch.ones_like(question).cuda(device=device, non_blocking=True).long()
 
-    if task_id == 'TASK12':
-        # get the model output
-        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens, img_segment_ids)
-    else:
-        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens)        
-    
+    vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+            model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
+
     # for different task, we use different output to calculate the loss.
     if task_cfg[task_id]['type'] == 'VL-classifier':
         loss = task_losses[task_id](vil_prediction, target)
@@ -426,11 +403,8 @@ def compute_score_with_logits(logits, labels):
 def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataloader, task_losses, results, others):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-    if task_id == 'TASK12':
-        features, spatials, image_mask, question, target, input_mask, segment_ids, img_segment_ids, co_attention_mask, question_id = batch
-    else:
-        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
-    
+
+    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
     if task_cfg[task_id]['process'] in ['dialog']:
@@ -476,18 +450,9 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    task_tokens = None
-    if args.add_task_tokens:
-        task_tokens = task_cfg['TASK1']['task_id'] * torch.torch.ones_like(question).cuda(device=device, non_blocking=True).long()
-
     with torch.no_grad():
-        if task_id == 'TASK12':
-            # get the model output
-            vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                    model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens, img_segment_ids)
-        else:
-            vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                    model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens)        
+        vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
+                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
     
     if task_cfg[task_id]['type'] == 'VL-classifier':
         logits = torch.max(vil_prediction, 1)[1].data  # argmax

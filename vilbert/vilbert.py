@@ -324,31 +324,21 @@ class BertEmbeddings(nn.Module):
             config.type_vocab_size, config.hidden_size
         )
 
-        self.task_type_embeddings = nn.Embedding(
-            20, config.hidden_size
-            )
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, input_ids, token_type_ids=None, task_tokens=None, position_ids=None):
+    def forward(self, input_ids, token_type_ids=None, position_ids=None):
         seq_length = input_ids.size(1)
         position_ids = torch.arange(
             seq_length, dtype=torch.long, device=input_ids.device
         )
         position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
-        if token_type_ids is None:
-            token_type_ids = torch.zeros_like(input_ids)
-
         words_embeddings = self.word_embeddings(input_ids)
         position_embeddings = self.position_embeddings(position_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
         embeddings = words_embeddings + position_embeddings + token_type_embeddings
-
-        if task_tokens is not None:
-            task_type_embeddings = self.task_type_embeddings(task_tokens)
-            embeddings = embeddings + task_type_embeddings
 
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
@@ -363,14 +353,14 @@ class RobertaEmbeddings(BertEmbeddings):
         super(RobertaEmbeddings, self).__init__(config)
         self.padding_idx = 1
 
-    def forward(self, input_ids, token_type_ids=None, task_tokens=None, position_ids=None):
+    def forward(self, input_ids, token_type_ids=None, position_ids=None):
         seq_length = input_ids.size(1)
         if position_ids is None:
             # Position numbers begin at padding_idx+1. Padding symbols are ignored.
             # cf. fairseq's `utils.make_positions`
             position_ids = torch.arange(self.padding_idx+1, seq_length+self.padding_idx+1, dtype=torch.long, device=input_ids.device)
             position_ids = position_ids.unsqueeze(0).expand_as(input_ids)
-        return super(RobertaEmbeddings, self).forward(input_ids, token_type_ids=token_type_ids, task_tokens=task_tokens, position_ids=position_ids)
+        return super(RobertaEmbeddings, self).forward(input_ids, token_type_ids=token_type_ids, position_ids=position_ids)
 
 class BertSelfAttention(nn.Module):
     def __init__(self, config):
@@ -1151,8 +1141,6 @@ class BertModel(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         co_attention_mask=None,
-        img_type_ids=None,
-        task_tokens=None,
         output_all_encoded_layers=False,
         output_all_attention_masks=False,
     ):
@@ -1165,9 +1153,7 @@ class BertModel(BertPreTrainedModel):
                 input_imgs.size(0), input_imgs.size(1)
             ).type_as(input_txt)
 
-        if img_type_ids is None:
-            img_type_ids = torch.zeros(input_imgs.size(0), input_imgs.size(1)).type_as(input_txt)
-        
+
         # We create a 3D attention mask from a 2D tensor mask.
         # Sizes are [batch_size, 1, 1, to_seq_length]
         # So we can broadcast to [batch_size, num_heads, from_seq_length, to_seq_length]
@@ -1207,8 +1193,8 @@ class BertModel(BertPreTrainedModel):
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
 
-        embedding_output = self.embeddings(input_txt, token_type_ids, task_tokens)
-        v_embedding_output = self.v_embeddings(input_imgs, image_loc, img_type_ids)
+        embedding_output = self.embeddings(input_txt, token_type_ids)
+        v_embedding_output = self.v_embeddings(input_imgs, image_loc)
         encoded_layers_t, encoded_layers_v, all_attention_mask = self.encoder(
             embedding_output,
             v_embedding_output,
@@ -1241,19 +1227,16 @@ class BertImageEmbeddings(nn.Module):
 
         self.image_embeddings = nn.Linear(config.v_feature_size, config.v_hidden_size)
         self.image_location_embeddings = nn.Linear(5, config.v_hidden_size)
-        self.image_type_embeddings = nn.Embedding(2, config.v_hidden_size)
         self.LayerNorm = BertLayerNorm(config.v_hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, input_ids, input_loc, input_type):
+    def forward(self, input_ids, input_loc):
 
         img_embeddings = self.image_embeddings(input_ids)
         loc_embeddings = self.image_location_embeddings(input_loc)
-        type_embeddings = self.image_type_embeddings(input_type)
 
         # TODO: we want to make the padding_idx == 0, however, with custom initilization, it seems it will have a bias.
         # Let's do masking for now
-        type_embeddings = type_embeddings * input_type.float().unsqueeze(2)
         embeddings = self.LayerNorm(img_embeddings+loc_embeddings+type_embeddings)
         # embeddings = self.LayerNorm(img_embeddings+loc_embeddings)
         embeddings = self.dropout(embeddings)
@@ -1433,8 +1416,6 @@ class VILBertForVLTasks(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         co_attention_mask=None,
-        task_tokens=None,
-        img_type_ids=None,
         output_all_encoded_layers=False,
     ):
 
@@ -1446,8 +1427,6 @@ class VILBertForVLTasks(BertPreTrainedModel):
             attention_mask,
             image_attention_mask,
             co_attention_mask,
-            img_type_ids, 
-            task_tokens=task_tokens,
             output_all_encoded_layers=output_all_encoded_layers,
             output_all_attention_masks=False,
             )

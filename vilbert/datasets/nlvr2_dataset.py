@@ -229,7 +229,6 @@ class NLVR2Dataset(Dataset):
             target,
             input_mask,
             segment_ids,
-            img_segment_ids,
             co_attention_mask,
             question_id,
         )

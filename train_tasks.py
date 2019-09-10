@@ -154,9 +154,6 @@ def main():
         "--dynamic_attention", action="store_true" , help="whether use dynamic attention."
     )
     parser.add_argument(
-        "--add_task_tokens", default=True , type=bool, help="whether have task token."
-    )
-    parser.add_argument(
         "--clean_train_sets", default=True , type=bool, help="whether clean train sets for multitask data."
     )
     parser.add_argument(
