@@ -24,8 +24,12 @@ LossMap = {'BCEWithLogitLoss': nn.BCEWithLogitsLoss(reduction='mean'),
 
 def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
-    
+
+    if task_id == 'TASK4':
+        features, spatials, image_mask, question, target, input_mask, segment_ids, multiple_choice_ids, co_attention_mask, question_id = batch
+    else:
+        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+
     batch_size = features.size(0)
     if task_cfg[task_id]['process'] in ['expand']:
         max_num_bbox = features.size(1)
@@ -73,7 +77,17 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         loss = loss.mean() * target.size(1)
         _, select_idx = torch.max(vision_logit, dim=1)
         select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
-        batch_score = torch.sum(select_target>0.5).item()
+        batch_score = torch.sum(select_target > 0.5).item()
+
+    elif task_cfg[task_id]['type'] == 'V-logit-mc':
+        vision_logit = vision_logit[:, 101:]
+        vision_logit = vision_logit.squeeze(2).gather(1, multiple_choice_ids)
+        vision_logit = vision_logit.unsqueeze(2)
+        loss = task_losses[task_id](vision_logit, target)
+        loss = loss.mean() * target.size(1)
+        _, preds = torch.max(vision_logit, dim=1)
+        _, target = torch.max(target, dim=1)
+        batch_score = (preds == target).sum()
 
     elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
         loss = task_losses[task_id](vil_binary_prediction, target)
@@ -101,7 +115,10 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     batch = task_iter_train[task_id].next()
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    if task_id == 'TASK4':
+        features, spatials, image_mask, question, target, input_mask, segment_ids, multiple_choice_ids, co_attention_mask, question_id = batch
+    else:
+        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     
     batch_size = features.size(0)
     if task_cfg[task_id]['process'] in ['dialog']:
@@ -173,7 +190,17 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         loss = loss.mean() * target.size(1)
         _, select_idx = torch.max(vision_logit, dim=1)
         select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
-        batch_score = float(torch.sum(select_target>0.5)) / batch_size
+        batch_score = float(torch.sum(select_target > 0.5)) / batch_size
+
+    elif task_cfg[task_id]['type'] == 'V-logit-mc':
+        vision_logit = vision_logit[:, 101:]
+        vision_logit = vision_logit.squeeze(2).gather(1, multiple_choice_ids)
+        vision_logit = vision_logit.unsqueeze(2)
+        loss = task_losses[task_id](vision_logit, target)
+        loss = loss.mean() * target.size(1)
+        _, preds = torch.max(vision_logit, dim=1)
+        _, target = torch.max(target, dim=1)
+        batch_score = float((preds == target).sum()) / float(batch_size)
         
     elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
         loss = task_losses[task_id](vil_binary_prediction, target)
