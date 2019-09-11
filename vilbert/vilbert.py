@@ -1237,7 +1237,7 @@ class BertImageEmbeddings(nn.Module):
 
         # TODO: we want to make the padding_idx == 0, however, with custom initilization, it seems it will have a bias.
         # Let's do masking for now
-        embeddings = self.LayerNorm(img_embeddings+loc_embeddings+type_embeddings)
+        embeddings = self.LayerNorm(img_embeddings+loc_embeddings)
         # embeddings = self.LayerNorm(img_embeddings+loc_embeddings)
         embeddings = self.dropout(embeddings)
         
