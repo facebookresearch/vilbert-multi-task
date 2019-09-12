@@ -3,6 +3,7 @@ import os
 import torch
 from torch.utils.data import Dataset
 import numpy as np
+import jsonlines
 import json
 
 from pytorch_transformers.tokenization_bert import BertTokenizer
@@ -56,7 +57,7 @@ def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
 
 
-class Visual7wPointingDataset(Dataset):
+class GuessWhatPointingDataset(Dataset):
     def __init__(
         self,
         task: str,
@@ -109,61 +110,63 @@ class Visual7wPointingDataset(Dataset):
         entries = []
         remove_ids = []
         if clean_datasets:
-            remove_ids = np.load(os.path.join(self.dataroot, "cache", "genome_test_ids.npy"))
+            remove_ids = np.load(os.path.join(self.dataroot, "cache", "coco_test_ids.npy"))
             remove_ids = [int(x) for x in remove_ids]
 
-        with open(os.path.join(self.dataroot, "dataset_v7w_pointing.json"), "rb") as f:
-            visual7w = json.load(f)
+        all_images = cPickle.load(open(os.path.join(self.dataroot, "cache", "image_bbox_list.pkl"), 'rb'))
+        boxes_dict = cPickle.load(open(os.path.join(self.dataroot, "cache", "bboxes_dict.pkl"), 'rb'))
 
-        boxes_dict = {}
-        for b in visual7w['boxes']:
-            boxes_dict[b['box_id']] = [b['x'], b['y'], b['x'] + b['width'], b['y'] + b['height']]
-        for img in visual7w['images']:
-            if img['split'] == self.split:
-                if self.split == 'train' and int(img['image_id']) in remove_ids:
+        annotations_path = os.path.join(self.dataroot, "guesswhat.%s.jsonl" % self.split)
+        with jsonlines.open(annotations_path) as reader:
+            # Build an index which maps image id with a list of qa annotations.
+            for annotation in reader:
+                if self.split == 'train' and int(annotation['image']['id']) in remove_ids:
                     continue
-                bboxes = []
-                for qa in img['qa_pairs']:
-                    bboxes.extend(qa['multiple_choices'])
-                    bboxes.append(qa['answer'])
-                bboxes = list(set(bboxes))
-                bboxes = sorted(bboxes)
 
-                for qa in img['qa_pairs']:
-                    bbox_idx = []
-                    for a in sorted(qa['multiple_choices'] + [qa['answer']]):
-                        bbox_idx.append(bboxes.index(a))
-                    entries.append(
-                        {
-                            "caption": qa['question'],
-                            "sent_id": qa['qa_id'],
-                            "image_id": img['image_id'],
-                            "refBox": boxes_dict[qa['answer']],
-                            "ref_id": qa['answer'],
-                            "mc_idx": bbox_idx,
-                        }
-                    )
+                questions = []
+                answers = []
+                bboxes = []
+                for q in annotation['qas']:
+                    questions.append(q['question'])
+                    answers.append(q["answer"])
+
+                for o in annotation['objects']:
+                    bboxes.append(o['id'])
+                total_bboxes = list(set(all_images[annotation['image']['id']]['bboxes']))
+                total_bboxes = sorted(total_bboxes)
+
+                bbox_idx = []
+                for a in sorted(bboxes):
+                    bbox_idx.append(total_bboxes.index(a))
+
+                entries.append(
+                    {
+                        "questions": questions,
+                        "answers": answers,
+                        "dialog_id": annotation['id'],
+                        "image_id": annotation['image']['id'],
+                        "refBox": boxes_dict[annotation['object_id']],
+                        "ref_id": annotation['object_id'],
+                        "mc_idx": bbox_idx,
+                    }
+                )
 
         return entries
 
     def tokenize(self):
-        """Tokenizes the captions.
+        """Tokenizes the questions.
 
-        This will add caption_tokens in each entry of the dataset.
+        This will add question_tokens in each entry of the dataset.
         -1 represents nil, and should be treated as padding_idx in embedding.
         """
         for entry in self.entries:
 
-            # sentence_tokens = self._tokenizer.tokenize(entry["caption"])
-            # sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
+            sentence = ""
+            for sent, ans in zip(entry['questions'], entry['answers']):
+                sentence += "start " + sent + " answer " + ans + " stop "
 
-            # tokens = [
-            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-            #     for w in sentence_tokens
-            # ]
-
-            tokens = self._tokenizer.encode(entry["caption"])
-            tokens = tokens[: self._max_seq_length-2]
+            tokens = self._tokenizer.encode(sentence)
+            tokens = tokens[: self._max_seq_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             segment_ids = [0] * len(tokens)
@@ -198,17 +201,16 @@ class Visual7wPointingDataset(Dataset):
 
         image_id = entry["image_id"]
         ref_box = entry["refBox"]
-        multiple_choice_idx = torch.from_numpy(np.array(entry["mc_idx"]))
+        mc_indexes = entry["mc_idx"] + [204] * 204
+        multiple_choice_idx = torch.from_numpy(np.array(mc_indexes[:204]))
 
-        features, num_boxes, boxes, boxes_ori = self._image_features_reader["v7w_" + str(image_id)]
+        features, num_boxes, boxes, boxes_ori = self._image_features_reader[image_id]
 
         boxes_ori = boxes_ori[:num_boxes]
         boxes = boxes[:num_boxes]
         features = features[:num_boxes]
 
-        gt_features, gt_num_boxes, gt_boxes, gt_boxes_ori = self._gt_image_features_reader[
-            "v7w_" + str(image_id)
-        ]
+        gt_features, gt_num_boxes, gt_boxes, gt_boxes_ori = self._gt_image_features_reader[image_id]
 
         # merge two boxes, and assign the labels.
         gt_boxes_ori = gt_boxes_ori[1:gt_num_boxes]
@@ -223,14 +225,11 @@ class Visual7wPointingDataset(Dataset):
             int(num_boxes + int(gt_num_boxes) - 1), self.max_region_num
         )
         # given the mix boxes, and ref_box, calculate the overlap.
-        target = iou(
+        mix_target = iou(
             torch.tensor(mix_boxes_ori[:, :4]).float(),
             torch.tensor([ref_box]).float(),
         )
-        target[target < 0.5] = 0
-        # Only require the multiple choice bbox targets for calculating loss
-        target = target[101:]
-        target = target[multiple_choice_idx]
+        mix_target[mix_target < 0.5] = 0
 
         image_mask = [1] * (mix_num_boxes)
         while len(image_mask) < self.max_region_num:
@@ -249,6 +248,12 @@ class Visual7wPointingDataset(Dataset):
 
         spatials_ori = torch.tensor(mix_boxes_ori).float()
         co_attention_mask = torch.zeros((self.max_region_num, self._max_seq_length))
+
+        # Only require the multiple choice bbox targets for calculating loss
+        target = torch.zeros((self.max_region_num, 1)).float()
+        target[:mix_num_boxes] = mix_target[:mix_num_boxes]
+        target = target[101:]
+        target = target[multiple_choice_idx]
 
         caption = entry["token"]
         input_mask = entry["input_mask"]

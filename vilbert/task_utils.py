@@ -25,7 +25,7 @@ LossMap = {'BCEWithLogitLoss': nn.BCEWithLogitsLoss(reduction='mean'),
 def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-    if task_id == 'TASK4':
+    if task_id == 'TASK4' or task_id == 'TASK17':
         features, spatials, image_mask, question, target, input_mask, segment_ids, multiple_choice_ids, co_attention_mask, question_id = batch
     else:
         features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
@@ -115,7 +115,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     batch = task_iter_train[task_id].next()
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-    if task_id == 'TASK4':
+    if task_id == 'TASK4' or task_id == 'TASK17':
         features, spatials, image_mask, question, target, input_mask, segment_ids, multiple_choice_ids, co_attention_mask, question_id = batch
     else:
         features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
