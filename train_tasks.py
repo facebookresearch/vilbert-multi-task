@@ -73,6 +73,12 @@ def main():
         help="Total number of training epochs to perform.",
     )
     parser.add_argument(
+        "--train_iter_multiplier",
+        default=1.0,
+        type=float,
+        help="multiplier for the multi-task training.",
+    )
+    parser.add_argument(
         "--warmup_proportion",
         default=0.1,
         type=float,
@@ -257,14 +263,13 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    num_train_optimization_steps = max(task_num_iters.values()) * args.num_train_epochs // args.gradient_accumulation_steps
-    num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
+    task_ave_iter = {}
+    for task_id, num_iter in task_num_iters.items(): task_total_iter[task_id] = task_cfg[task]['num_epoch'] * num_iter * args.train_iter_multiplier / args.num_train_epochs
 
-    task_start_iter = {}
-    task_interval = {}
-    for task_id, num_iter in task_num_iters.items():
-        task_start_iter[task_id] = num_train_optimization_steps - (task_cfg[task]['num_epoch'] * num_iter // args.gradient_accumulation_steps)
-        task_interval[task_id] = num_train_optimization_steps // (task_cfg[task]['num_epoch'] * num_iter // args.gradient_accumulation_steps)
+    task_ave_iter_list = sorted(task_ave_iter.values())
+    # select the median in the task_ave_iter_list
+    num_train_optimization_steps = task_ave_iter_list[len(task_num_iters)//2] * args.num_train_epochs // args.gradient_accumulation_steps
+    num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
     if args.dynamic_attention:
         config.dynamic_attention = True

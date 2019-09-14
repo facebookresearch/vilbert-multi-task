@@ -39,7 +39,7 @@ TASK2:
   train_split: train
   val_split: val
   lr: 0.00004
-  num_epoch: 20
+  num_epoch: 10
   multi_task:
     ep_2: dense
     ep_10: sparse
@@ -105,7 +105,7 @@ TASK5:
   train_split: train
   val_split: val
   lr: 0.00002
-  num_epoch: 10
+  num_epoch: 15
   multi_task:
     ep_2: dense
     ep_10: sparse
@@ -127,7 +127,7 @@ TASK6:
   train_split: train
   val_split: val
   lr: 0.00002
-  num_epoch: 10
+  num_epoch: 15
   multi_task:
     ep_2: dense
     ep_10: sparse
@@ -331,7 +331,7 @@ TASK15:
   train_split: train
   val_split: val
   lr: 0.00004
-  num_epoch: 20
+  num_epoch: 10
   multi_task:
     ep_2: dense
     ep_10: sparse
