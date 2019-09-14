@@ -450,9 +450,9 @@ def main():
 
             # decided whether to evaluate on each tasks.
             for task_id in task_ids:
-                if iterId % task_num_iters[task_id] == 0 or \
-                        (epochId == args.num_train_epochs and step == median_num_iter-1):
-                    evaluate(task_id)
+                if (iterId!= 0 and iterId % task_num_iters[task_id] == 0) or (epochId == args.num_train_epochs and step == median_num_iter-1):
+                    evaluate(args, task_dataloader_val, task_stop_controller, task_cfg, \
+                                device, task_id, model, task_losses, epochId, default_gpu, tbLogger)
 
         if args.lr_scheduler == 'automatic':
             lr_scheduler.step(sum(val_scores.values()))
@@ -487,18 +487,21 @@ def main():
             }, output_checkpoint)
     tbLogger.txt_close()
 
-    def evaluate(task_id):
-        model.eval()
+
+def evaluate(args, task_dataloader_val, task_stop_controller, task_cfg, device, task_id, model, task_losses, epochId, default_gpu, tbLogger):
+    
+    model.eval()
+    for i, batch in enumerate(task_dataloader_val[task_id]):
         loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
         if default_gpu:
             sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
             sys.stdout.flush()
 
-        score = tbLogger.showLossVal()
-        # update the multi-task scheduler.
-        task_stop_controller[task_id].step(score)
-        model.train()
+    score = tbLogger.showLossVal(task_id)
+    # update the multi-task scheduler.
+    task_stop_controller[task_id].step(score)
+    model.train()
 
 if __name__ == "__main__":
 
