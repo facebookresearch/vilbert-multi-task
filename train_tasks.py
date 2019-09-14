@@ -79,6 +79,12 @@ def main():
         help="multiplier for the multi-task training.",
     )
     parser.add_argument(
+        "--train_iter_gap",
+        default=4,
+        type=int,
+        help="forward every n iteration is the validation score is not improving over the last 3 epoch, -1 means will stop",
+    )
+    parser.add_argument(
         "--warmup_proportion",
         default=0.1,
         type=float,
@@ -186,17 +192,12 @@ def main():
 
     task_names = []
     task_lr = []
-    multi_task_opt = {}
     for i, task_id in enumerate(args.tasks.split('-')):
         task = 'TASK' + task_id
         name = task_cfg[task]['name']
         task_names.append(name)
         task_lr.append(task_cfg[task]['lr'])
-        
-        mt_epoch = [int(i.split('_')[1]) for i in task_cfg[task]['multi_task'].keys()]
-        mt_option = [i for i in task_cfg[task]['multi_task'].values()]
-        multi_task_opt[task] = [mt_epoch, mt_option]
-
+    
     base_lr = min(task_lr)
     loss_scale = {}
     for i, task_id in enumerate(args.tasks.split('-')):
@@ -264,7 +265,11 @@ def main():
         os.makedirs(args.output_dir)
 
     task_ave_iter = {}
-    for task_id, num_iter in task_num_iters.items(): task_total_iter[task_id] = task_cfg[task]['num_epoch'] * num_iter * args.train_iter_multiplier / args.num_train_epochs
+    task_stop_controller = {}
+    for task_id, num_iter in task_num_iters.items(): 
+        task_total_iter[task_id] = task_cfg[task]['num_epoch'] * num_iter * args.train_iter_multiplier / args.num_train_epochs
+        task_stop_controller[task_id] = utils.MultiTaskStopOnPlateau(mode='max', patience=1, continue_threshold=0.5, cooldown=1, threshold=0.001)
+
 
     task_ave_iter_list = sorted(task_ave_iter.values())
     # select the median in the task_ave_iter_list
@@ -409,17 +414,10 @@ def main():
         model.train()
         for step in range(max_num_iter):
             iterId = startIterID + step + (epochId * max_num_iter)
-            for task_id in task_ids:
-                
-                # handel multi-task options here.
-                mt_option = multi_task_opt[task_id][1][sum(np.array(multi_task_opt[task_id][0]) < epochId)]
+            for task_id in task_ids:                
                 is_forward = False
-                if iterId >= task_start_iter[task_id] and mt_option == 'delay':
-                    is_forward = True
-                elif iterId % task_interval[task_id] == 0 and mt_option == 'sparse':
-                    is_forward = True
-                elif mt_option == 'dense':
-                    is_forward = True
+                # if the validation score is not increase, we forward the task
+                # every n iterations.
 
                 if is_forward == True:
                     loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, task_count, \
