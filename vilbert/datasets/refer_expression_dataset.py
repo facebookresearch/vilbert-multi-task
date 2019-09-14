@@ -126,7 +126,7 @@ class ReferExpressionDataset(Dataset):
         for ref_id in self.ref_ids:
             ref = self.refer.Refs[ref_id]
             image_id = ref["image_id"]
-            if int(image_id) in remove_ids:
+            if self.split == 'train' and int(image_id) in remove_ids:
                 continue
             ref_id = ref["ref_id"]
             refBox = self.refer.getRefBox(ref_id)

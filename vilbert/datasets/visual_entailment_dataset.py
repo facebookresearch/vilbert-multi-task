@@ -36,7 +36,7 @@ def _load_dataset(dataroot, name, clean_datasets):
     dataroot: root path of dataset
     name: 'train', 'dev', 'test'
     """
-    if name == "train" or name == "dev":
+    if name == "train" or name == "dev" or name == "test":
         annotations_path = os.path.join(dataroot, "snli_ve_%s.jsonl" % name)
         with jsonlines.open(annotations_path) as reader:
 
@@ -51,11 +51,11 @@ def _load_dataset(dataroot, name, clean_datasets):
                 # logger.info(annotation)
                 dictionary = {}
                 dictionary["image_id"] = int(annotation["Flikr30kID"].split(".")[0])
-                if dictionary["image_id"] in remove_ids:
+                if name == "train" and dictionary["image_id"] in remove_ids:
                     continue
                 dictionary["question_id"] = count
                 dictionary["hypothesis"] = str(annotation["sentence2"])
-                if name == "test" or str(annotation["gold_label"]) == "-":
+                if str(annotation["gold_label"]) == "-":
                     dictionary["labels"] = []
                     dictionary["scores"] = []
                 else:
@@ -68,14 +68,9 @@ def _load_dataset(dataroot, name, clean_datasets):
     else:
         assert False, "data split is not recognized."
 
-    if "test" in name:
-        entries = []
-        for item in items:
-            entries.append(item)
-    else:
-        entries = []
-        for item in items:
-            entries.append(_create_entry(item))
+    entries = []
+    for item in items:
+        entries.append(_create_entry(item))
     return entries
 
 
@@ -169,18 +164,17 @@ class VisualEntailmentDataset(Dataset):
             q_segment_ids = torch.from_numpy(np.array(entry["q_segment_ids"]))
             entry["q_segment_ids"] = q_segment_ids
 
-            if "test" not in self.split:
-                answer = entry["answer"]
-                labels = np.array(answer["labels"])
-                scores = np.array(answer["scores"], dtype=np.float32)
-                if len(labels):
-                    labels = torch.from_numpy(labels)
-                    scores = torch.from_numpy(scores)
-                    entry["answer"]["labels"] = labels
-                    entry["answer"]["scores"] = scores
-                else:
-                    entry["answer"]["labels"] = None
-                    entry["answer"]["scores"] = None
+            answer = entry["answer"]
+            labels = np.array(answer["labels"])
+            scores = np.array(answer["scores"], dtype=np.float32)
+            if len(labels):
+                labels = torch.from_numpy(labels)
+                scores = torch.from_numpy(scores)
+                entry["answer"]["labels"] = labels
+                entry["answer"]["scores"] = scores
+            else:
+                entry["answer"]["labels"] = None
+                entry["answer"]["scores"] = None
 
     def __getitem__(self, index):
         entry = self.entries[index]
@@ -210,12 +204,11 @@ class VisualEntailmentDataset(Dataset):
         co_attention_mask = torch.zeros((self._max_region_num, self._max_seq_length))
         target = torch.zeros(self.num_labels)
 
-        if "test" not in self.split:
-            answer = entry["answer"]
-            labels = answer["labels"]
-            scores = answer["scores"]
-            if labels is not None:
-                target.scatter_(0, labels, scores)
+        answer = entry["answer"]
+        labels = answer["labels"]
+        scores = answer["scores"]
+        if labels is not None:
+            target.scatter_(0, labels, scores)
 
         return (
             features,

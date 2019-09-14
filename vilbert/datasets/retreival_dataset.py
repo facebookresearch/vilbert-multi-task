@@ -17,7 +17,7 @@ import pdb
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
 
-def _load_annotations(annotations_jsonpath, task, dataroot, clean_datasets):
+def _load_annotations(split, annotations_jsonpath, task, dataroot, clean_datasets):
 
     with jsonlines.open(annotations_jsonpath) as reader:
 
@@ -39,7 +39,7 @@ def _load_annotations(annotations_jsonpath, task, dataroot, clean_datasets):
                 image_id = annotation['id']
             elif task == 'RetrievalFlickr30k':
                 image_id = int(annotation['img_path'].split('.')[0])
-            if int(image_id) in remove_ids:
+            if split == 'train' and int(image_id) in remove_ids:
                 continue
             imgid2entry[image_id] = []
             for sentences in annotation['sentences']:
@@ -68,7 +68,7 @@ class RetreivalDataset(Dataset):
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
 
-        self._entries, self.imgid2entry = _load_annotations(annotations_jsonpath, task, dataroot, clean_datasets)
+        self._entries, self.imgid2entry = _load_annotations(split, annotations_jsonpath, task, dataroot, clean_datasets)
         self.image_id_list = [*self.imgid2entry]
 
         self._image_features_reader = image_features_reader
