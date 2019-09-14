@@ -33,10 +33,20 @@ def _load_dataset(dataroot, name, clean_datasets):
     dataroot: root path of dataset
     name: 'train', 'val', 'trainval'
     """
-    if name == "train" or name == "val" or name == "trainval":
+    if name == "train" or name == "val":
         items_path = os.path.join(dataroot, "cache", "%s_target.pkl" % name)
         items = cPickle.load(open(items_path, "rb"))
         items = sorted(items, key=lambda x: x["question_id"])
+    elif name == "trainval":
+        items_path = os.path.join(dataroot, "cache", "%s_target.pkl" % name)
+        items = cPickle.load(open(items_path, "rb"))
+        items = sorted(items, key=lambda x: x["question_id"])
+        items = items[:-3000]
+    elif name == "minval":
+        items_path = os.path.join(dataroot, "cache", "trainval_target.pkl")
+        items = cPickle.load(open(items_path, "rb"))
+        items = sorted(items, key=lambda x: x["question_id"])
+        items = items[-3000:]
     else:
         assert False, "data split is not recognized."
 
@@ -46,6 +56,7 @@ def _load_dataset(dataroot, name, clean_datasets):
             entries.append(item)
     else:
         entries = []
+        remove_ids = []
         if clean_datasets:
             remove_ids = np.load(os.path.join(dataroot, "cache", "genome_test_ids.npy"))
             remove_ids = [int(x) for x in remove_ids]

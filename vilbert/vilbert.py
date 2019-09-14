@@ -1389,8 +1389,9 @@ class VILBertForVLTasks(BertPreTrainedModel):
         self.cls = BertPreTrainingHeads(
             config, self.bert.embeddings.word_embeddings.weight
         )
-        self.vil_prediction = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, num_labels, 0.5)
-        self.vil_prediction_gqa = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, num_labels, 0.5)
+        self.vil_prediction = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, 3129, 0.5)
+        self.vil_prediction_gqa = SimpleClassifier(config.bi_hidden_size, config.bi_hidden_size*2, 1533, 0.5)
+        self.vil_binary_prediction = SimpleClassifier(config.bi_hidden_size * 2, config.bi_hidden_size*2, 2, 0.5)
         self.vil_logit = nn.Linear(config.bi_hidden_size, 1)
         self.vil_tri_prediction = nn.Linear(config.bi_hidden_size, 3) # for Visual Entailiment tasks
         self.vision_logit = nn.Linear(config.v_hidden_size, 1)
@@ -1452,6 +1453,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
         
         vil_prediction = self.vil_prediction(pooled_output)
         vil_prediction_gqa = self.vil_prediction_gqa(pooled_output)
+        vil_binary_prediction = self.vil_binary_prediction(pooled_output.view(-1 , pooled_output.size(1) * 2))
         vil_logit = self.vil_logit(pooled_output)
         vil_tri_prediction = self.vil_tri_prediction(pooled_output)
         vision_logit = self.vision_logit(self.dropout(sequence_output_v)) + ((1.0 - image_attention_mask)* -10000.0).unsqueeze(2).to(dtype=next(self.parameters()).dtype)

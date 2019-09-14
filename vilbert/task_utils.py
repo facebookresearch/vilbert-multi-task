@@ -42,7 +42,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
-    elif  task_cfg[task_id]['process'] in ['retrieval']:
+    elif task_cfg[task_id]['process'] in ['retrieval']:
         max_num_bbox = features.size(1)
         num_options = question.size(1)
         features = features.view(-1, features.size(2), features.size(3))
@@ -52,6 +52,21 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         input_mask = input_mask.view(-1, input_mask.size(2))
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
+
+    elif task_cfg[task_id]['process'] in ['nlvr']:
+        batch_size = features.size(0)
+        max_num_bbox = features.size(1)
+        num_options = question.size(1)
+        features = features.view(batch_size * 2, int(features.size(1) / 2), features.size(2))
+        spatials = spatials.view(batch_size * 2, int(spatials.size(1) / 2), spatials.size(2))
+        image_mask = image_mask.view(batch_size * 2, int(image_mask.size(1) / 2))
+        question = question.repeat(1, 2)
+        question = question.view(batch_size * 2, int(question.size(1) / 2))
+        input_mask = input_mask.repeat(1, 2)
+        input_mask = input_mask.view(batch_size * 2, int(input_mask.size(1) / 2))
+        segment_ids = segment_ids.repeat(1, 2)
+        segment_ids = segment_ids.view(batch_size * 2, int(segment_ids.size(1) / 2))
+        co_attention_mask = co_attention_mask.view(batch_size * 2, int(co_attention_mask.size(1) / 2), co_attention_mask.size(2))
 
     vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
             model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
@@ -163,6 +178,20 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
+    elif task_cfg[task_id]['process'] in ['nlvr']:
+        batch_size = features.size(0)
+        max_num_bbox = features.size(1)
+        num_options = question.size(1)
+        features = features.view(batch_size * 2, int(features.size(1) / 2), features.size(2))
+        spatials = spatials.view(batch_size * 2, int(spatials.size(1) / 2), spatials.size(2))
+        image_mask = image_mask.view(batch_size * 2, int(image_mask.size(1) / 2))
+        question = question.repeat(1, 2)
+        question = question.view(batch_size * 2, int(question.size(1) / 2))
+        input_mask = input_mask.repeat(1, 2)
+        input_mask = input_mask.view(batch_size * 2, int(input_mask.size(1) / 2))
+        segment_ids = segment_ids.repeat(1, 2)
+        segment_ids = segment_ids.view(batch_size * 2, int(segment_ids.size(1) / 2))
+        co_attention_mask = co_attention_mask.view(batch_size * 2, int(co_attention_mask.size(1) / 2), co_attention_mask.size(2))
 
     vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
             model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        

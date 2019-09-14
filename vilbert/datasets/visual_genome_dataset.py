@@ -38,12 +38,12 @@ def _load_dataset(dataroot, name, clean_datasets):
         items_path = os.path.join(dataroot, "cache", "trainval_target.pkl")
         items = cPickle.load(open(items_path, "rb"))
         items = sorted(items, key=lambda x: x["question_id"])
-        items = items[:-10000]
+        items = items[:-5000]
     elif name == "val":
         items_path = os.path.join(dataroot, "cache", "trainval_target.pkl")
         items = cPickle.load(open(items_path, "rb"))
         items = sorted(items, key=lambda x: x["question_id"])
-        items = items[-10000:]
+        items = items[-5000:]
     else:
         assert False, "data split is not recognized."
 
