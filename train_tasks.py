@@ -443,20 +443,27 @@ def main():
                         global_step += 1
                         if default_gpu:
                             tbLogger.step_train(epochId, iterId, float(loss), float(score), \
-                                                        optimizer.param_groups[0]['lr'], task_id, 'train')
+                                                    optimizer.param_groups[0]['lr'], task_id, 'train')
 
             if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
                 tbLogger.showLossTrain()        
 
             # decided whether to evaluate on each tasks.
             for task_id in task_ids:
-
+                if iterId % task_num_iters[task_id] == 0 or \
+                        (epochId == args.num_train_epochs and step == median_num_iter-1):
+                    evaluate(task_id)
 
         if args.lr_scheduler == 'automatic':
             lr_scheduler.step(sum(val_scores.values()))
             logger.info("best average score is %3f" %lr_scheduler.best)
         else:
             lr_scheduler.step()
+
+        if epochId in lr_reduce_list: 
+            for task_id in task_ids:
+                # reset the task_stop_controller once the lr drop
+                task_stop_controller[task_id]._reset()
 
         if default_gpu:
             # Save a trained model
@@ -477,27 +484,21 @@ def main():
                 'warmup_scheduler_state_dict': warmup_scheduler.state_dict(),
                 'lr_scheduler_state_dict': lr_scheduler.state_dict(),
                 'global_step': global_step,
-
             }, output_checkpoint)
     tbLogger.txt_close()
 
-    def evaluate(task_id)
+    def evaluate(task_id):
         model.eval()
-        # for task_id in task_ids:
-        #     for i, batch in enumerate(task_dataloader_val[task_id]):
         loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
         if default_gpu:
             sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
             sys.stdout.flush()
 
-        val_scores = tbLogger.showLossVal()
+        score = tbLogger.showLossVal()
         # update the multi-task scheduler.
         task_stop_controller[task_id].step(score)
-    
-        if epochId in lr_reduce_list: 
-            # reset the task_stop_controller once the lr drop
-            task_stop_controller[task_id]._reset()
+        model.train()
 
 if __name__ == "__main__":
 

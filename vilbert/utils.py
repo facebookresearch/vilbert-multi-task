@@ -21,6 +21,7 @@ from time import gmtime, strftime
 from bisect import bisect
 from torch import nn
 import torch
+from torch._six import inf
 
 import pdb
 
@@ -34,10 +35,6 @@ class MultiTaskStopOnPlateau(object):
     def __init__(self, mode='min', patience=10, continue_threshold=0.5,
                  verbose=False, threshold=1e-4, threshold_mode='rel',
                  cooldown=0, min_lr=0, eps=1e-8):
-
-        if factor >= 1.0:
-            raise ValueError('Factor should be < 1.0.')
-        self.factor = factor
 
         self.patience = patience
         self.verbose = verbose
@@ -166,6 +163,7 @@ class tbLogger(object):
         self.task_loss_val = {task_id:0 for task_id in task_ids}
         self.task_score_val = {task_id:0 for task_id in task_ids}
         self.task_step_val = {task_id:0 for task_id in task_ids}
+        self.task_iter_val = {task_id:0 for task_id in task_ids}
         self.task_datasize_val = {task_id:0 for task_id in task_ids}
 
         self.masked_t_loss = {task_id:0 for task_id in task_ids}
@@ -228,7 +226,7 @@ class tbLogger(object):
         self.task_step_val[task_id] += self.gradient_accumulation_steps
         self.task_datasize_val[task_id] += batch_size
 
-    def showLossVal(self):
+    def showLossValAll(self):
         progressInfo = "Eval Ep: %d " %self.epochId
         lossInfo = 'Validation '
         val_scores = {}
@@ -247,9 +245,32 @@ class tbLogger(object):
         self.task_score_val = {task_id:0 for task_id in self.task_score_val}
         self.task_datasize_val = {task_id:0 for task_id in self.task_datasize_val}
         self.task_step_val = {task_id:0 for task_id in self.task_ids}
+        
+        logger.info(progressInfo)
         logger.info(lossInfo)
         print(lossInfo, file=self.txt_f)
         return val_scores
+
+    def showLossVal(self, task_id):       
+        progressInfo = "Eval task %s on iteration %d " %(task_id, self.epochId)
+        lossInfo = 'Validation '
+        ave_loss = 0
+        loss = self.task_loss_val[task_id] / float(self.task_step_val[task_id])
+        score = self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
+        ave_loss += loss
+        lossInfo += '[%s]: loss %.3f score %.3f ' %(self.task_id2name[task_id], loss, score * 100.0)
+
+        self.linePlot(self.task_step[task_id], loss, 'val', self.task_id2name[task_id] + '_loss')
+        self.linePlot(self.task_step[task_id], score, 'val', self.task_id2name[task_id] + '_score')
+
+        self.task_loss_val[task_id] = 0 
+        self.task_score_val[task_id] = 0
+        self.task_datasize_val[task_id] = 0 
+        self.task_step_val[task_id] = 0
+        logger.info(progressInfo)
+        logger.info(lossInfo)
+        print(lossInfo, file=self.txt_f)
+        return score
 
     def showLossTrain(self):
         # show the current loss, once showed, reset the loss. 
