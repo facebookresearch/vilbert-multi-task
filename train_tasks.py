@@ -370,6 +370,7 @@ def main():
     warmpu_steps = args.warmup_proportion*num_train_optimization_steps
     warmup_scheduler = WarmupConstantSchedule(optimizer, warmup_steps=warmpu_steps)
 
+    lr_reduce_list = np.array([12, 16])
     if args.lr_scheduler == 'automatic':
         lr_scheduler = ReduceLROnPlateau(optimizer, \
                         mode='max',
@@ -378,7 +379,6 @@ def main():
                         cooldown=1,
                         threshold=0.001)
     elif args.lr_scheduler == 'mannul':
-        lr_reduce_list = np.array([12, 16])
         def lr_lambda_fun(epoch):
             return pow(0.2, np.sum(lr_reduce_list <= epoch))
         lr_scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda_fun)
@@ -463,6 +463,10 @@ def main():
         # update the multi-task scheduler.
         for task_id, score in val_scores:
             task_stop_controller[task_id].step(score)
+        
+            if epochId in lr_reduce_list: 
+                # reset the task_stop_controller once the lr drop
+                task_stop_controller[task_id]._reset()
 
         if args.lr_scheduler == 'automatic':
             lr_scheduler.step(sum(val_scores.values()))
