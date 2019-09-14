@@ -231,26 +231,25 @@ class tbLogger(object):
     def showLossVal(self):
         progressInfo = "Eval Ep: %d " %self.epochId
         lossInfo = 'Validation '
-        ave_score = 0
+        val_scores = {}
         ave_loss = 0
         for task_id in self.task_ids:
             loss = self.task_loss_val[task_id] / float(self.task_step_val[task_id])
             score = self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
-            ave_score += score
+            val_scores[task_id]=score
             ave_loss += loss
             lossInfo += '[%s]: loss %.3f score %.3f ' %(self.task_id2name[task_id], loss, score * 100.0)
 
             self.linePlot(self.epochId, loss, 'val', self.task_id2name[task_id] + '_loss')
             self.linePlot(self.epochId, score, 'val', self.task_id2name[task_id] + '_score')
 
-        ave_score = ave_score / len(self.task_ids)
         self.task_loss_val = {task_id:0 for task_id in self.task_loss_val}
         self.task_score_val = {task_id:0 for task_id in self.task_score_val}
         self.task_datasize_val = {task_id:0 for task_id in self.task_datasize_val}
         self.task_step_val = {task_id:0 for task_id in self.task_ids}
         logger.info(lossInfo)
         print(lossInfo, file=self.txt_f)
-        return ave_score
+        return val_scores
 
     def showLossTrain(self):
         # show the current loss, once showed, reset the loss. 

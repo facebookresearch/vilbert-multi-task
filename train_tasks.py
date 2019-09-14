@@ -270,7 +270,6 @@ def main():
         task_total_iter[task_id] = task_cfg[task]['num_epoch'] * num_iter * args.train_iter_multiplier / args.num_train_epochs
         task_stop_controller[task_id] = utils.MultiTaskStopOnPlateau(mode='max', patience=1, continue_threshold=0.5, cooldown=1, threshold=0.001)
 
-
     task_ave_iter_list = sorted(task_ave_iter.values())
     # select the median in the task_ave_iter_list
     num_train_optimization_steps = task_ave_iter_list[len(task_num_iters)//2] * args.num_train_epochs // args.gradient_accumulation_steps
@@ -416,10 +415,10 @@ def main():
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:                
                 is_forward = False
-                # if the validation score is not increase, we forward the task
-                # every n iterations.
-
-                if is_forward == True:
+                if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap)
+                    is_forward = True
+                        
+                if is_forward:
                     loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, task_count, \
                                 task_iter_train, task_dataloader_train, model, task_losses, task_start_iter)
 
@@ -460,9 +459,13 @@ def main():
                     sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
                     sys.stdout.flush()
         
-        ave_score = tbLogger.showLossVal()
+        val_scores = tbLogger.showLossVal()
+        # update the multi-task scheduler.
+        for task_id, score in val_scores:
+            task_stop_controller[task_id].step(score)
+
         if args.lr_scheduler == 'automatic':
-            lr_scheduler.step(ave_score)
+            lr_scheduler.step(sum(val_scores.values()))
             logger.info("best average score is %3f" %lr_scheduler.best)
         else:
             lr_scheduler.step()

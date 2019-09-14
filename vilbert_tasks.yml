@@ -17,10 +17,6 @@ TASK1:
   val_split: val
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK2:
   name: GenomeQA
   type: VL-classifier
@@ -40,10 +36,6 @@ TASK2:
   val_split: val
   lr: 0.00004
   num_epoch: 10
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK3:
   name: VisualDialog
   type: VL-logit
@@ -62,10 +54,6 @@ TASK3:
   val_split: val
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK4:
   name: Visual7w
   type: V-logit-mc
@@ -84,10 +72,6 @@ TASK4:
   val_split: val
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK5:
   name: VCR_Q-A
   type: VL-logit
@@ -106,10 +90,6 @@ TASK5:
   val_split: val
   lr: 0.00002
   num_epoch: 15
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK6:
   name: VCR_QA-R
   type: VL-logit
@@ -128,10 +108,6 @@ TASK6:
   val_split: val
   lr: 0.00002
   num_epoch: 15
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK7:
   name: RetrievalCOCO
   type: VL-logit
@@ -150,10 +126,6 @@ TASK7:
   val_split: val
   lr: 0.00002
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK8:
   name: RetrievalFlickr30k
   type: VL-logit
@@ -172,10 +144,6 @@ TASK8:
   val_split: val
   lr: 0.00002
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK9:
   name: refcoco
   type: V-logit
@@ -194,10 +162,6 @@ TASK9:
   val_split: val
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK10:
   name: refcoco+
   type: V-logit
@@ -217,10 +181,6 @@ TASK10:
   val_split: val
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK11:
   name: refcocog
   type: V-logit
@@ -240,10 +200,6 @@ TASK11:
   start_iteration: 0
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK12:
   name: NLVR2
   type: VL-classifier
@@ -286,10 +242,6 @@ TASK13:
   val_split: dev
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK14:
   name: GuessWhat
   type: VL-tri-classifier
@@ -309,10 +261,6 @@ TASK14:
   val_split: valid
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK15:
   name: GQA
   type: VL-classifier-GQA
@@ -332,10 +280,6 @@ TASK15:
   val_split: val
   lr: 0.00004
   num_epoch: 10
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK16:
   name: Foil
   type: VL-binary-classifier
@@ -355,10 +299,6 @@ TASK16:
   val_split: val
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
 TASK17:
   name: GuessWhatPointing
   type: V-logit-mc
@@ -377,7 +317,3 @@ TASK17:
   val_split: valid
   lr: 0.00004
   num_epoch: 20
-  multi_task:
-    ep_2: dense
-    ep_10: sparse
-    ep_20: dense
