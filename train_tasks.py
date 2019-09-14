@@ -267,7 +267,7 @@ def main():
     task_ave_iter = {}
     task_stop_controller = {}
     for task_id, num_iter in task_num_iters.items(): 
-        task_total_iter[task_id] = task_cfg[task]['num_epoch'] * num_iter * args.train_iter_multiplier / args.num_train_epochs
+        task_ave_iter[task_id] = int(task_cfg[task]['num_epoch'] * num_iter * args.train_iter_multiplier / args.num_train_epochs)
         task_stop_controller[task_id] = utils.MultiTaskStopOnPlateau(mode='max', patience=1, continue_threshold=0.5, cooldown=1, threshold=0.001)
 
     task_ave_iter_list = sorted(task_ave_iter.values())
