@@ -415,9 +415,9 @@ def main():
             iterId = startIterID + step + (epochId * max_num_iter)
             for task_id in task_ids:                
                 is_forward = False
-                if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap)
+                if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap):
                     is_forward = True
-                        
+
                 if is_forward:
                     loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, task_count, \
                                 task_iter_train, task_dataloader_train, model, task_losses, task_start_iter)
