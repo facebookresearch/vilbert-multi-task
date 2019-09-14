@@ -419,7 +419,7 @@ def main():
 
                 if is_forward:
                     loss, score = ForwardModelsTrain(args, task_cfg, device, task_id, task_count, \
-                                task_iter_train, task_dataloader_train, model, task_losses, task_start_iter)
+                                task_iter_train, task_dataloader_train, model, task_losses)
 
                     loss = loss * loss_scale[task_id]
                     if args.gradient_accumulation_steps > 1:

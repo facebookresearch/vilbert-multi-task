@@ -102,7 +102,7 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
     return float(loss), float(batch_score), batch_size
 
 
-def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_train, task_dataloader_train, model, task_losses, task_start_iter):
+def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_train, task_dataloader_train, model, task_losses):
     # given the current task, decided whether to forward the model and forward with specific loss.
 
     # reset the task iteration when needed.
