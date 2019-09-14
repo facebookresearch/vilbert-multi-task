@@ -272,7 +272,8 @@ def main():
 
     task_ave_iter_list = sorted(task_ave_iter.values())
     # select the median in the task_ave_iter_list
-    num_train_optimization_steps = task_ave_iter_list[len(task_num_iters)//2] * args.num_train_epochs // args.gradient_accumulation_steps
+    median_num_iter = task_ave_iter_list[len(task_num_iters)//2]
+    num_train_optimization_steps = median_num_iter * args.num_train_epochs // args.gradient_accumulation_steps
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
     if args.dynamic_attention:
@@ -350,8 +351,6 @@ def main():
 
     if default_gpu:
         print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
-
-    max_num_iter = max(task_num_iters.values())
     
     if args.optim == 'AdamW':    
         optimizer = AdamW(
@@ -411,8 +410,8 @@ def main():
     task_count = {name:0 for name in task_ids}
     for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
         model.train()
-        for step in range(max_num_iter):
-            iterId = startIterID + step + (epochId * max_num_iter)
+        for step in range(median_num_iter):
+            iterId = startIterID + step + (epochId * median_num_iter)
             for task_id in task_ids:                
                 is_forward = False
                 if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap):
@@ -442,31 +441,16 @@ def main():
                         optimizer.step()
                         model.zero_grad()
                         global_step += 1
-                        
                         if default_gpu:
                             tbLogger.step_train(epochId, iterId, float(loss), float(score), \
                                                         optimizer.param_groups[0]['lr'], task_id, 'train')
 
             if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
-                tbLogger.showLossTrain()
+                tbLogger.showLossTrain()        
 
-        model.eval()
-        for task_id in task_ids:
-            for i, batch in enumerate(task_dataloader_val[task_id]):
-                loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
-                tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
-                if default_gpu:
-                    sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
-                    sys.stdout.flush()
-        
-        val_scores = tbLogger.showLossVal()
-        # update the multi-task scheduler.
-        for task_id, score in val_scores:
-            task_stop_controller[task_id].step(score)
-        
-            if epochId in lr_reduce_list: 
-                # reset the task_stop_controller once the lr drop
-                task_stop_controller[task_id]._reset()
+            # decided whether to evaluate on each tasks.
+            for task_id in task_ids:
+
 
         if args.lr_scheduler == 'automatic':
             lr_scheduler.step(sum(val_scores.values()))
@@ -496,7 +480,25 @@ def main():
 
             }, output_checkpoint)
     tbLogger.txt_close()
+
+    def evaluate(task_id)
+        model.eval()
+        # for task_id in task_ids:
+        #     for i, batch in enumerate(task_dataloader_val[task_id]):
+        loss, score, batch_size = ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
+        tbLogger.step_val(epochId, float(loss), float(score), task_id, batch_size, 'val')
+        if default_gpu:
+            sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
+            sys.stdout.flush()
+
+        val_scores = tbLogger.showLossVal()
+        # update the multi-task scheduler.
+        task_stop_controller[task_id].step(score)
     
+        if epochId in lr_reduce_list: 
+            # reset the task_stop_controller once the lr drop
+            task_stop_controller[task_id]._reset()
+
 if __name__ == "__main__":
 
     main()
