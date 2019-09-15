@@ -272,7 +272,8 @@ def main():
 
     task_ave_iter_list = sorted(task_ave_iter.values())
     # select the median in the task_ave_iter_list
-    median_num_iter = task_ave_iter_list[len(task_num_iters)//2]
+    # median_num_iter = task_ave_iter_list[len(task_num_iters)//2]
+    median_num_iter = int(sum(task_ave_iter_list) / len(task_ave_iter_list))
     num_train_optimization_steps = median_num_iter * args.num_train_epochs // args.gradient_accumulation_steps
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
