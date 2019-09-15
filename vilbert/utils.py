@@ -33,7 +33,7 @@ PYTORCH_PRETRAINED_BERT_CACHE = Path(
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 class MultiTaskStopOnPlateau(object):
-    def __init__(self, mode='min', patience=10, continue_threshold=0.5,
+    def __init__(self, mode='min', patience=10, continue_threshold=0.005,
                  verbose=False, threshold=1e-4, threshold_mode='rel',
                  cooldown=0, min_lr=0, eps=1e-8):
 
@@ -54,7 +54,7 @@ class MultiTaskStopOnPlateau(object):
         self.continue_threshold = continue_threshold
         self._init_is_better(mode=mode, threshold=threshold,
                              threshold_mode=threshold_mode)
-        self._init_continue_is_better(mode=mode, threshold=continue_threshold,
+        self._init_continue_is_better(mode='min', threshold=continue_threshold,
                              threshold_mode=threshold_mode)
         self._reset()
 
@@ -88,7 +88,7 @@ class MultiTaskStopOnPlateau(object):
             self.num_bad_epochs = 0
 
         # if the perforance is keep dropping, then start optimizing again. 
-        if not self.continue_is_better(current, self.best) and self.in_stop:
+        elif self.continue_is_better(current, self.best) and self.in_stop:
             self.in_stop = False
             self.cooldown_counter = self.cooldown
             self.num_bad_epochs = 0
@@ -128,15 +128,6 @@ class MultiTaskStopOnPlateau(object):
         self.is_better = partial(self._cmp, mode, threshold_mode, threshold)
 
     def _init_continue_is_better(self, mode, threshold, threshold_mode):
-        if mode not in {'min', 'max'}:
-            raise ValueError('mode ' + mode + ' is unknown!')
-        if threshold_mode not in {'rel', 'abs'}:
-            raise ValueError('threshold mode ' + threshold_mode + ' is unknown!')
-
-        if mode == 'min':
-            self.mode_worse = inf
-        else:  # mode == 'max':
-            self.mode_worse = -inf
 
         self.continue_is_better = partial(self._cmp, mode, threshold_mode, threshold)
 
