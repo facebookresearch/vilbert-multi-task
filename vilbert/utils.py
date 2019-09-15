@@ -253,7 +253,7 @@ class tbLogger(object):
         return val_scores
 
     def showLossVal(self, task_id):       
-        progressInfo = "Eval task %s on iteration %d " %(task_id, self.epochId)
+        progressInfo = "Eval task %s on iteration %d " %(task_id, self.task_step[task_id])
         lossInfo = 'Validation '
         ave_loss = 0
         loss = self.task_loss_val[task_id] / float(self.task_step_val[task_id])
