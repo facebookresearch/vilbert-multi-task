@@ -415,7 +415,7 @@ def main():
             iterId = startIterID + step + (epochId * median_num_iter)
             for task_id in task_ids:                
                 is_forward = False
-                if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap):
+		if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap == 0):
                     is_forward = True
 
                 if is_forward:
