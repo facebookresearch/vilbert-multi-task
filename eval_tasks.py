@@ -115,6 +115,9 @@ def main():
     parser.add_argument(
         "--dynamic_attention", action="store_true" , help="whether use dynamic attention."
     )
+    parser.add_argument(
+        "--clean_train_sets", default=True , type=bool, help="whether clean train sets for multitask data."
+    )
     args = parser.parse_args()
     with open('vilbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.safe_load(f))
@@ -222,7 +225,7 @@ def main():
             sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
             sys.stdout.flush()
         # save the result or evaluate the result.
-        ave_score = tbLogger.showLossVal()
+        ave_score = tbLogger.showLossVal(task_id)
 
         if args.split:
             json_path = os.path.join(savePath, args.split)           

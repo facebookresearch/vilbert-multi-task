@@ -457,8 +457,10 @@ def compute_score_with_logits(logits, labels):
 def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataloader, task_losses, results, others):
     batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
 
-
-    features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
+    if task_id == 'TASK4' or task_id == 'TASK17':
+        features, spatials, image_mask, question, target, input_mask, segment_ids, multiple_choice_ids, co_attention_mask, question_id = batch
+    else:
+        features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     batch_size = features.size(0)
 
     if task_cfg[task_id]['process'] in ['dialog']:
@@ -504,6 +506,21 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         segment_ids = segment_ids.view(-1, segment_ids.size(2))
         co_attention_mask = co_attention_mask.view(-1, co_attention_mask.size(2), co_attention_mask.size(3))
 
+    elif task_cfg[task_id]['process'] in ['nlvr']:
+        batch_size = features.size(0)
+        max_num_bbox = features.size(1)
+        num_options = question.size(1)
+        features = features.view(batch_size * 2, int(features.size(1) / 2), features.size(2))
+        spatials = spatials.view(batch_size * 2, int(spatials.size(1) / 2), spatials.size(2))
+        image_mask = image_mask.view(batch_size * 2, int(image_mask.size(1) / 2))
+        question = question.repeat(1, 2)
+        question = question.view(batch_size * 2, int(question.size(1) / 2))
+        input_mask = input_mask.repeat(1, 2)
+        input_mask = input_mask.view(batch_size * 2, int(input_mask.size(1) / 2))
+        segment_ids = segment_ids.repeat(1, 2)
+        segment_ids = segment_ids.view(batch_size * 2, int(segment_ids.size(1) / 2))
+        co_attention_mask = co_attention_mask.view(batch_size * 2, int(co_attention_mask.size(1) / 2), co_attention_mask.size(2))
+
     with torch.no_grad():
         vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
                 model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
@@ -515,6 +532,14 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         for i in range(logits.size(0)):
             results.append({'question_id':question_id[i].item(), \
                     'answer':task_dataloader[task_id].dataset.label2ans[logits[i].item()]})
+
+    elif task_cfg[task_id]['type'] == 'VL-classifier-GQA':
+        logits = torch.max(vil_prediction_gqa, 1)[1].data
+        loss = 0
+        batch_score = 0
+        for i in range(logits.size(0)):
+            results.append({'questionId': str(question_id[i].item()), \
+                    'prediction':task_dataloader[task_id].dataset.label2ans[logits[i].item()]})
             
     elif task_cfg[task_id]['type'] == 'VL-logit':
         vil_logit = vil_logit.view(batch_size, num_options)
@@ -535,5 +560,28 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
 
         for i in range(select_idx.size(0)):
             results.append({'id':question_id[i].item(), 'target':select_idx[i].item(), 'IOU': select_target[i].item()})
+
+    elif task_cfg[task_id]['type'] == 'V-logit-mc':
+        vision_logit = vision_logit[:, 101:]
+        vision_logit = vision_logit.squeeze(2).gather(1, multiple_choice_ids)
+        vision_logit = vision_logit.unsqueeze(2)
+        loss = task_losses[task_id](vision_logit, target)
+        loss = loss.mean() * target.size(1)
+        _, preds = torch.max(vision_logit, dim=1)
+        _, target = torch.max(target, dim=1)
+        batch_score = float((preds == target).sum())
+
+        for i in range(preds.size(0)):
+            results.append({'id':question_id[i].item(), 'target':preds[i].item()})
+
+    elif task_cfg[task_id]['type'] == 'VL-binary-classifier':
+        loss = task_losses[task_id](vil_binary_prediction, target)
+        loss = loss.mean()
+        batch_score = compute_score_with_logits(vil_binary_prediction, target).sum()
+
+    elif task_cfg[task_id]['type'] == 'VL-tri-classifier':
+        loss = task_losses[task_id](vil_tri_prediction, target)
+        loss = loss.mean()
+        batch_score = compute_score_with_logits(vil_tri_prediction, target).sum()
 
     return float(loss), float(batch_score), batch_size, results, others
