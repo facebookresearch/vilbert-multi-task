@@ -109,7 +109,7 @@ def _load_dataset(dataroot, name, clean_datasets):
             remove_ids = np.load(os.path.join(dataroot, "cache", "coco_test_ids.npy"))
             remove_ids = [int(x) for x in remove_ids]
         for question, answer in zip(questions, answers):
-            if int(question["image_id"]) in remove_ids:
+            if "train" in name and int(question["image_id"]) in remove_ids:
                 continue
             assert_eq(question["question_id"], answer["question_id"])
             assert_eq(question["image_id"], answer["image_id"])

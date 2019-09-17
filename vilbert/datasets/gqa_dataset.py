@@ -1,5 +1,6 @@
 import os
 import _pickle as cPickle
+import json
 import logging
 
 import numpy as np
@@ -31,7 +32,7 @@ def _load_dataset(dataroot, name, clean_datasets):
     """Load entries
 
     dataroot: root path of dataset
-    name: 'train', 'val', 'trainval'
+    name: 'train', 'val', 'trainval', 'test'
     """
     if name == "train" or name == "val":
         items_path = os.path.join(dataroot, "cache", "%s_target.pkl" % name)
@@ -47,13 +48,22 @@ def _load_dataset(dataroot, name, clean_datasets):
         items = cPickle.load(open(items_path, "rb"))
         items = sorted(items, key=lambda x: x["question_id"])
         items = items[-3000:]
+    elif name == "test":
+        items_path = os.path.join(dataroot, "testdev_balanced_questions.json")
+        items = json.load(open(items_path, "rb"))
     else:
         assert False, "data split is not recognized."
 
     if "test" in name:
         entries = []
         for item in items:
-            entries.append(item)
+            it = items[item]
+            entry = {
+                "question_id": int(item),
+                "image_id": it["imageId"],
+                "question": it["question"],
+            }
+            entries.append(entry)
     else:
         entries = []
         remove_ids = []
