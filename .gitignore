@@ -36,6 +36,7 @@ MANIFEST
 data/
 save/
 logs/
+results/
 
 # Checkpoints directory
 checkpoints/
