@@ -292,19 +292,6 @@ def main():
             )
 
     task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
-    model.to(device)
-
-    if args.local_rank != -1:
-        try:
-            from apex.parallel import DistributedDataParallel as DDP
-        except ImportError:
-            raise ImportError(
-                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
-            )
-        model = DDP(model, delay_allreduce=True)
-
-    elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
 
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 
@@ -383,12 +370,6 @@ def main():
             return pow(0.2, np.sum(lr_reduce_list <= epoch))
         lr_scheduler = LambdaLR(optimizer, lr_lambda=lr_lambda_fun)
 
-    if default_gpu:
-        print("***** Running training *****")
-        print("  Num Iters: ", task_num_iters)
-        print("  Batch size: ", task_batch_size)
-        print("  Num steps: %d" %num_train_optimization_steps)
-
     startIterID = 0
     global_step = 0
 
@@ -407,6 +388,31 @@ def main():
         global_step = checkpoint['global_step']
         del checkpoint
 
+    model.to(device)
+
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if torch.is_tensor(v):
+                state[k] = v.cuda()
+
+    if args.local_rank != -1:
+        try:
+            from apex.parallel import DistributedDataParallel as DDP
+        except ImportError:
+            raise ImportError(
+                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
+            )
+        model = DDP(model, delay_allreduce=True)
+
+    elif n_gpu > 1:
+        model = torch.nn.DataParallel(model)
+
+    if default_gpu:
+        print("***** Running training *****")
+        print("  Num Iters: ", task_num_iters)
+        print("  Batch size: ", task_batch_size)
+        print("  Num steps: %d" %num_train_optimization_steps)
+
     task_iter_train = {name:None for name in task_ids}
     task_count = {name:0 for name in task_ids}
     for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
@@ -415,7 +421,7 @@ def main():
             iterId = startIterID + step + (epochId * median_num_iter)
             for task_id in task_ids:                
                 is_forward = False
-		if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap == 0):
+                if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap == 0):
                     is_forward = True
 
                 if is_forward:
