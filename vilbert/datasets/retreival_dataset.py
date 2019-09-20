@@ -289,12 +289,12 @@ class RetreivalDatasetVal(Dataset):
         gt_image_features_reader: ImageFeaturesH5Reader,
         tokenizer: BertTokenizer,
         bert_model,
+        clean_datasets,
         padding_index: int = 0,
         max_seq_length: int = 20,
         max_region_num: int = 101,
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
-
         self._image_entries, self._caption_entries = _load_annotationsVal(annotations_jsonpath, task)
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
