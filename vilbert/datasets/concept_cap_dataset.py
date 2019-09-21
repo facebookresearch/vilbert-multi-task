@@ -229,7 +229,9 @@ class ConceptCapLoaderTrain(object):
 
             batch_size = input_ids.shape[0]
 
-            g_image_feat = np.sum(image_feat, axis=1) / np.sum(masked_label==0, axis=1, keepdims=True)
+            sum_count = np.sum(masked_label==0, axis=1, keepdims=True)
+            sum_count[sum_count==0] = 1
+            g_image_feat = np.sum(image_feat, axis=1) / sum_count
             image_feat = np.concatenate([np.expand_dims(g_image_feat, axis=1), image_feat], axis=1)
             image_feat = np.array(image_feat, dtype=np.float32)
 
@@ -321,7 +323,9 @@ class ConceptCapLoaderVal(object):
             image_loc, image_target, image_label, image_mask, masked_label, image_id = batch
 
             batch_size = input_ids.shape[0]
-            g_image_feat = np.sum(image_feat, axis=1) / np.sum(masked_label==0, axis=1, keepdims=True)
+            sum_count = np.sum(masked_label==0, axis=1, keepdims=True)
+            sum_count[sum_count==0] = 1
+            g_image_feat = np.sum(image_feat, axis=1) / sum_count
             image_feat = np.concatenate([np.expand_dims(g_image_feat, axis=1), image_feat], axis=1)
             image_feat = np.array(image_feat, dtype=np.float32)
 
