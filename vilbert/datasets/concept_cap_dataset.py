@@ -30,6 +30,45 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def iou(anchors, gt_boxes):
+    """
+    anchors: (N, 4) ndarray of float
+    gt_boxes: (K, 4) ndarray of float
+    overlaps: (N, K) ndarray of overlap between boxes and query_boxes
+    """
+    N = anchors.shape[0]
+    K = gt_boxes.shape[0]
+
+    gt_boxes_area = (
+        (gt_boxes[:, 2] - gt_boxes[:, 0] + 1) * (gt_boxes[:, 3] - gt_boxes[:, 1] + 1)
+    ).reshape(1, K)
+
+    anchors_area = (
+        (anchors[:, 2] - anchors[:, 0] + 1) * (anchors[:, 3] - anchors[:, 1] + 1)
+    ).reshape(N, 1)
+
+    boxes = np.repeat(anchors.reshape(N, 1, 4), K, axis=1)
+    query_boxes = np.repeat(gt_boxes.reshape(1, K, 4), N, axis=0)
+
+    iw = (
+        np.minimum(boxes[:, :, 2], query_boxes[:, :, 2])
+        - np.maximum(boxes[:, :, 0], query_boxes[:, :, 0])
+        + 1
+    )
+    iw[iw < 0] = 0
+
+    ih = (
+        np.minimum(boxes[:, :, 3], query_boxes[:, :, 3])
+        - np.maximum(boxes[:, :, 1], query_boxes[:, :, 1])
+        + 1
+    )
+    ih[ih < 0] = 0
+
+    ua = anchors_area + gt_boxes_area - (iw * ih)
+    overlaps = iw * ih / ua
+
+    return overlaps
+
 
 def deserialize_lmdb(ds):
     return msgpack.loads(
@@ -46,7 +85,7 @@ class InputExample(object):
     """A single training/test example for the language model."""
 
     def __init__(
-        self, image_feat=None, image_target=None, caption=None, is_next=None, lm_labels=None, image_loc=None, num_boxes=None
+        self, image_feat=None, image_target=None, caption=None, is_next=None, lm_labels=None, image_loc=None, num_boxes=None, overlaps=None
     ):
         """Constructs a InputExample.
         Args:
@@ -65,6 +104,7 @@ class InputExample(object):
         self.image_loc = image_loc
         self.image_target = image_target
         self.num_boxes = num_boxes
+        self.overlaps = overlaps
 
 class InputFeatures(object):
     """A single set of features of data."""
@@ -80,7 +120,8 @@ class InputFeatures(object):
         image_target=None,
         image_loc=None,
         image_label=None,
-        image_mask=None
+        image_mask=None,
+        masked_label=None
     ):
         self.input_ids = input_ids
         self.input_mask = input_mask
@@ -92,6 +133,7 @@ class InputFeatures(object):
         self.image_label = image_label
         self.image_target = image_target
         self.image_mask = image_mask
+        self.masked_label = masked_label
 
 class ConceptCapLoaderTrain(object):
     """
@@ -128,7 +170,7 @@ class ConceptCapLoaderTrain(object):
         batch_size=512,
         shuffle=False,
         num_workers=25,
-        cache=5000,
+        cache=10000,
         drop_last=False,
         cuda=False,
         local_rank=-1,
@@ -183,10 +225,11 @@ class ConceptCapLoaderTrain(object):
 
         for batch in self.ds.get_data():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_label, image_mask, image_id = batch
+            image_loc, image_target, image_label, image_mask, masked_label, image_id = batch
 
             batch_size = input_ids.shape[0]
-            g_image_feat = np.sum(image_feat, axis=1) / np.sum(image_mask, axis=1, keepdims=True)
+
+            g_image_feat = np.sum(image_feat, axis=1) / np.sum(masked_label==0, axis=1, keepdims=True)
             image_feat = np.concatenate([np.expand_dims(g_image_feat, axis=1), image_feat], axis=1)
             image_feat = np.array(image_feat, dtype=np.float32)
 
@@ -275,10 +318,10 @@ class ConceptCapLoaderVal(object):
     def __iter__(self):
         for batch in self.ds.get_data():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_label, image_mask, image_id = batch
+            image_loc, image_target, image_label, image_mask, masked_label, image_id = batch
 
             batch_size = input_ids.shape[0]
-            g_image_feat = np.sum(image_feat, axis=1) / np.sum(image_mask, axis=1, keepdims=True)
+            g_image_feat = np.sum(image_feat, axis=1) / np.sum(masked_label==0, axis=1, keepdims=True)
             image_feat = np.concatenate([np.expand_dims(g_image_feat, axis=1), image_feat], axis=1)
             image_feat = np.array(image_feat, dtype=np.float32)
 
@@ -332,6 +375,9 @@ class BertPreprocessBatch(object):
         image_target = np.zeros((self.region_len, 1601), dtype=np.float32)
         image_location = np.zeros((self.region_len, 5), dtype=np.float32)
 
+        # calculate the IOU here.
+        overlaps = iou(image_location_wp, image_location_wp)
+
         num_boxes = int(num_boxes)
         image_feature[:num_boxes] = image_feature_wp
         image_target[:num_boxes] = image_target_wp
@@ -361,7 +407,8 @@ class BertPreprocessBatch(object):
             caption=tokens_caption,
             is_next=label,
             image_loc=image_location,
-            num_boxes=num_boxes
+            num_boxes=num_boxes,
+            overlaps=overlaps
         )
 
         # transform sample to features
@@ -378,6 +425,7 @@ class BertPreprocessBatch(object):
             cur_features.image_target,
             cur_features.image_label,
             cur_features.image_mask,
+            cur_features.masked_label,
             image_id,
         )
         return cur_tensors
@@ -421,11 +469,12 @@ class BertPreprocessBatch(object):
         image_target = example.image_target
         num_boxes = int(example.num_boxes)
         is_next = example.is_next
+        overlaps = example.overlaps
 
         self._truncate_seq_pair(tokens, max_seq_length - 2)
 
         tokens, tokens_label = self.random_word(tokens, tokenizer, is_next)
-        image_feat, image_loc, image_label = self.random_region(image_feat, image_loc, num_boxes, is_next)
+        image_feat, image_loc, image_label, masked_label = self.random_region(image_feat, image_loc, num_boxes, is_next, overlaps)
 
         # concatenate lm labels and account for CLS, SEP, SEP
         lm_label_ids = [-1] + tokens_label + [-1]
@@ -468,7 +517,8 @@ class BertPreprocessBatch(object):
             image_target=image_target,
             image_loc=image_loc,
             image_label=np.array(image_label),
-            image_mask = np.array(image_mask)
+            image_mask = np.array(image_mask),
+            masked_label = masked_label
         )
         return features
 
@@ -518,10 +568,11 @@ class BertPreprocessBatch(object):
         return tokens, output_label        
 
 
-    def random_region(self, image_feat, image_loc, num_boxes, is_next):
+    def random_region(self, image_feat, image_loc, num_boxes, is_next, overlaps):
         """
         """
         output_label = []
+        masked_label = np.zeros((image_feat.shape[0]))
 
         for i in range(num_boxes):
             prob = random.random()
@@ -535,6 +586,9 @@ class BertPreprocessBatch(object):
                 # 80% randomly change token to mask token
                 if prob < 0.9:
                     image_feat[i] = 0
+                # mask the overlap regions into zeros
+                masked_label = np.logical_or(masked_label, overlaps[i] > 0.4)
+
                 # 10% randomly change token to random token
                 # elif prob < 0.9:
                 # tokens[i] = random.choice(list(tokenizer.vocab.items()))[0]
@@ -546,7 +600,7 @@ class BertPreprocessBatch(object):
                 # no masking token (will be ignored by loss function later)
                 output_label.append(-1)
 
-        return image_feat, image_loc, output_label
+        return image_feat, image_loc, output_label, masked_label
 
 
 class ConceptCapLoaderRetrieval(object):
@@ -771,7 +825,7 @@ class BertPreprocessRetrieval(object):
         self._truncate_seq_pair(caption, max_seq_length - 2)
         caption, caption_label = self.random_word(caption, tokenizer)
         caption_label = None
-        image_feat, image_loc, image_label = self.random_region(image_feat, image_loc, num_boxes)
+        image_feat, image_loc, image_label, masked_label = self.random_region(image_feat, image_loc, num_boxes)
         image_label = None
 
         tokens = []
