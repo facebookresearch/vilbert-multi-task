@@ -137,6 +137,8 @@ class tbLogger(object):
         logger.info("logging file at: " + log_dir)
         
         self.save_logger=save_logger
+        self.log_dir = log_dir
+        self.txt_dir = txt_dir
         if self.save_logger:
             self.logger = SummaryWriter(log_dir=log_dir)
 
@@ -164,7 +166,20 @@ class tbLogger(object):
 
         self.masked_t_loss_val = {task_id:0 for task_id in task_ids}
         self.masked_v_loss_val = {task_id:0 for task_id in task_ids}
-        self.next_sentense_loss_val = {task_id:0 for task_id in task_ids}    
+        self.next_sentense_loss_val = {task_id:0 for task_id in task_ids}
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        del d['logger']
+        del d['txt_f']
+        return d
+
+    def __setstate__(self, d):
+        self.__dict__.update(d)
+        if self.save_logger:
+            self.logger = SummaryWriter(log_dir=self.log_dir)
+
+        self.txt_f = open(self.txt_dir + '/' + 'out.txt', 'a')
 
     def txt_close(self):
         self.txt_f.close()

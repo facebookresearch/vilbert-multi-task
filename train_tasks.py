@@ -380,8 +380,9 @@ def main():
         # lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         global_step = checkpoint['global_step']
-        start_epoch = int(checkpoint['epoch_id'])
+        start_epoch = int(checkpoint['epoch_id']) + 1
         task_stop_controller = checkpoint['task_stop_controller']
+        tbLogger = checkpoint['tb_logger']
         del checkpoint
 
     model.to(device)
@@ -496,6 +497,7 @@ def main():
                 'global_step': global_step,
                 'epoch_id': epochId,
                 'task_stop_controller': task_stop_controller,
+                'tb_logger': tbLogger,
             }, output_checkpoint)
     tbLogger.txt_close()
 
