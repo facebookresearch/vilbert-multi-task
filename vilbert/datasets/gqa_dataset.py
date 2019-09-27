@@ -71,7 +71,7 @@ def _load_dataset(dataroot, name, clean_datasets):
             remove_ids = np.load(os.path.join(dataroot, "cache", "genome_test_ids.npy"))
             remove_ids = [int(x) for x in remove_ids]
         for item in items:
-            if int(item["image_id"]) in remove_ids:
+            if "train" in name and int(item["image_id"]) in remove_ids:
                 continue
             entries.append(_create_entry(item))
     return entries
