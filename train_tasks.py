@@ -22,7 +22,7 @@ from pytorch_transformers.optimization import AdamW, WarmupConstantSchedule
 
 from vilbert.optimization import RAdam
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
-from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
+from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau, CosineAnnealingLR, CosineAnnealingWarmRestarts
 
 import vilbert.utils as utils
 import torch.distributed as dist
@@ -124,7 +124,7 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=24, help="Number of workers in the dataloader."
+        "--num_workers", type=int, default=16, help="Number of workers in the dataloader."
     )
     parser.add_argument(
         "--save_name",
@@ -365,6 +365,10 @@ def main():
                         patience=1,
                         cooldown=1,
                         threshold=0.001)
+    elif args.lr_scheduler == 'cosine':
+        lr_scheduler = CosineAnnealingLR(optimizer, T_max=median_num_iter*args.num_train_epochs)
+    elif args.lr_scheduler == 'cosine_warm':
+        lr_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=median_num_iter*args.num_train_epochs)
     elif args.lr_scheduler == 'mannul':
         def lr_lambda_fun(epoch):
             return pow(0.2, np.sum(lr_reduce_list <= epoch))
@@ -372,6 +376,7 @@ def main():
 
     startIterID = 0
     global_step = 0
+    start_epoch = 0
 
     if args.resume_file != "" and os.path.exists(args.resume_file):
         checkpoint = torch.load(args.resume_file, map_location='cpu')
@@ -386,6 +391,8 @@ def main():
         lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         global_step = checkpoint['global_step']
+        start_epoch = int(checkpoint['epoch_id'])
+        task_stop_controller = checkpoint['task_stop_controller']
         del checkpoint
 
     model.to(device)
@@ -415,7 +422,7 @@ def main():
 
     task_iter_train = {name:None for name in task_ids}
     task_count = {name:0 for name in task_ids}
-    for epochId in tqdm(range(args.num_train_epochs), desc="Epoch"):
+    for epochId in tqdm(range(start_epoch, args.num_train_epochs), desc="Epoch"):
         model.train()
         for step in range(median_num_iter):
             iterId = startIterID + step + (epochId * median_num_iter)
@@ -452,19 +459,22 @@ def main():
                             tbLogger.step_train(epochId, iterId, float(loss), float(score), \
                                                     optimizer.param_groups[0]['lr'], task_id, 'train')
 
+            if 'cosine' in args.lr_scheduler and global_step > warmpu_steps:
+                lr_scheduler.step()
+
             if step % (20 * args.gradient_accumulation_steps) == 0 and step != 0 and default_gpu:
                 tbLogger.showLossTrain()        
 
             # decided whether to evaluate on each tasks.
             for task_id in task_ids:
-                if (iterId!= 0 and iterId % task_num_iters[task_id] == 0) or (epochId == args.num_train_epochs and step == median_num_iter-1):
+                if (iterId!= 0 and iterId % task_num_iters[task_id] == 0) or (epochId == args.num_train_epochs - 1 and step == median_num_iter-1):
                     evaluate(args, task_dataloader_val, task_stop_controller, task_cfg, \
                                 device, task_id, model, task_losses, epochId, default_gpu, tbLogger)
 
         if args.lr_scheduler == 'automatic':
             lr_scheduler.step(sum(val_scores.values()))
             logger.info("best average score is %3f" %lr_scheduler.best)
-        else:
+        elif args.lr_scheduler == 'mannul':
             lr_scheduler.step()
 
         if epochId in lr_reduce_list: 
@@ -482,7 +492,7 @@ def main():
                 savePath, "pytorch_model_" + str(epochId) + ".bin"
             )
             output_checkpoint = os.path.join(
-                savePath, "pytorch_ckpt_" + str(epochId) + ".tar"
+                savePath, "pytorch_ckpt_latest.tar"
             )
             torch.save(model_to_save.state_dict(), output_model_file)
             torch.save({
@@ -491,6 +501,8 @@ def main():
                 'warmup_scheduler_state_dict': warmup_scheduler.state_dict(),
                 'lr_scheduler_state_dict': lr_scheduler.state_dict(),
                 'global_step': global_step,
+                'epoch_id': epochId,
+                'task_stop_controller': task_stop_controller,
             }, output_checkpoint)
     tbLogger.txt_close()
 
@@ -505,9 +517,9 @@ def evaluate(args, task_dataloader_val, task_stop_controller, task_cfg, device, 
             sys.stdout.write('%d/%d\r' % (i, len(task_dataloader_val[task_id])))
             sys.stdout.flush()
 
-    score = tbLogger.showLossVal(task_id)
     # update the multi-task scheduler.
-    task_stop_controller[task_id].step(score)
+    task_stop_controller[task_id].step(tbLogger.getValScore(task_id))
+    score = tbLogger.showLossVal(task_id, task_stop_controller)
     model.train()
 
 if __name__ == "__main__":

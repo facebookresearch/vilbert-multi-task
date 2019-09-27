@@ -186,6 +186,7 @@ class tbLogger(object):
         # plot on tensorboard.
         self.linePlot(stepId, loss, split, self.task_id2name[task_id] + '_loss')
         self.linePlot(stepId, score, split, self.task_id2name[task_id] + '_score')
+        self.linePlot(stepId, norm, split, self.task_id2name[task_id] + '_norm')
 
     def step_train_CC(self, epochId, stepId, masked_loss_t, masked_loss_v, next_sentence_loss, norm, task_id, split):
         
@@ -204,7 +205,7 @@ class tbLogger(object):
         self.linePlot(stepId, next_sentence_loss, split, self.task_id2name[task_id] + '_next_sentence_loss')
 
     def step_val(self, epochId, loss, score, task_id, batch_size, split):
-        self.task_loss_val[task_id] += loss
+        self.task_loss_val[task_id] += loss * batch_size
         self.task_score_val[task_id] += score
         self.task_step_val[task_id] += self.gradient_accumulation_steps
         self.task_datasize_val[task_id] += batch_size
@@ -243,17 +244,22 @@ class tbLogger(object):
         print(lossInfo, file=self.txt_f)
         return val_scores
 
-    def showLossVal(self, task_id):       
+    def getValScore(self, task_id):
+        return self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
+
+    def showLossVal(self, task_id, task_stop_controller=None):
         progressInfo = "Eval task %s on iteration %d " %(task_id, self.task_step[task_id])
         lossInfo = 'Validation '
         ave_loss = 0
-        loss = self.task_loss_val[task_id] / float(self.task_step_val[task_id])
+        loss = self.task_loss_val[task_id] / float(self.task_datasize_val[task_id])
         score = self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
         ave_loss += loss
         lossInfo += '[%s]: loss %.3f score %.3f ' %(self.task_id2name[task_id], loss, score * 100.0)
 
         self.linePlot(self.task_step[task_id], loss, 'val', self.task_id2name[task_id] + '_loss')
         self.linePlot(self.task_step[task_id], score, 'val', self.task_id2name[task_id] + '_score')
+        if task_stop_controller is not None:
+            self.linePlot(self.task_step[task_id], task_stop_controller[task_id].in_stop, 'val', self.task_id2name[task_id] + '_early_stop')
 
         self.task_loss_val[task_id] = 0 
         self.task_score_val[task_id] = 0
