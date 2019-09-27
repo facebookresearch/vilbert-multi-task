@@ -118,6 +118,13 @@ def main():
     parser.add_argument(
         "--clean_train_sets", default=True , type=bool, help="whether clean train sets for multitask data."
     )
+    parser.add_argument(
+        "--visual_target", default=0, type=int, 
+        help="which target to use for visual branch. \
+        0: soft label, \
+        1: regress the feature, \
+        2: NCE loss.")
+
     args = parser.parse_args()
     with open('vilbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.safe_load(f))
@@ -184,6 +191,13 @@ def main():
     if 'roberta' in args.bert_model:
         config.model = 'roberta'
 
+    if args.visual_target == 0:
+        config.v_target_size = 1601
+        config.visual_target = args.visual_target
+    else:
+        config.v_target_size = 2048
+        config.visual_target = args.visual_target
+        
     if args.baseline:
         model = BaseBertForVLTasks.from_pretrained(
             args.from_pretrained, config=config, num_labels=num_labels, default_gpu=default_gpu

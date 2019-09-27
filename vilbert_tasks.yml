@@ -5,7 +5,7 @@ TASK1:
   process: normal
   task_id: 1
   dataroot: data/VQA
-  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  features_h5path1: data/coco/COCO_test_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''

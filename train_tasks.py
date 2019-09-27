@@ -64,9 +64,6 @@ def main():
         help="The config file which specified the model details.",
     )
     parser.add_argument(
-        "--learning_rate", default=2e-5, type=float, help="The initial learning rate for Adam."
-    )
-    parser.add_argument(
         "--num_train_epochs",
         default=20,
         type=int,
@@ -273,7 +270,8 @@ def main():
     task_ave_iter_list = sorted(task_ave_iter.values())
     # select the median in the task_ave_iter_list
     # median_num_iter = task_ave_iter_list[len(task_num_iters)//2]
-    median_num_iter = int(sum(task_ave_iter_list) / len(task_ave_iter_list))
+    # median_num_iter = int(sum(task_ave_iter_list) / len(task_ave_iter_list))
+    median_num_iter = task_ave_iter_list[-1]
     num_train_optimization_steps = median_num_iter * args.num_train_epochs // args.gradient_accumulation_steps
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
 
@@ -315,7 +313,6 @@ def main():
             print(bert_weight_name_filtered)
 
     optimizer_grouped_parameters = []
-    lr = args.learning_rate
     for key, value in dict(model.named_parameters()).items():
         if value.requires_grad:
             if 'vil_prediction' in key:
@@ -323,11 +320,11 @@ def main():
             else:
                 if args.vision_scratch:
                     if key[12:] in bert_weight_name:
-                        lr = args.learning_rate
+                        lr = base_lr
                     else:
                         lr = 1e-4
                 else:
-                    lr = args.learning_rate
+                    lr = base_lr
             if any(nd in key for nd in no_decay):
                 optimizer_grouped_parameters += [
                     {"params": [value], "lr": lr, "weight_decay": 0.01}
@@ -341,18 +338,9 @@ def main():
         print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
     
     if args.optim == 'AdamW':    
-        optimizer = AdamW(
-                        model.parameters(), 
-                        lr=lr, 
-                        betas=(0.9, 0.98),
-                        correct_bias=False
-                        ) 
+        optimizer = AdamW(model.parameters(), lr=base_lr, correct_bias=False) 
     elif args.optim == 'RAdam':
-        optimizer = RAdam(
-                        model.parameters(), 
-                        betas=(0.9, 0.98),
-                        lr=lr,
-                        )  
+        optimizer = RAdam(model.parameters(), lr=base_lr)  
 
     warmpu_steps = args.warmup_proportion*num_train_optimization_steps
     warmup_scheduler = WarmupConstantSchedule(optimizer, warmup_steps=warmpu_steps)
@@ -419,6 +407,7 @@ def main():
         model.train()
         for step in range(median_num_iter):
             iterId = startIterID + step + (epochId * median_num_iter)
+            first_task = True
             for task_id in task_ids:                
                 is_forward = False
                 if (not task_stop_controller[task_id].in_stop) or (iterId % args.train_iter_gap == 0):
@@ -442,12 +431,15 @@ def main():
                             for param_group in optimizer.param_groups:
                                 param_group["lr"] = lr_this_step
 
-                        if global_step < warmpu_steps:
+                        if first_task and global_step < warmpu_steps:
                             warmup_scheduler.step()
                         
                         optimizer.step()
                         model.zero_grad()
-                        global_step += 1
+                        if first_task:
+                            global_step += 1
+                            first_task = False
+                            
                         if default_gpu:
                             tbLogger.step_train(epochId, iterId, float(loss), float(score), \
                                                     optimizer.param_groups[0]['lr'], task_id, 'train')
