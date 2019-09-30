@@ -127,6 +127,18 @@ def gelu(x):
     """
     return x * 0.5 * (1.0 + torch.erf(x / math.sqrt(2.0)))
 
+class GeLU(nn.Module):
+    """Implementation of the gelu activation function.
+        For information: OpenAI GPT's gelu is slightly different (and gives slightly different results):
+        0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
+        Also see https://arxiv.org/abs/1606.08415
+    """
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return gelu(x)
+
 
 def swish(x):
     return x * torch.sigmoid(x)
@@ -1464,15 +1476,28 @@ class VILBertForVLTasks(BertPreTrainedModel):
 
 class SimpleClassifier(nn.Module):
     def __init__(self, in_dim, hid_dim, out_dim, dropout):
-        super(SimpleClassifier, self).__init__()
-        layers = [
-            weight_norm(nn.Linear(in_dim, hid_dim), dim=None),
-            nn.ReLU(),
-            nn.Dropout(dropout, inplace=True),
-            weight_norm(nn.Linear(hid_dim, out_dim), dim=None)
-        ]
-        self.main = nn.Sequential(*layers)
+        super().__init__()
+        self.logit_fc = nn.Sequential(
+            nn.Linear(in_dim, hid_dim),
+            GeLU(),
+            BertLayerNorm(hid_dim, eps=1e-12),
+            nn.Linear(hid_dim, out_dim)
+        )
 
-    def forward(self, x):
-        logits = self.main(x)
-        return logits
+    def forward(self, hidden_states):
+        return self.logit_fc(hidden_states)
+
+# class SimpleClassifier(nn.Module):
+#     def __init__(self, in_dim, hid_dim, out_dim, dropout):
+#         super(SimpleClassifier, self).__init__()
+#         layers = [
+#             weight_norm(nn.Linear(in_dim, hid_dim), dim=None),
+#             nn.ReLU(),
+#             nn.Dropout(dropout, inplace=True),
+#             weight_norm(nn.Linear(hid_dim, out_dim), dim=None)
+#         ]
+#         self.main = nn.Sequential(*layers)
+
+#     def forward(self, x):
+#         logits = self.main(x)
+#         return logits

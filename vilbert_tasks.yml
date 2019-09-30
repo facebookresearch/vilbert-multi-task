@@ -5,18 +5,18 @@ TASK1:
   process: normal
   task_id: 1
   dataroot: data/VQA
-  features_h5path1: data/coco/COCO_test_resnext152_faster_rcnn_genome.lmdb
+  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 23
   max_region_num: 101
-  batch_size: 256
+  batch_size: 128
   eval_batch_size: 1024
   train_split: trainval
   val_split: minval
-  lr: 0.00004
-  num_epoch: 20
+  lr: 0.00005
+  num_epoch: 10
 TASK2:
   name: GenomeQA
   type: VL-classifier
@@ -157,11 +157,11 @@ TASK9:
   val_annotations_jsonpath: ''
   max_seq_length: 20
   max_region_num: 101
-  batch_size: 256
+  batch_size: 128
   train_split: train
   val_split: val
   lr: 0.00004
-  num_epoch: 20
+  num_epoch: 6
 TASK10:
   name: refcoco+
   type: V-logit
@@ -175,12 +175,12 @@ TASK10:
   val_annotations_jsonpath: ''
   max_seq_length: 20
   max_region_num: 101
-  batch_size: 256
+  batch_size: 64
   eval_batch_size: 1024
   train_split: train
   val_split: val
   lr: 0.00004
-  num_epoch: 20
+  num_epoch: 6
 TASK11:
   name: refcocog
   type: V-logit

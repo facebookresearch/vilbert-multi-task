@@ -18,7 +18,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 
-from pytorch_transformers.optimization import AdamW, WarmupConstantSchedule
+from pytorch_transformers.optimization import AdamW, WarmupConstantSchedule, WarmupLinearSchedule
 
 from vilbert.optimization import RAdam
 from vilbert.task_utils import LoadDatasets, LoadLosses, ForwardModelsTrain, ForwardModelsVal
@@ -268,9 +268,6 @@ def main():
         task_stop_controller[task_id] = utils.MultiTaskStopOnPlateau(mode='max', patience=1, continue_threshold=0.005, cooldown=1, threshold=0.001)
 
     task_ave_iter_list = sorted(task_ave_iter.values())
-    # select the median in the task_ave_iter_list
-    # median_num_iter = task_ave_iter_list[len(task_num_iters)//2]
-    # median_num_iter = int(sum(task_ave_iter_list) / len(task_ave_iter_list))
     median_num_iter = task_ave_iter_list[-1]
     num_train_optimization_steps = median_num_iter * args.num_train_epochs // args.gradient_accumulation_steps
     num_labels = max([dataset.num_labels for dataset in task_datasets_train.values()])
@@ -316,13 +313,13 @@ def main():
     for key, value in dict(model.named_parameters()).items():
         if value.requires_grad:
             if 'vil_prediction' in key:
-                lr = 1e-4
+                lr = base_lr #1e-4
             else:
                 if args.vision_scratch:
                     if key[12:] in bert_weight_name:
                         lr = base_lr
                     else:
-                        lr = 1e-4
+                        lr = base_lr# 1e-4
                 else:
                     lr = base_lr
             if any(nd in key for nd in no_decay):
@@ -337,15 +334,19 @@ def main():
     if default_gpu:
         print(len(list(model.named_parameters())), len(optimizer_grouped_parameters))
     
-    if args.optim == 'AdamW':    
-        optimizer = AdamW(model.parameters(), lr=base_lr, correct_bias=False) 
+    if args.optim == 'AdamW':
+        optimizer = AdamW(optimizer_grouped_parameters, lr=base_lr, correct_bias=False) 
     elif args.optim == 'RAdam':
-        optimizer = RAdam(model.parameters(), lr=base_lr)  
+        optimizer = RAdam(optimizer_grouped_parameters, lr=base_lr)
 
     warmpu_steps = args.warmup_proportion*num_train_optimization_steps
-    warmup_scheduler = WarmupConstantSchedule(optimizer, warmup_steps=warmpu_steps)
 
-    lr_reduce_list = np.array([12, 16])
+    if args.lr_scheduler == 'warmup_linear': 
+        warmup_scheduler = WarmupLinearSchedule(optimizer, warmup_steps=warmpu_steps, t_total=num_train_optimization_steps)
+    else:
+        warmup_scheduler = WarmupConstantSchedule(optimizer, warmup_steps=warmpu_steps)
+
+    lr_reduce_list = np.array([6, 8])
     if args.lr_scheduler == 'automatic':
         lr_scheduler = ReduceLROnPlateau(optimizer, \
                         mode='max',
@@ -376,7 +377,7 @@ def main():
                 new_dict[attr] = checkpoint['model_state_dict'][attr]
         model.load_state_dict(new_dict)
         warmup_scheduler.load_state_dict(checkpoint['warmup_scheduler_state_dict'])
-        lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+        # lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         global_step = checkpoint['global_step']
         start_epoch = int(checkpoint['epoch_id'])
@@ -438,7 +439,7 @@ def main():
                             for param_group in optimizer.param_groups:
                                 param_group["lr"] = lr_this_step
 
-                        if first_task and global_step < warmpu_steps:
+                        if first_task and (global_step < warmpu_steps or args.lr_scheduler == 'warmup_linear'):
                             warmup_scheduler.step()
                         
                         optimizer.step()
@@ -491,7 +492,7 @@ def main():
                 'model_state_dict': model_to_save.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'warmup_scheduler_state_dict': warmup_scheduler.state_dict(),
-                'lr_scheduler_state_dict': lr_scheduler.state_dict(),
+                # 'lr_scheduler_state_dict': lr_scheduler.state_dict(),
                 'global_step': global_step,
                 'epoch_id': epochId,
                 'task_stop_controller': task_stop_controller,
