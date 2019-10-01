@@ -134,7 +134,7 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
     else:
         features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id = batch
     
-    batch_size = features.size(0)
+    batch_size = features.size(0)    
     if task_cfg[task_id]['process'] in ['dialog']:
         max_num_bbox = features.size(1)
         nround = question.size(1)
@@ -192,9 +192,10 @@ def ForwardModelsTrain(args, task_cfg, device, task_id, task_count, task_iter_tr
         segment_ids = segment_ids.repeat(1, 2)
         segment_ids = segment_ids.view(batch_size * 2, int(segment_ids.size(1) / 2))
         co_attention_mask = co_attention_mask.view(batch_size * 2, int(co_attention_mask.size(1) / 2), co_attention_mask.size(2))
-
+    
+    task_tokens = question.new().resize_(batch_size, 1).fill_(int(task_id[4:]))
     vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-            model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
+            model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens)        
 
     # for different task, we use different output to calculate the loss.
     if task_cfg[task_id]['type'] == 'VL-classifier':

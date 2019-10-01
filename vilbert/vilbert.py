@@ -188,7 +188,8 @@ class BertConfig(object):
         with_coattention=True,
         objective=0,
         num_negative=128,
-        model="bert"
+        model="bert",
+        task_specific_tokens=False
     ):
 
         """Constructs BertConfig.
@@ -265,6 +266,7 @@ class BertConfig(object):
             self.with_coattention = with_coattention
             self.objective = objective
             self.num_negative = num_negative
+            self.task_specific_tokens = task_specific_tokens
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -323,9 +325,10 @@ except ImportError:
 class BertEmbeddings(nn.Module):
     """Construct the embeddings from word, position and token_type embeddings.
     """
-
     def __init__(self, config):
         super(BertEmbeddings, self).__init__()
+        
+        self.task_specific_tokens = config.task_specific_tokens
         self.word_embeddings = nn.Embedding(
             config.vocab_size, config.hidden_size, padding_idx=0
         )
@@ -341,7 +344,13 @@ class BertEmbeddings(nn.Module):
         self.LayerNorm = BertLayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, input_ids, token_type_ids=None, position_ids=None):
+        if self.task_specific_tokens:
+            self.task_embeddings = nn.Embedding(
+                20, config.hidden_size
+            )
+
+    def forward(self, input_ids, token_type_ids=None, task_ids=None, position_ids=None):
+
         seq_length = input_ids.size(1)
         position_ids = torch.arange(
             seq_length, dtype=torch.long, device=input_ids.device
@@ -351,6 +360,10 @@ class BertEmbeddings(nn.Module):
         position_embeddings = self.position_embeddings(position_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
         embeddings = words_embeddings + position_embeddings + token_type_embeddings
+        
+        if self.task_specific_tokens:
+            task_embeddings = self.task_embeddings(task_ids)
+            embeddings = torch.cat([embeddings[:,0:1], task_embeddings, embeddings[:,1:]], dim=1)
 
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
@@ -1057,7 +1070,6 @@ class BertOnlyNSPHead(nn.Module):
         seq_relationship_score = self.seq_relationship(pooled_output)
         return seq_relationship_score
 
-
 class BertPreTrainingHeads(nn.Module):
     def __init__(self, config, bert_model_embedding_weights):
         super(BertPreTrainingHeads, self).__init__()
@@ -1135,6 +1147,8 @@ class BertModel(BertPreTrainedModel):
         elif config.model == 'roberta':
             self.embeddings = RobertaEmbeddings(config)
 
+        self.task_specific_tokens = config.task_specific_tokens
+
         # initlize the vision embedding
         self.v_embeddings = BertImageEmbeddings(config)
 
@@ -1153,6 +1167,7 @@ class BertModel(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         co_attention_mask=None,
+        task_ids=None,
         output_all_encoded_layers=False,
         output_all_attention_masks=False,
     ):
@@ -1165,6 +1180,10 @@ class BertModel(BertPreTrainedModel):
                 input_imgs.size(0), input_imgs.size(1)
             ).type_as(input_txt)
 
+        if self.task_specific_tokens:
+            # extend the mask
+            mask_tokens = input_txt.new().resize_(input_txt.size(0), 1).fill_(1)
+            attention_mask = torch.cat([mask_tokens, attention_mask], dim=1)
 
         # We create a 3D attention mask from a 2D tensor mask.
         # Sizes are [batch_size, 1, 1, to_seq_length]
@@ -1205,7 +1224,7 @@ class BertModel(BertPreTrainedModel):
             dtype=next(self.parameters()).dtype
         )  # fp16 compatibility
 
-        embedding_output = self.embeddings(input_txt, token_type_ids)
+        embedding_output = self.embeddings(input_txt, token_type_ids, task_ids)
         v_embedding_output = self.v_embeddings(input_imgs, image_loc)
         encoded_layers_t, encoded_layers_v, all_attention_mask = self.encoder(
             embedding_output,
@@ -1429,6 +1448,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
         attention_mask=None,
         image_attention_mask=None,
         co_attention_mask=None,
+        task_ids=None,
         output_all_encoded_layers=False,
     ):
 
@@ -1440,6 +1460,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
             attention_mask,
             image_attention_mask,
             co_attention_mask,
+            task_ids,
             output_all_encoded_layers=output_all_encoded_layers,
             output_all_attention_masks=False,
             )
