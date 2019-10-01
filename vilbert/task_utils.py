@@ -68,8 +68,10 @@ def ForwardModelsVal(args, task_cfg, device, task_id, batch, model, task_losses)
         segment_ids = segment_ids.view(batch_size * 2, int(segment_ids.size(1) / 2))
         co_attention_mask = co_attention_mask.view(batch_size * 2, int(co_attention_mask.size(1) / 2), co_attention_mask.size(2))
 
+    task_tokens = question.new().resize_(batch_size, 1).fill_(int(task_id[4:]))
+
     vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-            model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
+            model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens)        
 
     if task_cfg[task_id]['type'] == 'VL-classifier':
         loss = task_losses[task_id](vil_prediction, target)
@@ -522,9 +524,11 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         segment_ids = segment_ids.view(batch_size * 2, int(segment_ids.size(1) / 2))
         co_attention_mask = co_attention_mask.view(batch_size * 2, int(co_attention_mask.size(1) / 2), co_attention_mask.size(2))
 
+    task_tokens = question.new().resize_(batch_size, 1).fill_(int(task_id[4:]))
+
     with torch.no_grad():
         vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit = \
-                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask)        
+                model(question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens)        
     
     if task_cfg[task_id]['type'] == 'VL-classifier':
         logits = torch.max(vil_prediction, 1)[1].data  # argmax

@@ -352,7 +352,7 @@ def main():
     else:
         warmup_scheduler = WarmupConstantSchedule(optimizer, warmup_steps=warmpu_steps)
 
-    lr_reduce_list = np.array([6, 8])
+    lr_reduce_list = np.array([5, 7])
     if args.lr_scheduler == 'automatic':
         lr_scheduler = ReduceLROnPlateau(optimizer, \
                         mode='max',
