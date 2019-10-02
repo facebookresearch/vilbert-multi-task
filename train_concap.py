@@ -200,7 +200,7 @@ def main():
         2: without ICA loss, do not sample negative pair."
     )
     parser.add_argument(
-        "--num_negative", default=255, type=int, 
+        "--num_negative", default=127, type=int, 
         help="num of negative to use"
     )
 
@@ -338,12 +338,12 @@ def main():
     if default_gpu:
         tbLogger = utils.tbLogger(logdir, savePath, task_names, task_ids, task_num_iters, args.gradient_accumulation_steps)
 
-    if args.visual_target == 0:
-        config.v_target_size = 1601
-        config.visual_target = args.visual_target
-    else:
-        config.v_target_size = 2048
-        config.visual_target = args.visual_target
+    # if args.visual_target == 0:
+    config.v_target_size = 1601
+    config.visual_target = args.visual_target
+    # else:
+    #     config.v_target_size = 2048
+    #     config.visual_target = args.visual_target
 
     if 'roberta' in args.bert_model:
         config.model = 'roberta'
@@ -503,7 +503,7 @@ def main():
             image_ids = batch[-1]
             batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch[:-1])
 
-            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
+            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_target_nce, image_label, image_mask = (
                 batch
             )
 
@@ -525,6 +525,7 @@ def main():
                 lm_label_ids,
                 image_label,
                 image_target,
+                image_target_nce,
                 is_next,
             )
 
@@ -577,7 +578,7 @@ def main():
             image_ids = batch[-1]
             batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch[:-1])
 
-            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_label, image_mask = (
+            input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, image_loc, image_target, image_target_nce, image_label, image_mask = (
                 batch
             )
             
@@ -592,6 +593,7 @@ def main():
                 lm_label_ids,
                 image_label,
                 image_target,
+                image_target_nce,
                 is_next,
             )
             
