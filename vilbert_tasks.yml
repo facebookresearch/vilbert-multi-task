@@ -161,7 +161,7 @@ TASK9:
   train_split: train
   val_split: val
   lr: 0.00004
-  num_epoch: 10
+  num_epoch: 6
 TASK10:
   name: refcoco+
   type: V-logit
@@ -175,12 +175,12 @@ TASK10:
   val_annotations_jsonpath: ''
   max_seq_length: 20
   max_region_num: 101
-  batch_size: 128
+  batch_size: 64
   eval_batch_size: 1024
   train_split: train
   val_split: val
   lr: 0.00004
-  num_epoch: 10
+  num_epoch: 6
 TASK11:
   name: refcocog
   type: V-logit
@@ -199,7 +199,7 @@ TASK11:
   val_split: val
   start_iteration: 0
   lr: 0.00004
-  num_epoch: 10
+  num_epoch: 20
 TASK12:
   name: NLVR2
   type: VL-binary-classifier
