@@ -1075,8 +1075,7 @@ class BertPreTrainingHeads(nn.Module):
         super(BertPreTrainingHeads, self).__init__()
         self.predictions = BertLMPredictionHead(config, bert_model_embedding_weights)
         self.bi_seq_relationship = nn.Linear(config.bi_hidden_size, 2)
-        self.imagePredictions = BertImagePredictionHead(config, 1601)
-        self.imagePredictions_nce = BertImagePredictionHead(config, 2048)
+        self.imagePredictions = BertImagePredictionHead(config)
         self.fusion_method = config.fusion_method
         self.dropout = nn.Dropout(0.1)
 
@@ -1094,19 +1093,18 @@ class BertPreTrainingHeads(nn.Module):
         prediction_scores_t = self.predictions(sequence_output_t)
         seq_relationship_score = self.bi_seq_relationship(pooled_output)
         prediction_scores_v = self.imagePredictions(sequence_output_v)
-        prediction_scores_v_nce = self.imagePredictions_nce(sequence_output_v)
 
-        return prediction_scores_t, prediction_scores_v, prediction_scores_v_nce, seq_relationship_score
+        return prediction_scores_t, prediction_scores_v, seq_relationship_score
 
 
 class BertImagePredictionHead(nn.Module):
-    def __init__(self, config, target_size):
+    def __init__(self, config):
         super(BertImagePredictionHead, self).__init__()
         self.transform = BertImgPredictionHeadTransform(config)
 
         # The output weights are the same as the input embeddings, but there is
         # an output-only bias for each token.
-        self.decoder = nn.Linear(config.v_hidden_size, target_size)
+        self.decoder = nn.Linear(config.v_hidden_size, config.v_target_size)
 
     def forward(self, hidden_states):
         hidden_states = self.transform(hidden_states)
@@ -1295,12 +1293,12 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
 
         print("model's visual target is ", config.visual_target)
 
-        # if self.visual_target == 0:
-        self.vis_criterion = nn.KLDivLoss(reduction="none") 
-        # elif self.visual_target == 1:
-            # self.vis_criterion = nn.MSELoss(reduction="none")
-        # elif self.visual_target == 2:
-        self.vis_criterion_nce = CrossEntropyLoss()
+        if self.visual_target == 0:
+            self.vis_criterion = nn.KLDivLoss(reduction="none") 
+        elif self.visual_target == 1:
+            self.vis_criterion = nn.MSELoss(reduction="none")
+        elif self.visual_target == 2:
+            self.vis_criterion = CrossEntropyLoss()
 
         self.tie_weights()
 
@@ -1322,7 +1320,6 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
         masked_lm_labels=None,
         image_label=None,
         image_target = None,
-        image_target_nce = None,
         next_sentence_label=None,
         output_all_attention_masks=False
     ):
@@ -1338,72 +1335,67 @@ class BertForMultiModalPreTraining(BertPreTrainedModel):
             output_all_attention_masks=output_all_attention_masks
         )
 
-        prediction_scores_t, prediction_scores_v, prediction_scores_v_nce, seq_relationship_score = self.cls(
+        prediction_scores_t, prediction_scores_v, seq_relationship_score = self.cls(
             sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v
         )
 
         if masked_lm_labels is not None and next_sentence_label is not None and image_target is not None:
             prediction_scores_v = prediction_scores_v[:, 1:]
-            prediction_scores_v_nce = prediction_scores_v_nce[:, 1:]
+            if self.visual_target == 1:
+                img_loss = self.vis_criterion(prediction_scores_v, image_target)
+                masked_img_loss = torch.sum(
+                    img_loss * (image_label == 1).unsqueeze(2).float()
+                ) / max(torch.sum((image_label == 1).unsqueeze(2).expand_as(img_loss)),1)
 
-            # if self.visual_target == 1:
-            # img_loss = self.vis_criterion(prediction_scores_v, image_target)
-            # masked_img_loss = torch.sum(
-            #     img_loss * (image_label == 1).unsqueeze(2).float()
-            # ) / max(torch.sum((image_label == 1).unsqueeze(2).expand_as(img_loss)),1)
-
-            # elif self.visual_target in [0, 4]:
-            img_loss = self.vis_criterion(
-                F.log_softmax(prediction_scores_v, dim=2), image_target
-            )
-            
-            masked_img_loss = torch.sum(
-                img_loss * (image_label == 1).unsqueeze(2).float()
-            ) / max(torch.sum((image_label == 1)), 0)
-            # elif self.visual_target == 2:
+            elif self.visual_target == 0:
+                img_loss = self.vis_criterion(
+                    F.log_softmax(prediction_scores_v, dim=2), image_target
+                )
+                
+                masked_img_loss = torch.sum(
+                    img_loss * (image_label == 1).unsqueeze(2).float()
+                ) / max(torch.sum((image_label == 1)), 0)
+            elif self.visual_target == 2:
                 # generate negative sampled index.
+                num_negative = self.num_negative
+                num_across_batch = int(self.num_negative * 0.7)
+                num_inside_batch = int(self.num_negative * 0.3)
 
-            num_negative = self.num_negative
-            num_across_batch = int(self.num_negative * 0.85)
-            num_inside_batch = int(self.num_negative * 0.15)
+                batch_size, num_regions, _ = prediction_scores_v.size()
+                assert batch_size != 0
+                # random negative across batches.
+                row_across_index = input_ids.new(batch_size, num_regions, num_across_batch).random_(0, batch_size-1)
+                col_across_index = input_ids.new(batch_size, num_regions, num_across_batch).random_(0,num_regions)
 
-            batch_size, num_regions, _ = prediction_scores_v_nce.size()
-            assert batch_size != 0
-            # random negative across batches.
-            row_across_index = input_ids.new(batch_size, num_regions, num_across_batch).random_(0, batch_size-1)
-            col_across_index = input_ids.new(batch_size, num_regions, num_across_batch).random_(0,num_regions)
+                for i in range(batch_size-1):
+                    row_across_index[i][row_across_index[i]==i] = batch_size-1
+                final_across_index = (row_across_index * num_regions + col_across_index)
 
-            for i in range(batch_size-1):
-                row_across_index[i][row_across_index[i]==i] = batch_size-1
-            final_across_index = (row_across_index * num_regions + col_across_index)
+                # random negative inside batches.                
+                row_inside_index = input_ids.new(batch_size, num_regions, num_inside_batch).zero_()
+                col_inside_index = input_ids.new(batch_size, num_regions, num_inside_batch).random_(0, num_regions-1)
 
-            # random negative inside batches.                
-            row_inside_index = input_ids.new(batch_size, num_regions, num_inside_batch).zero_()
-            col_inside_index = input_ids.new(batch_size, num_regions, num_inside_batch).random_(0, num_regions-1)
+                for i in range(batch_size):
+                    row_inside_index[i] = i
+                for i in range(num_regions-1):
+                    col_inside_index[:,i,:][col_inside_index[:,i,:]==i] = num_regions-1
+                final_inside_index = (row_inside_index * num_regions + col_inside_index)
 
-            for i in range(batch_size):
-                row_inside_index[i] = i
-            for i in range(num_regions-1):
-                col_inside_index[:,i,:][col_inside_index[:,i,:]==i] = num_regions-1
-            final_inside_index = (row_inside_index * num_regions + col_inside_index)
+                final_index = torch.cat((final_across_index, final_inside_index), dim=2)
 
-            final_index = torch.cat((final_across_index, final_inside_index), dim=2)
+                # Let's first sample where we need to compute.
+                predict_v = prediction_scores_v[image_label == 1]
+                neg_index_v = final_index[image_label == 1]
 
-            # Let's first sample where we need to compute.
-            predict_v = prediction_scores_v_nce[image_label == 1]
-            neg_index_v = final_index[image_label == 1]
+                flat_image_target = image_target.view(batch_size*num_regions, -1)
+                # we also need to append the target feature at the begining.
+                negative_v = flat_image_target[neg_index_v]
+                positive_v = image_target[image_label == 1]
+                sample_v = torch.cat((positive_v.unsqueeze(1), negative_v), dim=1)
 
-            flat_image_target = image_target_nce.view(batch_size*num_regions, -1)
-            # we also need to append the target feature at the begining.
-            negative_v = flat_image_target[neg_index_v]
-            positive_v = image_target_nce[image_label == 1]
-            sample_v = torch.cat((positive_v.unsqueeze(1), negative_v), dim=1)
-
-            # calculate the loss.
-            score = torch.bmm(sample_v, predict_v.unsqueeze(2)).squeeze(2)
-            masked_img_loss_nce = self.vis_criterion_nce(score, input_ids.new(score.size(0)).zero_())
-
-            masked_img_loss = masked_img_loss + masked_img_loss_nce
+                # calculate the loss.
+                score = torch.bmm(sample_v, predict_v.unsqueeze(2)).squeeze(2)
+                masked_img_loss = self.vis_criterion(score, input_ids.new(score.size(0)).zero_())
 
             # masked_img_loss = torch.sum(img_loss) / (img_loss.shape[0] * img_loss.shape[1])
             masked_lm_loss = self.loss_fct(
@@ -1503,30 +1495,30 @@ class VILBertForVLTasks(BertPreTrainedModel):
 
         return vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit
 
-# class SimpleClassifier(nn.Module):
-#     def __init__(self, in_dim, hid_dim, out_dim, dropout):
-#         super().__init__()
-#         self.logit_fc = nn.Sequential(
-#             nn.Linear(in_dim, hid_dim),
-#             GeLU(),
-#             BertLayerNorm(hid_dim, eps=1e-12),
-#             nn.Linear(hid_dim, out_dim)
-#         )
-
-#     def forward(self, hidden_states):
-#         return self.logit_fc(hidden_states)
-
 class SimpleClassifier(nn.Module):
     def __init__(self, in_dim, hid_dim, out_dim, dropout):
-        super(SimpleClassifier, self).__init__()
-        layers = [
-            weight_norm(nn.Linear(in_dim, hid_dim), dim=None),
-            nn.ReLU(),
-            nn.Dropout(dropout, inplace=True),
-            weight_norm(nn.Linear(hid_dim, out_dim), dim=None)
-        ]
-        self.main = nn.Sequential(*layers)
+        super().__init__()
+        self.logit_fc = nn.Sequential(
+            nn.Linear(in_dim, hid_dim),
+            GeLU(),
+            BertLayerNorm(hid_dim, eps=1e-12),
+            nn.Linear(hid_dim, out_dim)
+        )
 
-    def forward(self, x):
-        logits = self.main(x)
-        return logits
+    def forward(self, hidden_states):
+        return self.logit_fc(hidden_states)
+
+# class SimpleClassifier(nn.Module):
+#     def __init__(self, in_dim, hid_dim, out_dim, dropout):
+#         super(SimpleClassifier, self).__init__()
+#         layers = [
+#             weight_norm(nn.Linear(in_dim, hid_dim), dim=None),
+#             nn.ReLU(),
+#             nn.Dropout(dropout, inplace=True),
+#             weight_norm(nn.Linear(hid_dim, out_dim), dim=None)
+#         ]
+#         self.main = nn.Sequential(*layers)
+
+#     def forward(self, x):
+#         logits = self.main(x)
+#         return logits

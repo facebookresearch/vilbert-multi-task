@@ -225,7 +225,7 @@ class ConceptCapLoaderTrain(object):
 
         for batch in self.ds.get_data():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_target_nce, image_label, image_mask, masked_label, image_id = batch
+            image_loc, image_target, image_label, image_mask, masked_label, image_id = batch
 
             batch_size = input_ids.shape[0]
 
@@ -242,8 +242,8 @@ class ConceptCapLoaderTrain(object):
             g_image_mask = np.repeat(np.array([[1]]), batch_size, axis=0)
             image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
 
-            batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat,\
-            image_loc, image_target, image_target_nce, image_label, image_mask)
+            batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
+            image_loc, image_target, image_label, image_mask)
 
             yield tuple([torch.tensor(data) for data in batch] + [image_id])
 
@@ -320,7 +320,7 @@ class ConceptCapLoaderVal(object):
     def __iter__(self):
         for batch in self.ds.get_data():
             input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
-            image_loc, image_target, image_target_nce, image_label, image_mask, masked_label, image_id = batch
+            image_loc, image_target, image_label, image_mask, masked_label, image_id = batch
 
             batch_size = input_ids.shape[0]
             sum_count = np.sum(masked_label==0, axis=1, keepdims=True)
@@ -336,8 +336,8 @@ class ConceptCapLoaderVal(object):
             g_image_mask = np.repeat(np.array([[1]]), batch_size, axis=0)
             image_mask = np.concatenate([g_image_mask, image_mask], axis=1)
 
-            batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat,\
-                image_loc, image_target, image_target_nce, image_label, image_mask)
+            batch = (input_ids, input_mask, segment_ids, lm_label_ids, is_next, image_feat, \
+                image_loc, image_target, image_label, image_mask)
 
             yield tuple([torch.tensor(data) for data in batch] + [image_id])
 
@@ -396,12 +396,10 @@ class BertPreprocessBatch(object):
 
         if self.visual_target == 0:
             image_feature = copy.deepcopy(image_feature)
-            image_target = copy.deepcopy(image_target)
+            image_target = copy.deepcopy(image_target)  
         else:
             image_feature = copy.deepcopy(image_feature)
             image_target = copy.deepcopy(image_feature)
-
-        image_target_nce = copy.deepcopy(image_feature)
 
         caption, label = self.random_cap(caption)
 
@@ -429,7 +427,6 @@ class BertPreprocessBatch(object):
             cur_features.image_feat,
             cur_features.image_loc,
             cur_features.image_target,
-            image_target_nce,
             cur_features.image_label,
             cur_features.image_mask,
             cur_features.masked_label,
