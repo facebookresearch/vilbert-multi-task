@@ -189,7 +189,8 @@ class BertConfig(object):
         objective=0,
         num_negative=128,
         model="bert",
-        task_specific_tokens=False
+        task_specific_tokens=False, 
+        visualization = False
     ):
 
         """Constructs BertConfig.
@@ -267,6 +268,7 @@ class BertConfig(object):
             self.objective = objective
             self.num_negative = num_negative
             self.task_specific_tokens = task_specific_tokens
+            self.visualization = visualization
         else:
             raise ValueError(
                 "First argument must be either a vocabulary size (int)"
@@ -399,11 +401,15 @@ class BertSelfAttention(nn.Module):
         self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
+        self.visualization = config.visualization
+
         self.query = nn.Linear(config.hidden_size, self.all_head_size)
         self.key = nn.Linear(config.hidden_size, self.all_head_size)
         self.value = nn.Linear(config.hidden_size, self.all_head_size)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
+
+
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (
@@ -440,7 +446,16 @@ class BertSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
         
-        return context_layer, attention_probs
+        if self.visualization:
+            attn_data = {
+                'attn': attention_probs,
+                'queries': query_layer,
+                'keys': key_layer
+            }     
+        else:
+            attn_data = None
+
+        return context_layer, attn_data
 
 
 class BertSelfOutput(nn.Module):
@@ -527,6 +542,8 @@ class BertImageSelfAttention(nn.Module):
             config.v_hidden_size / config.v_num_attention_heads
         )
 
+        self.visualization = config.visualization
+
         self.all_head_size = self.num_attention_heads * self.attention_head_size
         self.query = nn.Linear(config.v_hidden_size, self.all_head_size)
         self.key = nn.Linear(config.v_hidden_size, self.all_head_size)
@@ -585,7 +602,16 @@ class BertImageSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
         
-        return context_layer, attention_probs
+        if self.visualization:
+            attn_data = {
+                'attn': attention_probs,
+                'queries': query_layer,
+                'keys': key_layer
+            }        
+        else:
+            attn_data = None
+
+        return context_layer, attn_data
 
 class BertImageSelfOutput(nn.Module):
     def __init__(self, config):
@@ -663,6 +689,7 @@ class BertBiAttention(nn.Module):
                 "heads (%d)" % (config.bi_hidden_size, config.bi_num_attention_heads)
             )
 
+        self.visualization = config.visualization
         self.num_attention_heads = config.bi_num_attention_heads
         self.attention_head_size = int(
             config.bi_hidden_size / config.bi_num_attention_heads
@@ -759,7 +786,19 @@ class BertBiAttention(nn.Module):
         new_context_layer_shape2 = context_layer2.size()[:-2] + (self.all_head_size,)
         context_layer2 = context_layer2.view(*new_context_layer_shape2)
 
-        return context_layer1, context_layer2, (attention_probs1, attention_probs2)
+        attn_data = None
+
+        if self.visualization:
+            attn_data = {
+                    'attn1':attention_probs1,
+                    'queries1': query_layer2,
+                    'keys1': key_layer1,
+                    'attn2': attention_probs2,
+                    'querues2': query_layer1,
+                    'keys2': key_layer2
+                    }
+
+        return context_layer1, context_layer2, attn_data
 
 class BertBiOutput(nn.Module):
     def __init__(self, config):
