@@ -319,13 +319,13 @@ def main():
     for key, value in dict(model.named_parameters()).items():
         if value.requires_grad:
             if 'vil_prediction' in key:
-                lr = base_lr #1e-4
+                lr = 1e-4
             else:
                 if args.vision_scratch:
                     if key[12:] in bert_weight_name:
                         lr = base_lr
                     else:
-                        lr = base_lr# 1e-4
+                        lr = 1e-4
                 else:
                     lr = base_lr
             if any(nd in key for nd in no_decay):

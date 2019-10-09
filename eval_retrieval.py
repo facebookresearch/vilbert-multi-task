@@ -120,6 +120,9 @@ def main():
     parser.add_argument(
         "--clean_train_sets", default=True , type=bool, help="whether clean train sets for multitask data."
     )
+    parser.add_argument(
+        "--task_specific_tokens", action="store_true", 
+        help="whether to use task specific tokens for the multi-task learning.")
     args = parser.parse_args()
     with open('vilbert_tasks.yml', 'r') as f:
         task_cfg = edict(yaml.safe_load(f))
@@ -182,6 +185,9 @@ def main():
 
     num_labels = max([dataset.num_labels for dataset in task_datasets_val.values()])
 
+    if args.task_specific_tokens:
+        config.task_specific_tokens = True
+
     config.fast_mode = True
     if args.zero_shot:
         model = BertForMultiModalPreTraining.from_pretrained(args.from_pretrained, config)
@@ -224,6 +230,7 @@ def main():
         for i, batch in enumerate(task_dataloader_val[task_id]):
             batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
             features, spatials, image_mask, question, input_mask, segment_ids, target, caption_idx, image_idx = batch
+            task_tokens = question.new().resize_(batch_size, 1).fill_(int(task_id[4:]))
 
             if task_id in ['TASK7', 'TASK8']:
                 batch_size = features.size(0)
@@ -233,13 +240,13 @@ def main():
 
             with torch.no_grad():
                 if args.zero_shot:
-                    _, _, vil_logit, _ = model(question, features, spatials, segment_ids, input_mask, image_mask)
+                    _, _, vil_logit, _ = model(question, features, spatials, segment_ids, input_mask, image_mask, task_ids=task_tokens)
 
                     score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = torch.softmax(vil_logit, dim=1)[:,0].view(-1).cpu().numpy()
                     target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.view(-1).float().cpu().numpy()
                     
                 else:
-                    _, _, vil_logit, _, _, _, _, _, _ = model(question, features, spatials, segment_ids, input_mask, image_mask)
+                    _, _, vil_logit, _, _, _, _, _, _ = model(question, features, spatials, segment_ids, input_mask, image_mask, task_ids=task_tokens)
                     score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = vil_logit.view(-1).cpu().numpy()
                     target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.view(-1).float().cpu().numpy()
 
