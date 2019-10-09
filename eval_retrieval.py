@@ -230,7 +230,7 @@ def main():
         for i, batch in enumerate(task_dataloader_val[task_id]):
             batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
             features, spatials, image_mask, question, input_mask, segment_ids, target, caption_idx, image_idx = batch
-            task_tokens = question.new().resize_(batch_size, 1).fill_(int(task_id[4:]))
+            task_tokens = question.new().resize_(question.size(0), 1).fill_(int(task_id[4:]))
 
             if task_id in ['TASK7', 'TASK8']:
                 batch_size = features.size(0)
