@@ -330,11 +330,11 @@ def main():
                     lr = base_lr
             if any(nd in key for nd in no_decay):
                 optimizer_grouped_parameters += [
-                    {"params": [value], "lr": lr, "weight_decay": 0.01}
+                    {"params": [value], "lr": lr, "weight_decay": 0.0}
                 ]
             if not any(nd in key for nd in no_decay):
                 optimizer_grouped_parameters += [
-                    {"params": [value], "lr": lr, "weight_decay": 0.0}
+                    {"params": [value], "lr": lr, "weight_decay": 0.01}
                 ]
 
     if default_gpu:
