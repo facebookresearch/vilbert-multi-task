@@ -124,6 +124,9 @@ def main():
         0: soft label, \
         1: regress the feature, \
         2: NCE loss.")
+    parser.add_argument(
+        "--task_specific_tokens", action="store_true", 
+        help="whether to use task specific tokens for the multi-task learning.")
 
     args = parser.parse_args()
     with open('vilbert_tasks.yml', 'r') as f:
@@ -197,6 +200,9 @@ def main():
     else:
         config.v_target_size = 2048
         config.visual_target = args.visual_target
+
+    if args.task_specific_tokens:
+        config.task_specific_tokens = True
         
     if args.baseline:
         model = BaseBertForVLTasks.from_pretrained(
