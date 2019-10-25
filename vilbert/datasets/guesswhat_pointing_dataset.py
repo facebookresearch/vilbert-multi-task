@@ -116,7 +116,11 @@ class GuessWhatPointingDataset(Dataset):
         all_images = cPickle.load(open(os.path.join(self.dataroot, "cache", "image_bbox_list.pkl"), 'rb'))
         boxes_dict = cPickle.load(open(os.path.join(self.dataroot, "cache", "bboxes_dict.pkl"), 'rb'))
 
-        annotations_path = os.path.join(self.dataroot, "guesswhat.%s.jsonl" % self.split)
+        if self.split == 'mteval':
+            annotations_path = os.path.join(self.dataroot, "guesswhat.%s.jsonl" % 'train')
+        else:
+            annotations_path = os.path.join(self.dataroot, "guesswhat.%s.jsonl" % self.split)
+
         with jsonlines.open(annotations_path) as reader:
             # Build an index which maps image id with a list of qa annotations.
             for annotation in reader:

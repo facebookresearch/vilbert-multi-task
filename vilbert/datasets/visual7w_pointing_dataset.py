@@ -117,11 +117,17 @@ class Visual7wPointingDataset(Dataset):
         boxes_dict = {}
         for b in visual7w['boxes']:
             boxes_dict[b['box_id']] = [b['x'], b['y'], b['x'] + b['width'], b['y'] + b['height']]
+
+        if self.split == 'mteval':
+            split = 'train'
+        else:
+            split = self.split
+
         for img in visual7w['images']:
-            if img['split'] == self.split:
+            if img['split'] == split:
                 if self.split == 'train' and int(img['image_id']) in remove_ids:
                     continue
-                elif self.split == 'mteval' and int(annotation['image']['id']) not in remove_ids:
+                elif self.split == 'mteval' and int(img['image_id']) not in remove_ids:
                     continue
                 bboxes = []
                 for qa in img['qa_pairs']:
