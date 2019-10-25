@@ -109,7 +109,7 @@ class GuessWhatPointingDataset(Dataset):
         # Build an index which maps image id with a list of caption annotations.
         entries = []
         remove_ids = []
-        if clean_datasets:
+        if clean_datasets or self.split == 'mteval':
             remove_ids = np.load(os.path.join(self.dataroot, "cache", "coco_test_ids.npy"))
             remove_ids = [int(x) for x in remove_ids]
 
@@ -122,7 +122,8 @@ class GuessWhatPointingDataset(Dataset):
             for annotation in reader:
                 if self.split == 'train' and int(annotation['image']['id']) in remove_ids:
                     continue
-
+                elif self.split == 'mteval' and int(annotation['image']['id']) not in remove_ids:
+                    continue
                 questions = []
                 answers = []
                 bboxes = []

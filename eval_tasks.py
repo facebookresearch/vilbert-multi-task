@@ -98,7 +98,7 @@ def main():
         "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
     )
     parser.add_argument(
-        "--batch_size", default=1024, type=int, help="what is the batch size?"
+        "--batch_size", default=30, type=int, help="what is the batch size?"
     )
     parser.add_argument(
         "--tasks", default='', type=str, help="1-2-3... training task separate by -"

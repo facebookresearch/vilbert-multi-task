@@ -111,14 +111,7 @@ class RetreivalDataset(Dataset):
         -1 represents nil, and should be treated as padding_idx in embedding.
         """
         for entry in self._entries:
-            # sentence_tokens = self._tokenizer.tokenize(entry["caption"])
-            # sentence_tokens = ["[CLS]"] + sentence_tokens + ["[SEP]"]
-
-            # tokens = [
-            #     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
-            #     for w in sentence_tokens
-            # ]
-
+            
             tokens = self._tokenizer.encode(entry["caption"])
             tokens = tokens[:self._max_seq_length-2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)

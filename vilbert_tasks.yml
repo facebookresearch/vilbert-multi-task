@@ -12,7 +12,7 @@ TASK1:
   max_seq_length: 23
   max_region_num: 101
   batch_size: 128
-  eval_batch_size: 1024
+  eval_batch_size: 100
   train_split: trainval
   val_split: minval
   lr: 0.00004
@@ -115,7 +115,7 @@ TASK7:
   process: retrieval
   task_id: 7
   dataroot: data/cocoRetreival
-  features_h5path1: data/coco/coco_trainval_resnet101_faster_rcnn_genome.lmdb
+  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: data/cocoRetreival/all_data_final_train_2014.jsonline
   val_annotations_jsonpath: data/cocoRetreival/all_data_final_val_set0_2014.jsonline
@@ -245,7 +245,7 @@ TASK14:
   process: normal
   task_id: 14
   dataroot: /srv/share/vgoswami8/guesswhat/
-  features_h5path1: /srv/share/vgoswami8/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/share/vgoswami8/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
@@ -302,7 +302,7 @@ TASK17:
   process: normal
   task_id: 17
   dataroot: /checkpoint/vedanuj/datasets/guesswhat/
-  features_h5path1: /checkpoint/vedanuj/datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  features_h5path1: /srv/share/vgoswami8/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: /checkpoint/vedanuj/datasets/guesswhat/guesswhat_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''

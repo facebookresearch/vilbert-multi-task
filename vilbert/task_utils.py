@@ -537,7 +537,7 @@ def EvaluatingModel(args, task_cfg, device, task_id, batch, model, task_dataload
         for i in range(logits.size(0)):
             results.append({'question_id':question_id[i].item(), \
                     'answer':task_dataloader[task_id].dataset.label2ans[logits[i].item()]})
-
+    
     elif task_cfg[task_id]['type'] == 'VL-classifier-GQA':
         logits = torch.max(vil_prediction_gqa, 1)[1].data
         loss = 0

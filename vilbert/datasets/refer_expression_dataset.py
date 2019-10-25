@@ -78,7 +78,11 @@ class ReferExpressionDataset(Dataset):
         else:
             self.refer = REFER(dataroot, dataset=task, splitBy="unc")
 
-        self.ref_ids = self.refer.getRefIds(split=split)
+        if self.split == 'mteval':
+            self.ref_ids = self.refer.getRefIds(split='train')
+        else:
+            self.ref_ids = self.refer.getRefIds(split=split)
+
         print("%s refs are in split [%s]." % (len(self.ref_ids), split))
 
         self.num_labels = 1
@@ -119,7 +123,7 @@ class ReferExpressionDataset(Dataset):
         # Build an index which maps image id with a list of caption annotations.
         entries = []
         remove_ids = []
-        if clean_datasets:
+        if clean_datasets or self.split == 'mteval':
             remove_ids = np.load(os.path.join(self.dataroot, "cache", "coco_test_ids.npy"))
             remove_ids = [int(x) for x in remove_ids]
 
@@ -127,6 +131,8 @@ class ReferExpressionDataset(Dataset):
             ref = self.refer.Refs[ref_id]
             image_id = ref["image_id"]
             if self.split == 'train' and int(image_id) in remove_ids:
+                continue
+            elif self.split == 'mteval' and int(image_id) not in remove_ids:
                 continue
             ref_id = ref["ref_id"]
             refBox = self.refer.getRefBox(ref_id)

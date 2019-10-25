@@ -84,7 +84,6 @@ class Visual7wPointingDataset(Dataset):
         self.entries = self._load_annotations(clean_datasets)
 
         self.max_region_num = max_region_num
-
         clean_train = "_cleaned" if clean_datasets else ""
 
         if 'roberta' in bert_model:
@@ -108,7 +107,7 @@ class Visual7wPointingDataset(Dataset):
         # Build an index which maps image id with a list of caption annotations.
         entries = []
         remove_ids = []
-        if clean_datasets:
+        if clean_datasets or self.split == 'mteval':
             remove_ids = np.load(os.path.join(self.dataroot, "cache", "genome_test_ids.npy"))
             remove_ids = [int(x) for x in remove_ids]
 
@@ -121,6 +120,8 @@ class Visual7wPointingDataset(Dataset):
         for img in visual7w['images']:
             if img['split'] == self.split:
                 if self.split == 'train' and int(img['image_id']) in remove_ids:
+                    continue
+                elif self.split == 'mteval' and int(annotation['image']['id']) not in remove_ids:
                     continue
                 bboxes = []
                 for qa in img['qa_pairs']:

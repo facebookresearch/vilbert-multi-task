@@ -94,6 +94,32 @@ def _load_dataset(dataroot, name, clean_datasets):
             key=lambda x: x["question_id"],
         )
         questions = questions_test
+
+    elif name == "mteval":
+        question_path_train = os.path.join(
+            dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % "train"
+        )
+        questions_train = sorted(
+            json.load(open(question_path_train))["questions"],
+            key=lambda x: x["question_id"],
+        )
+        answer_path_train = os.path.join(dataroot, "cache", "%s_target.pkl" % "train")
+        answers_train = cPickle.load(open(answer_path_train, "rb"))
+        answers_train = sorted(answers_train, key=lambda x: x["question_id"])
+
+        question_path_val = os.path.join(
+            dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % "val"
+        )
+        questions_val = sorted(
+            json.load(open(question_path_val))["questions"],
+            key=lambda x: x["question_id"],
+        )
+        answer_path_val = os.path.join(dataroot, "cache", "%s_target.pkl" % "val")
+        answers_val = cPickle.load(open(answer_path_val, "rb"))
+        answers_val = sorted(answers_val, key=lambda x: x["question_id"])
+
+        questions = questions_train 
+        answers = answers_train
     else:
         assert False, "data split is not recognized."
 
@@ -101,6 +127,14 @@ def _load_dataset(dataroot, name, clean_datasets):
         entries = []
         for question in questions:
             entries.append(question)
+    elif name == 'mteval':
+        entries = []
+        remove_ids = np.load(os.path.join(dataroot, "cache", "coco_test_ids.npy"))
+        remove_ids = [int(x) for x in remove_ids]
+        
+        for question, answer in zip(questions, answers):
+            if int(question["image_id"]) in remove_ids:
+                entries.append(_create_entry(question, answer))
     else:
         assert_eq(len(questions), len(answers))
         entries = []
@@ -114,6 +148,7 @@ def _load_dataset(dataroot, name, clean_datasets):
             assert_eq(question["question_id"], answer["question_id"])
             assert_eq(question["image_id"], answer["image_id"])
             entries.append(_create_entry(question, answer))
+    
     return entries
 
 
