@@ -113,16 +113,13 @@ class Visual7wPointingDataset(Dataset):
 
         with open(os.path.join(self.dataroot, "dataset_v7w_pointing.json"), "rb") as f:
             visual7w = json.load(f)
-
         boxes_dict = {}
         for b in visual7w['boxes']:
             boxes_dict[b['box_id']] = [b['x'], b['y'], b['x'] + b['width'], b['y'] + b['height']]
-
         if self.split == 'mteval':
             split = 'train'
         else:
             split = self.split
-
         for img in visual7w['images']:
             if img['split'] == split:
                 if self.split == 'train' and int(img['image_id']) in remove_ids:

@@ -342,3 +342,92 @@ def get_attention_vilbert(model, tokenizer, batch, include_queries_and_keys=Fals
     }
 
     return results
+
+def get_attention_vilbert_tasks(model, tokenizer, batch, sents, include_queries_and_keys=False):
+
+    """Compute representation of the attention for BERT to pass to the d3 visualization
+
+    Args:
+      model: BERT model
+      tokenizer: BERT tokenizer
+      batch
+      include_queries_and_keys: Indicates whether to include queries/keys in results
+
+    Returns:
+      Dictionary of attn representations with the structure:
+      {
+        'all': All attention (source = AB, target = AB)
+        'aa': Sentence A self-attention (source = A, target = A)
+        'bb': Sentence B self-attention (source = B, target = B)
+        'ab': Sentence A -> Sentence B attention (source = A, target = B)
+        'ba': Sentence B -> Sentence A attention (source = B, target = A)
+      }
+      where each value is a dictionary:
+      {
+        'left_text': list of source tokens, to be displayed on the left of the vis
+        'right_text': list of target tokens, to be displayed on the right of the vis
+        'attn': list of attention matrices, one for each layer. Each has shape [num_heads, source_seq_len, target_seq_len]
+        'queries' (optional): list of query vector arrays, one for each layer. Each has shape (num_heads, source_seq_len, vector_size)
+        'keys' (optional): list of key vector arrays, one for each layer. Each has shape (num_heads, target_seq_len, vector_size)
+      }
+    """
+    # Call model to get attention data
+    model.eval()
+    question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens = (
+        batch
+    )
+
+    region_num = image_mask[0].sum().item()
+    regions = [str(i) for i in range(region_num)]
+    
+    vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit, attn_data_list = model(
+        question, features, spatials, segment_ids, input_mask, image_mask, co_attention_mask, task_tokens, output_all_attention_masks=True
+    )
+
+    attn_data_list_t, attn_data_list_v, attn_data_list_c = attn_data_list
+
+    # Populate map with attn data and, optionally, query, key data
+    keys_dict = defaultdict(list)
+    queries_dict = defaultdict(list)
+    attn_dict = defaultdict(list)
+
+    for layer, attn_data in enumerate(attn_data_list_t):
+        # Process attention
+        attn = attn_data['attn'][0]  # assume batch_size=1; shape = [num_heads, source_seq_len, target_seq_len]
+        attn_dict['aa'].append(attn[:,:len(sents),:len(sents)].tolist())  # Append A->A attention for layer, across all heads
+
+    for layer, attn_data in enumerate(attn_data_list_v):
+        attn = attn_data['attn'][0]  # assume batch_size=1; shape = [num_heads, source_seq_len, target_seq_len]
+        attn_dict['bb'].append(attn[:,:region_num,:region_num].tolist())  # Append A->A attention for layer, across all heads
+
+    for layer, attn_data in enumerate(attn_data_list_c):
+        attn1 = attn_data['attn1'][0]
+        attn2 = attn_data['attn2'][0]
+
+        attn_dict['ab'].append(attn1[:,:len(sents),:region_num].tolist()) 
+        attn_dict['ba'].append(attn2[:,:region_num,:len(sents)].tolist())
+
+    results = {
+        'aa': {
+            'attn': attn_dict['aa'],
+            'left_text': sents,
+            'right_text': sents
+        },
+        'bb': {
+            'attn': attn_dict['bb'],
+            'left_text': regions,
+            'right_text': regions
+        },
+        'ab': {
+            'attn': attn_dict['ab'],
+            'left_text': sents,
+            'right_text': regions
+        },
+        'ba': {
+            'attn': attn_dict['ba'],
+            'left_text': regions,
+            'right_text': sents
+        }
+    }
+
+    return results

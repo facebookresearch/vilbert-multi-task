@@ -1489,9 +1489,10 @@ class VILBertForVLTasks(BertPreTrainedModel):
         co_attention_mask=None,
         task_ids=None,
         output_all_encoded_layers=False,
+        output_all_attention_masks=False
     ):
 
-        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, _ = self.bert(
+        sequence_output_t, sequence_output_v, pooled_output_t, pooled_output_v, all_attention_mask = self.bert(
             input_txt,
             input_imgs,
             image_loc,
@@ -1501,7 +1502,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
             co_attention_mask,
             task_ids,
             output_all_encoded_layers=output_all_encoded_layers,
-            output_all_attention_masks=False,
+            output_all_attention_masks=output_all_attention_masks,
             )
 
         vil_prediction = 0
@@ -1532,7 +1533,7 @@ class VILBertForVLTasks(BertPreTrainedModel):
         vision_logit = self.vision_logit(self.dropout(sequence_output_v)) + ((1.0 - image_attention_mask)* -10000.0).unsqueeze(2).to(dtype=next(self.parameters()).dtype)
         linguisic_logit = self.linguisic_logit(self.dropout(sequence_output_t))
 
-        return vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit
+        return vil_prediction, vil_prediction_gqa, vil_logit, vil_binary_prediction, vil_tri_prediction, vision_prediction, vision_logit, linguisic_prediction, linguisic_logit, all_attention_mask
 
 class SimpleClassifier(nn.Module):
     def __init__(self, in_dim, hid_dim, out_dim, dropout):

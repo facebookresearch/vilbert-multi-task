@@ -24,7 +24,7 @@ This module is designed to be called from an ipython notebook.
 """
 
 import json
-from bertviz.attention import get_attention_vilbert
+from bertviz.attention import get_attention_vilbert, get_attention_vilbert_tasks
 from IPython.core.display import display, HTML, Javascript
 import os
 
@@ -46,6 +46,31 @@ def show(model, tokenizer, batch):
         os.path.join(os.getcwd(), os.path.dirname(__file__)))
     vis_js = open(os.path.join(__location__, 'model_view.js')).read()
     attn_data = get_attention_vilbert(model, tokenizer, batch)
+    params = {
+        'attention': attn_data,
+        'default_filter': "bb"
+    }
+    display(Javascript('window.params = %s' % json.dumps(params)))
+    display(Javascript(vis_js))
+
+def show_task(model, tokenizer, batch, sents):
+    vis_html = """
+      <span style="user-select:none">
+        Attention: <select id="filter">
+        <option value="all">All</option>
+          <option value="aa">Sentence -> Sentence </option>
+          <option value="ab">Sentence -> Image </option>
+          <option value="ba">Image -> Sentence </option>
+          <option value="bb">Image -> Image </option>
+        </select>
+      </span>
+      <div id='vis'></div>
+    """
+    display(HTML(vis_html))
+    __location__ = os.path.realpath(
+        os.path.join(os.getcwd(), os.path.dirname(__file__)))
+    vis_js = open(os.path.join(__location__, 'model_view.js')).read()
+    attn_data = get_attention_vilbert_tasks(model, tokenizer, batch, sents)
     params = {
         'attention': attn_data,
         'default_filter': "bb"

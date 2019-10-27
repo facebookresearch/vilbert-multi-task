@@ -4,8 +4,8 @@ TASK1:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 1
-  dataroot: data/VQA
-  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  dataroot: /coc/pskynet2/jlu347/ViLBert/data/VQA
+  features_h5path1: /srv/share/vgoswami8/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
@@ -301,9 +301,9 @@ TASK17:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 17
-  dataroot: /checkpoint/vedanuj/datasets/guesswhat/
+  dataroot: data/guesswhat
   features_h5path1: /srv/share/vgoswami8/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: /checkpoint/vedanuj/datasets/guesswhat/guesswhat_gt_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: /srv/share/vgoswami8/guesswhat/guesswhat_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 512

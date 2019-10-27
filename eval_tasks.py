@@ -152,7 +152,6 @@ def main():
     # timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
     timeStamp = args.from_pretrained.split('/')[-1] + '-' + args.save_name
     savePath = os.path.join(args.output_dir, timeStamp)
-
     config = BertConfig.from_json_file(args.config_file)
 
     if args.local_rank == -1 or args.no_cuda:
@@ -181,12 +180,11 @@ def main():
 
     if default_gpu and not os.path.exists(savePath):
         os.makedirs(savePath)
-
+    
     task_batch_size, task_num_iters, task_ids, task_datasets_val, task_dataloader_val \
                         = LoadDatasetEval(args, task_cfg, args.tasks.split('-'))
 
     tbLogger = utils.tbLogger(timeStamp, savePath, task_names, task_ids, task_num_iters, 1, save_logger=False, txt_name='eval.txt')
-
     num_labels = max([dataset.num_labels for dataset in task_datasets_val.values()])
 
     if args.dynamic_attention:
