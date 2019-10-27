@@ -149,6 +149,9 @@ def main():
         name = task_cfg[task]['name']
         task_names.append(name)
 
+    if args.task_specific_tokens:
+        config.task_specific_tokens = True
+
     # timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
     timeStamp = args.from_pretrained.split('/')[-1] + '-' + args.save_name
     savePath = os.path.join(args.output_dir, timeStamp)
