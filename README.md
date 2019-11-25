@@ -1,7 +1,6 @@
+# Multi-Task Vision and Language Representation Learning (ViLBERT-MT)
 
-# ViLBERT <img src="fig/vilbert_trim.png" width="45">
-
-Code and pre-trained models for **ViLBERT: Pretraining Task-Agnostic VisiolinguisticRepresentations for Vision-and-Language Tasks**.
+Code and pre-trained models for **12-in-1: Multi-Task Vision and Language Representation Learning**.
 
 
 ## Repository Setup
@@ -10,9 +9,9 @@ Code and pre-trained models for **ViLBERT: Pretraining Task-Agnostic Visiolingui
 
 ```text
 conda create -n vilbert python=3.6
-conda activate vilbert
-git clone https://github.com/jiasenlu/ViLBert
-cd ViLBert
+conda activate vilbert-MT
+git clone xxx
+cd ViLBert-MT
 pip install -r requirements.txt
 ```
 
@@ -21,7 +20,7 @@ pip install -r requirements.txt
 conda install pytorch torchvision cudatoolkit=10.0 -c pytorch
 ```
 
-3. Install apx, follows https://github.com/NVIDIA/apex
+3. Install apex, follows https://github.com/NVIDIA/apex
 
 4. Install this codebase as a package in this environment.
 ```text
@@ -43,16 +42,16 @@ To be added
 For internal use: copy the pre-trained checkpoint from Skynet 
 
 ```
-cp -a /srv/share3/jlu347/vilbert/save/* #to_your_directory.
+cp -a /srv/share3/jlu347/vilbert-MT/save/* #to_your_directory.
 ```
 
 ## Benchmark Vision-Lanugage Tasks 
 
-| Task    | Sub-Task | Model | LR   | Results (split) |
+| Task    | Sub-Task | Model | LR   | Results (split) |
 |:-------:|:------:|:---:|:------:|:--------------------------------------:|
 | **VQA** | - | **ViLBERT** | 4e-5 | **70.55** (test-dev) |
 | - | - | DFAF | - |70.22 (test-dev) |
-|**VCR**   | Q->A | **ViLBERT** | 2e-5 | **73.3** (test)|
+|**VCR**   | Q->A | **ViLBERT** | 2e-5 | **73.3** (test)|
 |-|Q->A|R2C|-|63.8 (test)|
 |**VCR** | QA->R | **ViLBERT** | 2e-5 | **74.6** (test) |
 | - | QA->R | R2C | - | 67.3 (test) |
@@ -70,7 +69,7 @@ cp -a /srv/share3/jlu347/vilbert/save/* #to_your_directory.
 |-|Caption Retrieval|SCAN|-|-|
 
 
-## TASKS
+## Single-task Training
 ### VQA 
 
 To fintune a 6-layer vilbert model for VQA with 8 GPU. `--tasks 1` means VQA tasks. Check `vlbert_tasks.yml` for more settings for VQA tasks.  
@@ -97,13 +96,22 @@ python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 t
 python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 train_tasks.py --bert_model bert-base-uncased --from_pretrained save/bert_base_6_layer_6_connect_freeze_0/pytorch_model_8.bin  --config_file config/bert_base_6layer_6conect.json  --learning_rate 4e-5 --num_workers 9 --tasks 11 --save_name pretrained
 ```
 
-### Add your own tasks
-```
+## Multi-task Training
 
 ```
-## Why does ViLBERT look like <img src="fig/vilbert_trim.png" width="45">? 
+code tobe added here.
+```
 
-<p align="center">
-<img src="fig/vilbert.png" width="400" >
-</p>
+
+
+## Fine-tune from Multi-task trained model
+
+```
+code tobe added here.
+```
+
+
+
+### Add your own tasks 
+
 
