@@ -4,33 +4,33 @@ TASK1:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 1
-  dataroot: /coc/pskynet2/jlu347/ViLBert/data/VQA
-  features_h5path1: /srv/share/vgoswami8/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/VQA/
+  features_h5path1: datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 23
   max_region_num: 101
   batch_size: 128
-  eval_batch_size: 100
+  eval_batch_size: 1024
   train_split: trainval
   val_split: minval
   lr: 0.00004
-  num_epoch: 10
+  num_epoch: 20
 TASK2:
   name: GenomeQA
   type: VL-classifier
   loss: BCEWithLogitLoss
   process: normal
   task_id: 2
-  dataroot: /checkpoint/vedanuj/datasets/visual_genome/
-  features_h5path1: /checkpoint/vedanuj/datasets/visual_genome/vg_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/visual_genome/
+  features_h5path1: datasets/visual_genome/vg_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 26
   max_region_num: 101
-  batch_size: 256
+  batch_size: 128
   eval_batch_size: 1024
   train_split: train
   val_split: val
@@ -42,11 +42,11 @@ TASK3:
   loss: CrossEntropyLoss
   process: dialog
   task_id: 3
-  dataroot: data/VisualDialog
-  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/visual_dialog
+  features_h5path1: datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
-  train_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_train.json'
-  val_annotations_jsonpath: 'data/VisualDialog/visdial_1.0_val.json'
+  train_annotations_jsonpath: datasets/visual_dialog/visdial_1.0_train.json
+  val_annotations_jsonpath: datasets/visual_dialog/visdial_1.0_val.json
   max_seq_length: 16
   max_region_num: 101
   batch_size: 64
@@ -60,9 +60,9 @@ TASK4:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 4
-  dataroot: /srv/share/vgoswami8/visual7w
-  features_h5path1: /srv/share/vgoswami8/visual7w/visual7w_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: /srv/share/vgoswami8/visual7w/visual7w_gt_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/visual7w
+  features_h5path1: datasets/visual7w/visual7w_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: datasets/visual7w/visual7w_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
@@ -70,7 +70,7 @@ TASK4:
   batch_size: 256
   train_split: train
   val_split: val
-  lr: 0.00004
+  lr: 0.00002
   num_epoch: 20
 TASK5:
   name: VCR_Q-A
@@ -78,53 +78,53 @@ TASK5:
   loss: CrossEntropyLoss
   process: expand
   task_id: 5
-  dataroot: data/VCR
-  features_h5path1: data/VCR/VCR_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: data/VCR/VCR_gt_resnext152_faster_rcnn_genome.lmdb
-  train_annotations_jsonpath: data/VCR/train.jsonl
-  val_annotations_jsonpath: data/VCR/val.jsonl
+  dataroot: datasets/VCR
+  features_h5path1: datasets/VCR/VCR_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: datasets/VCR/VCR_gt_resnext152_faster_rcnn_genome.lmdb
+  train_annotations_jsonpath: datasets/VCR/train.jsonl
+  val_annotations_jsonpath: datasets/VCR/val.jsonl
   max_seq_length: 60
   max_region_num: 101
   batch_size: 64
   train_split: train
   val_split: val
   lr: 0.00002
-  num_epoch: 20
+  num_epoch: 10
 TASK6:
   name: VCR_QA-R
   type: VL-logit
   loss: CrossEntropyLoss
   process: expand
   task_id: 6
-  dataroot: data/VCR
-  features_h5path1: data/VCR/VCR_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: data/VCR/VCR_gt_resnext152_faster_rcnn_genome.lmdb
-  train_annotations_jsonpath: data/VCR/train.jsonl
-  val_annotations_jsonpath: data/VCR/val.jsonl
+  dataroot: datasets/VCR
+  features_h5path1: datasets/VCR/VCR_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: datasets/VCR/VCR_gt_resnext152_faster_rcnn_genome.lmdb
+  train_annotations_jsonpath: datasets/VCR/train.jsonl
+  val_annotations_jsonpath: datasets/VCR/val.jsonl
   max_seq_length: 80
   max_region_num: 101
   batch_size: 64
   train_split: train
   val_split: val
   lr: 0.00002
-  num_epoch: 20
+  num_epoch: 10
 TASK7:
   name: RetrievalCOCO
   type: VL-logit
   loss: CrossEntropyLoss
   process: retrieval
   task_id: 7
-  dataroot: data/cocoRetreival
-  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/cocoRetreival
+  features_h5path1: datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
-  train_annotations_jsonpath: data/cocoRetreival/all_data_final_train_2014.jsonline
-  val_annotations_jsonpath: data/cocoRetreival/all_data_final_val_set0_2014.jsonline
+  train_annotations_jsonpath: datasets/cocoRetreival/all_data_final_train_2014.jsonline
+  val_annotations_jsonpath: datasets/cocoRetreival/all_data_final_test_set0_2014.jsonline
   max_seq_length: 30
   max_region_num: 101
-  batch_size: 256
+  batch_size: 128
   train_split: train
   val_split: val
-  lr: 0.00004
+  lr: 0.00002
   num_epoch: 20
 TASK8:
   name: RetrievalFlickr30k
@@ -132,17 +132,17 @@ TASK8:
   loss: CrossEntropyLoss
   process: retrieval
   task_id: 8
-  dataroot: data/flickr30k
-  features_h5path1: data/flickr30k/flickr30k_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/flickr30k
+  features_h5path1: datasets/flickr30k/flickr30k_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
-  train_annotations_jsonpath: data/flickr30k/all_data_final_train_2014.jsonline
-  val_annotations_jsonpath: data/flickr30k/all_data_final_test_set0_2014.jsonline
+  train_annotations_jsonpath: datasets/flickr30k/all_data_final_train_2014.jsonline
+  val_annotations_jsonpath: datasets/flickr30k/all_data_final_test_set0_2014.jsonline
   max_seq_length: 30
   max_region_num: 101
-  batch_size: 256
+  batch_size: 128
   train_split: train
   val_split: val
-  lr: 0.00004
+  lr: 0.00002
   num_epoch: 20
 TASK9:
   name: refcoco
@@ -150,46 +150,46 @@ TASK9:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 9
-  dataroot: data/referExpression
-  features_h5path1: /srv/share/vgoswami8/refer_expression/refcoco/refcoco_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: /srv/share/vgoswami8/refer_expression/refcoco/refcoco_gt_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/refcoco
+  features_h5path1: datasets/refcoco/refcoco_unc/refcoco_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: datasets/refcoco/refcoco_unc/refcoco_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
   max_region_num: 101
-  batch_size: 128
+  batch_size: 256
   train_split: train
   val_split: val
-  lr: 0.00004
-  num_epoch: 6
+  lr: 0.00002
+  num_epoch: 20
 TASK10:
   name: refcoco+
   type: V-logit
   loss: BCEWithLogitLoss
   process: normal
   task_id: 10
-  dataroot: data/referExpression
-  features_h5path1: /srv/share/vgoswami8/refer_expression/refcoco+/refcoco+_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: /srv/share/vgoswami8/refer_expression/refcoco+/refcoco+_gt_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/refcoco
+  features_h5path1: datasets/refcoco/refcoco+_unc/refcoco+_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: datasets/refcoco/refcoco+_unc/refcoco+_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
   max_region_num: 101
-  batch_size: 64
+  batch_size: 256
   eval_batch_size: 1024
   train_split: train
   val_split: val
-  lr: 0.00004
-  num_epoch: 6
+  lr: 0.00002
+  num_epoch: 20
 TASK11:
   name: refcocog
   type: V-logit
   loss: BCEWithLogitLoss
   process: normal
   task_id: 11
-  dataroot: data/referExpression
-  features_h5path1: /srv/share/vgoswami8/refer_expression/refcocog/refcocog_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: /srv/share/vgoswami8/refer_expression/refcocog/refcocog_gt_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/refcoco
+  features_h5path1: datasets/refcoco/refcocog_umd/refcocog_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: datasets/refcoco/refcocog_umd/refcocog_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 20
@@ -198,7 +198,7 @@ TASK11:
   train_split: train
   val_split: val
   start_iteration: 0
-  lr: 0.00004
+  lr: 0.00002
   num_epoch: 20
 TASK12:
   name: NLVR2
@@ -206,18 +206,18 @@ TASK12:
   loss: BCEWithLogitLoss
   process: nlvr
   task_id: 12
-  dataroot: /srv/share/vgoswami8/nlvr2/
-  features_h5path1: /srv/share/vgoswami8/nlvr2/nlvr2_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/nlvr2/
+  features_h5path1: datasets/nlvr2/nlvr2_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 40
   max_region_num: 101
-  batch_size: 256
+  batch_size: 64
   eval_batch_size: 512
   train_split: train
   val_split: dev
-  lr: 0.00004
+  lr: 0.00002
   num_epoch: 20
 TASK13: 
   name: VisualEntailment
@@ -225,8 +225,8 @@ TASK13:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 13
-  dataroot: /srv/share/vgoswami8/visual_entailment/
-  features_h5path1: /srv/share/vgoswami8/flickr30k/flickr30k_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/visual_entailment/
+  features_h5path1: datasets/flickr30k/flickr30k_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
@@ -236,7 +236,7 @@ TASK13:
   eval_batch_size: 1024
   train_split: train
   val_split: dev
-  lr: 0.00004
+  lr: 0.00002
   num_epoch: 20
 TASK14:
   name: GuessWhat
@@ -244,8 +244,8 @@ TASK14:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 14
-  dataroot: /srv/share/vgoswami8/guesswhat/
-  features_h5path1: /srv/share/vgoswami8/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/guesswhat/
+  features_h5path1: datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
@@ -263,14 +263,14 @@ TASK15:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 15
-  dataroot: /srv/share/vgoswami8/gqa/
-  features_h5path1: /srv/share/vgoswami8/gqa/gqa_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/gqa/
+  features_h5path1: datasets/gqa/gqa_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
   max_seq_length: 26
   max_region_num: 101
-  batch_size: 256
+  batch_size: 128
   eval_batch_size: 1024
   train_split: trainval
   val_split: minval
@@ -281,12 +281,12 @@ TASK16:
   type: VL-binary-classifier
   loss: CrossEntropyLoss
   process: normal
-  task_id: 1
-  dataroot: data/Foil
-  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  task_id: 16
+  dataroot:  datasets/Foil
+  features_h5path1: datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
   features_h5path2: ''
-  train_annotations_jsonpath: 'data/Foil/foilv1.0_train_2017.json'
-  val_annotations_jsonpath: 'data/Foil/foilv1.0_test_2017.json'
+  train_annotations_jsonpath:  datasets/Foil/foilv1.0_train_2017.json
+  val_annotations_jsonpath:  datasets/Foil/foilv1.0_test_2017.json
   max_seq_length: 20
   max_region_num: 101
   batch_size: 256
@@ -301,15 +301,33 @@ TASK17:
   loss: BCEWithLogitLoss
   process: normal
   task_id: 17
-  dataroot: data/guesswhat
-  features_h5path1: /srv/share/vgoswami8/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
-  features_h5path2: /srv/share/vgoswami8/guesswhat/guesswhat_gt_resnext152_faster_rcnn_genome.lmdb
+  dataroot: datasets/guesswhat/
+  features_h5path1: datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: datasets/guesswhat/guesswhat_gt_resnext152_faster_rcnn_genome.lmdb
   train_annotations_jsonpath: ''
   val_annotations_jsonpath: ''
-  max_seq_length: 512
+  max_seq_length: 256
   max_region_num: 306
   batch_size: 64
   train_split: train
   val_split: valid
-  lr: 0.00004
+  lr: 0.00002
+  num_epoch: 20
+TASK18:
+  name: FlickrGrounding
+  type: V-logit
+  loss: BCEWithLogitLoss
+  process: normal
+  task_id: 18
+  dataroot: datasets/flickr30k/
+  features_h5path1: datasets/flickr30k/flickr30k_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: datasets/flickr30k/flickr30k_gt_resnext152_faster_rcnn_genome.lmdb
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 24
+  max_region_num: 200
+  batch_size: 256
+  train_split: train
+  val_split: val
+  lr: 0.000002
   num_epoch: 20
