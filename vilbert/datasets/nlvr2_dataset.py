@@ -30,9 +30,9 @@ def _load_dataset(dataroot, name):
     """Load entries
 
     dataroot: root path of dataset
-    name: 'train', 'dev', 'test1'
+    name: 'train', 'dev', 'test'
     """
-    if name == "train" or name == "dev" or name == "test1":
+    if name == "train" or name == "dev" or name == "test":
         annotations_path = os.path.join(dataroot, "%s.json" % name)
         with jsonlines.open(annotations_path) as reader:
 

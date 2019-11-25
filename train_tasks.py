@@ -318,7 +318,7 @@ def main():
     optimizer_grouped_parameters = []
     for key, value in dict(model.named_parameters()).items():
         if value.requires_grad:
-            if 'vil_prediction' in key:
+            if 'vil_' in key:
                 lr = 1e-4
             else:
                 if args.vision_scratch:
