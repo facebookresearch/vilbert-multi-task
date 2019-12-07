@@ -3,9 +3,9 @@ from setuptools import setup
 
 
 setup(
-    name="multimodal_bert",
-    version="0.0.0",
-    author="Jiasen Lu",
+    name="vilbert_multi_task",
+    version="0.1.0",
+    author="Jiasen Lu, Vedanuj Goswami",
     description="",
     license="MIT",
     zip_safe=True,
