@@ -23,8 +23,10 @@ import copy
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
+
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
+
 
 def _load_dataset(annotations_jsonpath, clean_datasets):
     """Build an index out of FOIL annotations, mapping each image ID with its corresponding captions."""
@@ -34,17 +36,18 @@ def _load_dataset(annotations_jsonpath, clean_datasets):
     if clean_datasets:
         remove_ids = np.load(os.path.join(dataroot, "cache", "genome_test_ids.npy"))
         remove_ids = [int(x) for x in remove_ids]
-    print('Loading dataset from %s' %annotations_jsonpath)
-    annotations = json.load(open(annotations_jsonpath, 'r'))['data']
-    print('Finish loading ...')
-    for i, dialog in enumerate(annotations['dialogs']):
-        image_id = dialog['image_id']
+    print("Loading dataset from %s" % annotations_jsonpath)
+    annotations = json.load(open(annotations_jsonpath, "r"))["data"]
+    print("Finish loading ...")
+    for i, dialog in enumerate(annotations["dialogs"]):
+        image_id = dialog["image_id"]
         if int(image_id) in remove_ids:
             continue
-        captions.append(dialog['caption'])
-        entries.append({'image_id':image_id, 'dialog': dialog['dialog'], 'caption': i})
+        captions.append(dialog["caption"])
+        entries.append({"image_id": image_id, "dialog": dialog["dialog"], "caption": i})
 
-    return entries, annotations['questions'], annotations['answers'], captions
+    return entries, annotations["questions"], annotations["answers"], captions
+
 
 class VisDialDataset(Dataset):
     def __init__(
@@ -80,31 +83,47 @@ class VisDialDataset(Dataset):
 
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl",
             )
 
         if not os.path.exists(cache_path):
-            self._entries, questions, answers, captions = _load_dataset(annotations_jsonpath, clean_datasets)
-            self._questions, self._answers, self._captions = self.tokenizeQA(questions, answers, captions)
+            self._entries, questions, answers, captions = _load_dataset(
+                annotations_jsonpath, clean_datasets
+            )
+            self._questions, self._answers, self._captions = self.tokenizeQA(
+                questions, answers, captions
+            )
             file_save = {}
-            file_save['entries'] = self._entries
-            file_save['questions'] = self._questions
-            file_save['answers'] = self._answers
-            file_save['captions'] = self._captions
-            cPickle.dump(file_save, open(cache_path, 'wb'))
+            file_save["entries"] = self._entries
+            file_save["questions"] = self._questions
+            file_save["answers"] = self._answers
+            file_save["captions"] = self._captions
+            cPickle.dump(file_save, open(cache_path, "wb"))
         else:
-            logger.info("Loading from %s" %cache_path)
+            logger.info("Loading from %s" % cache_path)
             file_save = cPickle.load(open(cache_path, "rb"))
-            self._entries = file_save['entries'] 
-            self._questions = file_save['questions'] 
-            self._answers = file_save['answers'] 
-            self._captions = file_save['captions'] 
+            self._entries = file_save["entries"]
+            self._questions = file_save["questions"]
+            self._answers = file_save["answers"]
+            self._captions = file_save["captions"]
 
     def tokenizeQA(self, questions, answers, captions):
         """Tokenizes the captions.
@@ -118,15 +137,23 @@ class VisDialDataset(Dataset):
 
         for question in questions:
             # replace with name
-            question_token.append(self._tokenizer.convert_tokens_to_ids(self._tokenizer.tokenize(question)))
+            question_token.append(
+                self._tokenizer.convert_tokens_to_ids(
+                    self._tokenizer.tokenize(question)
+                )
+            )
 
         for answer in answers:
             # replace with name
-            answer_token.append(self._tokenizer.convert_tokens_to_ids(self._tokenizer.tokenize(answer)))
+            answer_token.append(
+                self._tokenizer.convert_tokens_to_ids(self._tokenizer.tokenize(answer))
+            )
 
         for caption in captions:
             # replace with name
-            caption_token.append(self._tokenizer.convert_tokens_to_ids(self._tokenizer.tokenize(caption)))
+            caption_token.append(
+                self._tokenizer.convert_tokens_to_ids(self._tokenizer.tokenize(caption))
+            )
 
         return question_token, answer_token, caption_token
 
@@ -147,7 +174,7 @@ class VisDialDataset(Dataset):
         return tokens_a
 
     def __getitem__(self, index):
-        
+
         entry = self._entries[index]
         image_id = entry["image_id"]
         features, num_boxes, boxes, _ = self._image_features_reader[image_id]
@@ -160,37 +187,39 @@ class VisDialDataset(Dataset):
         spatials = torch.tensor(boxes).float()
 
         # Let's sample one dialog at a time.
-        caption = self._captions[entry['caption']]
+        caption = self._captions[entry["caption"]]
 
         input_ids_all = []
         input_mask_all = []
         segment_ids_all = []
 
         for rnd in range(10):
-            ques = self._questions[entry['dialog'][rnd]['question']]
+            ques = self._questions[entry["dialog"][rnd]["question"]]
             # fact is all previous question+answer
             tokens_fact = []
             for j in range(rnd):
                 if rnd - self.max_round_num <= j:
-                    fact_q = self._questions[entry['dialog'][j]['question']]
-                    fact_a = self._answers[entry['dialog'][j]['answer']]
+                    fact_q = self._questions[entry["dialog"][j]["question"]]
+                    fact_a = self._answers[entry["dialog"][j]["answer"]]
                     if len(tokens_fact) == 0:
-                        tokens_fact = tokens_fact + fact_q + [self.SEP] + fact_a                    
+                        tokens_fact = tokens_fact + fact_q + [self.SEP] + fact_a
                     else:
-                        tokens_fact = tokens_fact + [self.SEP] + fact_q + [self.SEP] + fact_a
+                        tokens_fact = (
+                            tokens_fact + [self.SEP] + fact_q + [self.SEP] + fact_a
+                        )
 
-            token_q = ques 
+            token_q = ques
 
             if len(tokens_fact) == 0:
                 tokens_f = caption
-            else:     
-                tokens_f = tokens_fact + [self.SEP] + caption 
+            else:
+                tokens_f = tokens_fact + [self.SEP] + caption
             answer_candidate = []
-            answer_candidate.append(entry['dialog'][rnd]['gt_index'])
+            answer_candidate.append(entry["dialog"][rnd]["gt_index"])
             rand_idx = np.random.permutation(self.ans_option)
             count = 0
             while len(answer_candidate) < self.max_num_option:
-                if rand_idx[count] != entry['dialog'][rnd]['gt_index']:
+                if rand_idx[count] != entry["dialog"][rnd]["gt_index"]:
                     answer_candidate.append(rand_idx[count])
                 count += 1
 
@@ -199,9 +228,14 @@ class VisDialDataset(Dataset):
             segment_ids_rnd = []
 
             for i, ans_idx in enumerate(answer_candidate):
-                tokens_a = self._answers[entry['dialog'][rnd]['answer_options'][ans_idx]]
-                tokens_f_new = self._truncate_seq(copy.deepcopy(tokens_f), self._total_seq_length-len(token_q) - len(tokens_a) - 4)
-                
+                tokens_a = self._answers[
+                    entry["dialog"][rnd]["answer_options"][ans_idx]
+                ]
+                tokens_f_new = self._truncate_seq(
+                    copy.deepcopy(tokens_f),
+                    self._total_seq_length - len(token_q) - len(tokens_a) - 4,
+                )
+
                 tokens = []
                 segment_ids = []
 
@@ -210,7 +244,7 @@ class VisDialDataset(Dataset):
                 for token in token_q:
                     tokens.append(token)
                     segment_ids.append(0)
-                
+
                 tokens.append(self.SEP)
                 segment_ids.append(0)
 
@@ -220,7 +254,7 @@ class VisDialDataset(Dataset):
 
                 tokens.append(self.SEP)
                 segment_ids.append(1)
-                
+
                 for token in tokens_f_new:
                     tokens.append(token)
                     segment_ids.append(0)
@@ -246,9 +280,21 @@ class VisDialDataset(Dataset):
         input_ids = torch.from_numpy(np.array(input_ids_all))
         input_mask = torch.from_numpy(np.array(input_mask_all))
         segment_ids = torch.from_numpy(np.array(segment_ids_all))
-        co_attention_mask = torch.zeros((10, self.max_num_option, self._max_region_num, self._total_seq_length))
+        co_attention_mask = torch.zeros(
+            (10, self.max_num_option, self._max_region_num, self._total_seq_length)
+        )
         target = torch.zeros(10).long()
-        return features, spatials, image_mask, input_ids, target, input_mask, segment_ids, co_attention_mask, image_id
+        return (
+            features,
+            spatials,
+            image_mask,
+            input_ids,
+            target,
+            input_mask,
+            segment_ids,
+            co_attention_mask,
+            image_id,
+        )
 
     def __len__(self):
         return len(self._entries)

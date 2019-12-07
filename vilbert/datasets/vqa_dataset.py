@@ -123,7 +123,7 @@ def _load_dataset(dataroot, name, clean_datasets):
         answers_val = cPickle.load(open(answer_path_val, "rb"))
         answers_val = sorted(answers_val, key=lambda x: x["question_id"])
 
-        questions = questions_train 
+        questions = questions_train
         answers = answers_train
     else:
         assert False, "data split is not recognized."
@@ -132,11 +132,11 @@ def _load_dataset(dataroot, name, clean_datasets):
         entries = []
         for question in questions:
             entries.append(question)
-    elif name == 'mteval':
+    elif name == "mteval":
         entries = []
         remove_ids = np.load(os.path.join(dataroot, "cache", "coco_test_ids.npy"))
         remove_ids = [int(x) for x in remove_ids]
-        
+
         for question, answer in zip(questions, answers):
             if int(question["image_id"]) in remove_ids:
                 entries.append(_create_entry(question, answer))
@@ -153,7 +153,7 @@ def _load_dataset(dataroot, name, clean_datasets):
             assert_eq(question["question_id"], answer["question_id"])
             assert_eq(question["image_id"], answer["image_id"])
             entries.append(_create_entry(question, answer))
-    
+
     return entries
 
 
@@ -188,14 +188,26 @@ class VQAClassificationDataset(Dataset):
 
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
-            )            
+                dataroot,
+                "cache",
+                task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl",
+            )
         if not os.path.exists(cache_path):
             self.entries = _load_dataset(dataroot, split, clean_datasets)
             self.tokenize(max_seq_length)
@@ -213,7 +225,7 @@ class VQAClassificationDataset(Dataset):
         """
         for entry in self.entries:
             tokens = self._tokenizer.encode(entry["question"])
-            tokens = tokens[:max_length-2]
+            tokens = tokens[: max_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             segment_ids = [0] * len(tokens)

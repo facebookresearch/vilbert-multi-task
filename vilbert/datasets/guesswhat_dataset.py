@@ -47,14 +47,12 @@ def _load_dataset(dataroot, name):
             # Build an index which maps image id with a list of qa annotations.
             items = []
             for annotation in reader:
-                for q in annotation['qas']:
+                for q in annotation["qas"]:
                     dictionary = {}
-                    dictionary["image_id"] = annotation['image']['id']
-                    dictionary["question_id"] = q['id']
-                    dictionary["question"] = q['question']
-                    dictionary["labels"] = [
-                        int(LABEL_MAP[str(q["answer"])])
-                    ]
+                    dictionary["image_id"] = annotation["image"]["id"]
+                    dictionary["question_id"] = q["id"]
+                    dictionary["question"] = q["question"]
+                    dictionary["labels"] = [int(LABEL_MAP[str(q["answer"])])]
                     dictionary["scores"] = [1.0]
                     items.append(dictionary)
     else:
@@ -120,7 +118,7 @@ class GuessWhatDataset(Dataset):
             #     for w in tokens
             # ]
             tokens = self._tokenizer.encode(entry["question"])
-            tokens = tokens[:max_length-2]
+            tokens = tokens[: max_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             # tokens = tokens[:max_length]

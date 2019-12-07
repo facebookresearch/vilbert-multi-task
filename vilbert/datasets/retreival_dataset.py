@@ -19,8 +19,10 @@ import jsonlines
 import sys
 import pdb
 
+
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
+
 
 def _load_annotations(split, annotations_jsonpath, task, dataroot, clean_datasets):
 
@@ -33,22 +35,26 @@ def _load_annotations(split, annotations_jsonpath, task, dataroot, clean_dataset
 
         remove_ids = []
         if clean_datasets:
-            if task == 'RetrievalCOCO':
-                remove_ids = np.load(os.path.join(dataroot, "cache", "coco_test_ids.npy"))
-            elif task == 'RetrievalFlickr30k':
-                remove_ids = np.load(os.path.join(dataroot, "cache", "flickr_test_ids.npy"))
+            if task == "RetrievalCOCO":
+                remove_ids = np.load(
+                    os.path.join(dataroot, "cache", "coco_test_ids.npy")
+                )
+            elif task == "RetrievalFlickr30k":
+                remove_ids = np.load(
+                    os.path.join(dataroot, "cache", "flickr_test_ids.npy")
+                )
             remove_ids = [int(x) for x in remove_ids]
 
         for annotation in reader:
-            if task == 'RetrievalCOCO':
-                image_id = annotation['id']
-            elif task == 'RetrievalFlickr30k':
-                image_id = int(annotation['img_path'].split('.')[0])
-            if split == 'train' and int(image_id) in remove_ids:
+            if task == "RetrievalCOCO":
+                image_id = annotation["id"]
+            elif task == "RetrievalFlickr30k":
+                image_id = int(annotation["img_path"].split(".")[0])
+            if split == "train" and int(image_id) in remove_ids:
                 continue
             imgid2entry[image_id] = []
-            for sentences in annotation['sentences']:
-                entries.append({"caption": sentences, 'image_id':image_id})
+            for sentences in annotation["sentences"]:
+                entries.append({"caption": sentences, "image_id": image_id})
                 imgid2entry[image_id].append(count)
                 count += 1
 
@@ -73,7 +79,9 @@ class RetreivalDataset(Dataset):
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
 
-        self._entries, self.imgid2entry = _load_annotations(split, annotations_jsonpath, task, dataroot, clean_datasets)
+        self._entries, self.imgid2entry = _load_annotations(
+            split, annotations_jsonpath, task, dataroot, clean_datasets
+        )
         self.image_id_list = [*self.imgid2entry]
 
         self._image_features_reader = image_features_reader
@@ -86,27 +94,45 @@ class RetreivalDataset(Dataset):
 
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if self._split == 'train':
-            image_info = cPickle.load(open(os.path.join(dataroot, 'hard_negative' + clean_train + '.pkl'), 'rb'))
+        if self._split == "train":
+            image_info = cPickle.load(
+                open(
+                    os.path.join(dataroot, "hard_negative" + clean_train + ".pkl"), "rb"
+                )
+            )
             for key, value in image_info.items():
                 setattr(self, key, value)
-            self.train_imgId2pool = {imageId:i for i, imageId in enumerate(self.train_image_list)}
+            self.train_imgId2pool = {
+                imageId: i for i, imageId in enumerate(self.train_image_list)
+            }
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl",
             )
 
         if not os.path.exists(cache_path):
             self.tokenize()
             self.tensorize()
-            cPickle.dump(self._entries, open(cache_path, 'wb'))
+            cPickle.dump(self._entries, open(cache_path, "wb"))
         else:
-            print('loading entries from %s' %(cache_path))
+            print("loading entries from %s" % (cache_path))
             self._entries = cPickle.load(open(cache_path, "rb"))
 
     def tokenize(self):
@@ -116,11 +142,11 @@ class RetreivalDataset(Dataset):
         -1 represents nil, and should be treated as padding_idx in embedding.
         """
         for entry in self._entries:
-            
+
             tokens = self._tokenizer.encode(entry["caption"])
-            tokens = tokens[:self._max_seq_length-2]
+            tokens = tokens[: self._max_seq_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
-        
+
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)
 
@@ -148,13 +174,12 @@ class RetreivalDataset(Dataset):
             segment_ids = torch.from_numpy(np.array(entry["segment_ids"]))
             entry["segment_ids"] = segment_ids
 
-
     def __getitem__(self, index):
         entry = self._entries[index]
         image_id = entry["image_id"]
 
         features, num_boxes, boxes, _ = self._image_features_reader[image_id]
-        
+
         mix_num_boxes = min(int(num_boxes), self._max_region_num)
         mix_boxes_pad = np.zeros((self._max_region_num, 5))
         mix_features_pad = np.zeros((self._max_region_num, 2048))
@@ -175,11 +200,12 @@ class RetreivalDataset(Dataset):
         segment_ids1 = entry["segment_ids"]
         # negative samples.
         # 1: correct one, 2: random caption wrong, 3: random image wrong. 4: hard image wrong.
-        
+
         while True:
             # sample a random image:
             img_id2 = random.choice(self.image_id_list)
-            if img_id2 != image_id: break
+            if img_id2 != image_id:
+                break
 
         entry2 = self._entries[random.choice(self.imgid2entry[img_id2])]
 
@@ -188,13 +214,14 @@ class RetreivalDataset(Dataset):
         spatials2 = spatials1
         caption2 = entry2["token"]
         input_mask2 = entry2["input_mask"]
-        segment_ids2 = entry2["segment_ids"]        
+        segment_ids2 = entry2["segment_ids"]
 
         # random image wrong
         while True:
             # sample a random image:
             img_id3 = random.choice(self.image_id_list)
-            if img_id3 != image_id: break        
+            if img_id3 != image_id:
+                break
 
         features3, num_boxes3, boxes3, _ = self._image_features_reader[img_id3]
         image_mask3 = [1] * (int(num_boxes3))
@@ -204,8 +231,7 @@ class RetreivalDataset(Dataset):
         mix_features_pad3 = np.zeros((self._max_region_num, 2048))
 
         while len(image_mask3) < self._max_region_num:
-            image_mask3.append(0)        
-
+            image_mask3.append(0)
 
         mix_boxes_pad[:mix_num_boxes3] = boxes3[:mix_num_boxes3]
         mix_features_pad[:mix_num_boxes3] = features3[:mix_num_boxes3]
@@ -218,17 +244,19 @@ class RetreivalDataset(Dataset):
         input_mask3 = input_mask1
         segment_ids3 = segment_ids1
 
-
-        if self._split == 'train':
+        if self._split == "train":
             # random hard caption.
             rand_img_id_pool = self.train_hard_pool[self.train_imgId2pool[image_id]]
-            pool_img_idx = int(rand_img_id_pool[np.random.randint(1, len(rand_img_id_pool))])
+            pool_img_idx = int(
+                rand_img_id_pool[np.random.randint(1, len(rand_img_id_pool))]
+            )
             img_id4 = self.train_image_list[pool_img_idx]
         else:
             while True:
                 # sample a random image:
                 img_id4 = random.choice(self.image_id_list)
-                if img_id4 != image_id: break
+                if img_id4 != image_id:
+                    break
 
         entry4 = self._entries[random.choice(self.imgid2entry[img_id4])]
 
@@ -241,17 +269,34 @@ class RetreivalDataset(Dataset):
 
         features = torch.stack([features1, features2, features3, features4], dim=0)
         spatials = torch.stack([spatials1, spatials2, spatials3, spatials4], dim=0)
-        image_mask = torch.stack([image_mask1, image_mask2, image_mask3, image_mask4], dim=0)
+        image_mask = torch.stack(
+            [image_mask1, image_mask2, image_mask3, image_mask4], dim=0
+        )
         caption = torch.stack([caption1, caption2, caption3, caption4], dim=0)
-        input_mask = torch.stack([input_mask1, input_mask2, input_mask3, input_mask4], dim=0)
-        segment_ids = torch.stack([segment_ids1, segment_ids2, segment_ids3, segment_ids4], dim=0)
+        input_mask = torch.stack(
+            [input_mask1, input_mask2, input_mask3, input_mask4], dim=0
+        )
+        segment_ids = torch.stack(
+            [segment_ids1, segment_ids2, segment_ids3, segment_ids4], dim=0
+        )
         co_attention_mask = torch.zeros((4, self._max_region_num, self._max_seq_length))
         target = 0
 
-        return features, spatials, image_mask, caption, target, input_mask, segment_ids, co_attention_mask, image_id
+        return (
+            features,
+            spatials,
+            image_mask,
+            caption,
+            target,
+            input_mask,
+            segment_ids,
+            co_attention_mask,
+            image_id,
+        )
 
     def __len__(self):
         return len(self._entries)
+
 
 def _load_annotationsVal(annotations_jsonpath, task):
 
@@ -262,19 +307,20 @@ def _load_annotationsVal(annotations_jsonpath, task):
         caption_entries = []
 
         for annotation in reader:
-            if task == 'RetrievalCOCO':
-                image_id = annotation['id']
-            elif task == 'RetrievalFlickr30k':
-                image_id = int(annotation['img_path'].split('.')[0])
+            if task == "RetrievalCOCO":
+                image_id = annotation["id"]
+            elif task == "RetrievalFlickr30k":
+                image_id = int(annotation["img_path"].split(".")[0])
 
             image_entries[image_id] = 1
 
-            for sentences in annotation['sentences']:
-                caption_entries.append({"caption": sentences, 'image_id':image_id})
+            for sentences in annotation["sentences"]:
+                caption_entries.append({"caption": sentences, "image_id": image_id})
 
     image_entries = [*image_entries]
 
     return image_entries, caption_entries
+
 
 class RetreivalDatasetVal(Dataset):
     def __init__(
@@ -293,7 +339,9 @@ class RetreivalDatasetVal(Dataset):
         max_region_num: int = 101,
     ):
         # All the keys in `self._entries` would be present in `self._image_features_reader`
-        self._image_entries, self._caption_entries = _load_annotationsVal(annotations_jsonpath, task)
+        self._image_entries, self._caption_entries = _load_annotationsVal(
+            annotations_jsonpath, task
+        )
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
 
@@ -308,11 +356,11 @@ class RetreivalDatasetVal(Dataset):
         # if not os.path.exists(cap_cache_path):
         self.tokenize()
         self.tensorize()
-            # cPickle.dump(self._entries, open(cap_cache_path, 'wb'))
+        # cPickle.dump(self._entries, open(cap_cache_path, 'wb'))
         # else:
-            # print('loading entries from %s' %(cap_cache_path))
-            # self._entries = cPickle.load(open(cap_cache_path, "rb"))
-# 
+        # print('loading entries from %s' %(cap_cache_path))
+        # self._entries = cPickle.load(open(cap_cache_path, "rb"))
+        #
         self.features_all = np.zeros((1000, self._max_region_num, 2048))
         self.spatials_all = np.zeros((1000, self._max_region_num, 5))
         self.image_mask_all = np.zeros((1000, self._max_region_num))
@@ -335,7 +383,7 @@ class RetreivalDatasetVal(Dataset):
             self.image_mask_all[i] = np.array(image_mask)
             self.spatials_all[i] = mix_boxes_pad
 
-            sys.stdout.write('%d/%d\r' % (i, len(self._image_entries)))
+            sys.stdout.write("%d/%d\r" % (i, len(self._image_entries)))
             sys.stdout.flush()
 
         self.features_all = torch.Tensor(self.features_all).float()
@@ -350,9 +398,9 @@ class RetreivalDatasetVal(Dataset):
         """
         for entry in self._caption_entries:
             tokens = self._tokenizer.encode(entry["caption"])
-            tokens = tokens[:self._max_seq_length-2]
+            tokens = tokens[: self._max_seq_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
-        
+
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)
 
@@ -407,7 +455,17 @@ class RetreivalDatasetVal(Dataset):
             if image_id == entry["image_id"]:
                 target_all[i] = 1
 
-        return features_all, spatials_all, image_mask_all, caption, input_mask, segment_ids, target_all, caption_idx, image_idx
+        return (
+            features_all,
+            spatials_all,
+            image_mask_all,
+            caption,
+            input_mask,
+            segment_ids,
+            target_all,
+            caption_idx,
+            image_idx,
+        )
 
     def __len__(self):
         return len(self._caption_entries) * 2

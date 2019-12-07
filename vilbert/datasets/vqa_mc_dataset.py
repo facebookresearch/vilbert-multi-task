@@ -16,11 +16,14 @@ import random
 from ._image_features_reader import ImageFeaturesH5Reader
 import sys
 import pdb
+
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
+
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
+
 
 def _create_entry(question, option, answer):
     answer.pop("image_id")
@@ -35,6 +38,7 @@ def _create_entry(question, option, answer):
     }
     return entry
 
+
 def _load_dataset(dataroot, name):
     """Load entries
 
@@ -42,63 +46,113 @@ def _load_dataset(dataroot, name):
     name: 'train', 'val', 'trainval', 'minsval'
     """
 
-    options_path = 'VQA_bert_base_4layer_4conect-pretrained_finetune'
+    options_path = "VQA_bert_base_4layer_4conect-pretrained_finetune"
 
-    if name == 'train' or name == 'val':
-        question_path = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % name)
-        questions = sorted(json.load(open(question_path))["questions"], key=lambda x: x["question_id"])
+    if name == "train" or name == "val":
+        question_path = os.path.join(
+            dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % name
+        )
+        questions = sorted(
+            json.load(open(question_path))["questions"], key=lambda x: x["question_id"]
+        )
 
         answer_path = os.path.join(dataroot, "v2_mscoco_%s2014_annotations.json" % name)
-        answers = sorted(json.load(open(question_path))["annotations"], key=lambda x: x["question_id"])
+        answers = sorted(
+            json.load(open(question_path))["annotations"],
+            key=lambda x: x["question_id"],
+        )
 
-        option_path = os.path.join('results', options_path, '%s_others.json' % name)
+        option_path = os.path.join("results", options_path, "%s_others.json" % name)
         options = sorted(json.load(open(option_path)), key=lambda x: x["question_id"])
 
-    elif name  == 'trainval':
-        question_path_train = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'train')
-        questions_train = sorted(json.load(open(question_path_train))["questions"], key=lambda x: x["question_id"])
+    elif name == "trainval":
+        question_path_train = os.path.join(
+            dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % "train"
+        )
+        questions_train = sorted(
+            json.load(open(question_path_train))["questions"],
+            key=lambda x: x["question_id"],
+        )
 
-        answer_path_train = os.path.join(dataroot, "v2_mscoco_%s2014_annotations.json" % 'train')
-        answers_train = sorted(json.load(open(answer_path_train))["annotations"], key=lambda x: x["question_id"])
+        answer_path_train = os.path.join(
+            dataroot, "v2_mscoco_%s2014_annotations.json" % "train"
+        )
+        answers_train = sorted(
+            json.load(open(answer_path_train))["annotations"],
+            key=lambda x: x["question_id"],
+        )
 
-        question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'val')
-        questions_val = sorted(json.load(open(question_path_val))["questions"], key=lambda x: x["question_id"])
-        answer_path_val = os.path.join(dataroot, "v2_mscoco_%s2014_annotations.json" % 'val')
-        answers_val = sorted(json.load(open(answer_path_val))["annotations"], key=lambda x: x["question_id"])
+        question_path_val = os.path.join(
+            dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % "val"
+        )
+        questions_val = sorted(
+            json.load(open(question_path_val))["questions"],
+            key=lambda x: x["question_id"],
+        )
+        answer_path_val = os.path.join(
+            dataroot, "v2_mscoco_%s2014_annotations.json" % "val"
+        )
+        answers_val = sorted(
+            json.load(open(answer_path_val))["annotations"],
+            key=lambda x: x["question_id"],
+        )
 
         questions = questions_train + questions_val[:-3000]
         answers = answers_train + answers_val[:-3000]
 
-        option_path_train = os.path.join('results', options_path, '%s_others.json' % 'train')
-        options_train = sorted(json.load(open(option_path_train)), key=lambda x: x["question_id"])
-        option_path_val = os.path.join('results', options_path, '%s_others.json' % 'val')
-        options_val = sorted(json.load(open(option_path_val)), key=lambda x: x["question_id"])
+        option_path_train = os.path.join(
+            "results", options_path, "%s_others.json" % "train"
+        )
+        options_train = sorted(
+            json.load(open(option_path_train)), key=lambda x: x["question_id"]
+        )
+        option_path_val = os.path.join(
+            "results", options_path, "%s_others.json" % "val"
+        )
+        options_val = sorted(
+            json.load(open(option_path_val)), key=lambda x: x["question_id"]
+        )
         options = options_train + options_val[:-3000]
 
-    elif name == 'minval':
-        question_path_val = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % 'val')
-        questions_val = sorted(json.load(open(question_path_val))["questions"], key=lambda x: x["question_id"])
-        answer_path_val = os.path.join(dataroot, "v2_mscoco_%s2014_annotations.json" % 'val')
-        answers_val = sorted(json.load(open(answer_path_val))["annotations"], key=lambda x: x["question_id"])  
+    elif name == "minval":
+        question_path_val = os.path.join(
+            dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % "val"
+        )
+        questions_val = sorted(
+            json.load(open(question_path_val))["questions"],
+            key=lambda x: x["question_id"],
+        )
+        answer_path_val = os.path.join(
+            dataroot, "v2_mscoco_%s2014_annotations.json" % "val"
+        )
+        answers_val = sorted(
+            json.load(open(answer_path_val))["annotations"],
+            key=lambda x: x["question_id"],
+        )
         questions = questions_val[-3000:]
         answers = answers_val[-3000:]
 
-        option_path = os.path.join('results', options_path, '%s_others.json' % 'val')
+        option_path = os.path.join("results", options_path, "%s_others.json" % "val")
         options = sorted(json.load(open(option_path)), key=lambda x: x["question_id"])
         options = options[-3000:]
 
-    elif name == 'test':
-        question_path_test = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2015_questions.json" % 'test')
-        questions_test = sorted(json.load(open(question_path_test))["questions"], key=lambda x: x["question_id"])
+    elif name == "test":
+        question_path_test = os.path.join(
+            dataroot, "v2_OpenEnded_mscoco_%s2015_questions.json" % "test"
+        )
+        questions_test = sorted(
+            json.load(open(question_path_test))["questions"],
+            key=lambda x: x["question_id"],
+        )
         questions = questions_test
 
-        option_path = os.path.join('results', options_path, '%s_others.json' % 'test')
+        option_path = os.path.join("results", options_path, "%s_others.json" % "test")
         options = sorted(json.load(open(option_path)), key=lambda x: x["question_id"])
 
     else:
         assert False, "data split is not recognized."
 
-    if 'test' in name:
+    if "test" in name:
         entries = []
         for question, option in zip(questions, options):
             assert_eq(question["question_id"], option["question_id"])
@@ -112,6 +166,7 @@ def _load_dataset(dataroot, name):
             assert_eq(question["question_id"], option["question_id"])
             entries.append(_create_entry(question, option, answer))
     return entries
+
 
 class VQAMultipleChoiceDataset(Dataset):
     def __init__(
@@ -136,14 +191,16 @@ class VQAMultipleChoiceDataset(Dataset):
         self._tokenizer = tokenizer
         self._padding_index = padding_index
 
-        cache_path = os.path.join(dataroot, "cache", task + '_' + split + '_' + str(max_seq_length)+'.pkl')
+        cache_path = os.path.join(
+            dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+        )
         if not os.path.exists(cache_path):
             self.entries = _load_dataset(dataroot, split)
             self.tokenize(max_seq_length)
             self.tensorize()
-            cPickle.dump(self.entries, open(cache_path, 'wb'))
+            cPickle.dump(self.entries, open(cache_path, "wb"))
         else:
-            logger.info("Loading from %s" %cache_path)
+            logger.info("Loading from %s" % cache_path)
             self.entries = cPickle.load(open(cache_path, "rb"))
 
     def _truncate_seq_pair(self, tokens_a, tokens_b, max_length):
@@ -173,9 +230,9 @@ class VQAMultipleChoiceDataset(Dataset):
 
         count = 0
         for entry in self.entries:
-            option = entry['option']
+            option = entry["option"]
 
-            if self.split != 'test':
+            if self.split != "test":
                 # replace one answer if it is not exist in option
                 ans_exist = False
                 if entry["answer"] in option:
@@ -190,7 +247,7 @@ class VQAMultipleChoiceDataset(Dataset):
                 for i, ans in enumerate(option):
                     if ans == entry["answer"]:
                         target = i
-            
+
             tokens_all = []
             input_mask_all = []
             segment_ids_all = []
@@ -198,7 +255,9 @@ class VQAMultipleChoiceDataset(Dataset):
 
                 tokens_a = self._tokenizer.tokenize(entry["question"])
                 tokens_b = self._tokenizer.tokenize(ans)
-                tokens_a, tokens_b = self._truncate_seq_pair(tokens_a, tokens_b, max_length-3)
+                tokens_a, tokens_b = self._truncate_seq_pair(
+                    tokens_a, tokens_b, max_length - 3
+                )
 
                 tokens = ["[CLS]"] + tokens_a + ["[SEP]"] + tokens_b + ["[SEP]"]
 
@@ -206,7 +265,7 @@ class VQAMultipleChoiceDataset(Dataset):
                     self._tokenizer.vocab.get(w, self._tokenizer.vocab["[UNK]"])
                     for w in tokens
                 ]
-            
+
                 tokens = tokens[:max_length]
                 segment_ids = [0] * len(tokens)
                 input_mask = [1] * len(tokens)
@@ -226,10 +285,10 @@ class VQAMultipleChoiceDataset(Dataset):
             entry["q_token"] = tokens_all
             entry["q_input_mask"] = input_mask_all
             entry["q_segment_ids"] = segment_ids_all
-            if self.split != 'test': 
+            if self.split != "test":
                 entry["target"] = target
 
-            sys.stdout.write('%d/%d\r' % (count, len(self.entries)))
+            sys.stdout.write("%d/%d\r" % (count, len(self.entries)))
             sys.stdout.flush()
             count += 1
 
@@ -275,7 +334,17 @@ class VQAMultipleChoiceDataset(Dataset):
         if "test" not in self.split:
             target = entry["target"]
 
-        return features, spatials, image_mask, question, target, input_mask, segment_ids, co_attention_mask, question_id
+        return (
+            features,
+            spatials,
+            image_mask,
+            question,
+            target,
+            input_mask,
+            segment_ids,
+            co_attention_mask,
+            question_id,
+        )
 
     def __len__(self):
         return len(self.entries)

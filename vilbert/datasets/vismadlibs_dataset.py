@@ -17,8 +17,10 @@ from ._image_features_reader import ImageFeaturesH5Reader
 
 os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
 
+
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
+
 
 def _create_entry(question, answer):
     answer.pop("image_id")
@@ -38,8 +40,12 @@ def _load_dataset(dataroot, name):
     dataroot: root path of dataset
     name: 'train', 'val'
     """
-    question_path = os.path.join(dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % name)
-    questions = sorted(json.load(open(question_path))["questions"], key=lambda x: x["question_id"])
+    question_path = os.path.join(
+        dataroot, "v2_OpenEnded_mscoco_%s2014_questions.json" % name
+    )
+    questions = sorted(
+        json.load(open(question_path))["questions"], key=lambda x: x["question_id"]
+    )
     answer_path = os.path.join(dataroot, "cache", "%s_target.pkl" % name)
     answers = cPickle.load(open(answer_path, "rb"))
     answers = sorted(answers, key=lambda x: x["question_id"])
@@ -56,12 +62,7 @@ def _load_dataset(dataroot, name):
 
 class VMMultipleChoiceDataset(Dataset):
     def __init__(
-        self,
-        name,
-        image_features_reader,
-        tokenizer,
-        dataroot="data",
-        padding_index = 0,
+        self, name, image_features_reader, tokenizer, dataroot="data", padding_index=0
     ):
         super().__init__()
         assert name in ["train", "val"]
@@ -103,7 +104,7 @@ class VMMultipleChoiceDataset(Dataset):
             # ]
             tokens = self._tokenizer.encode(entry["question"])
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
-            
+
             tokens = tokens[:max_length]
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)

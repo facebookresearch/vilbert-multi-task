@@ -35,10 +35,20 @@ PYTORCH_PRETRAINED_BERT_CACHE = Path(
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
+
 class MultiTaskStopOnPlateau(object):
-    def __init__(self, mode='min', patience=10, continue_threshold=0.005,
-                 verbose=False, threshold=1e-4, threshold_mode='rel',
-                 cooldown=0, min_lr=0, eps=1e-8):
+    def __init__(
+        self,
+        mode="min",
+        patience=10,
+        continue_threshold=0.005,
+        verbose=False,
+        threshold=1e-4,
+        threshold_mode="rel",
+        cooldown=0,
+        min_lr=0,
+        eps=1e-8,
+    ):
 
         self.patience = patience
         self.verbose = verbose
@@ -55,10 +65,12 @@ class MultiTaskStopOnPlateau(object):
         self.eps = eps
         self.last_epoch = -1
         self.continue_threshold = continue_threshold
-        self._init_is_better(mode=mode, threshold=threshold,
-                             threshold_mode=threshold_mode)
-        self._init_continue_is_better(mode='min', threshold=continue_threshold,
-                             threshold_mode=threshold_mode)
+        self._init_is_better(
+            mode=mode, threshold=threshold, threshold_mode=threshold_mode
+        )
+        self._init_continue_is_better(
+            mode="min", threshold=continue_threshold, threshold_mode=threshold_mode
+        )
         self._reset()
 
     def _reset(self):
@@ -90,40 +102,41 @@ class MultiTaskStopOnPlateau(object):
             self.cooldown_counter = self.cooldown
             self.num_bad_epochs = 0
 
-        # if the perforance is keep dropping, then start optimizing again. 
+        # if the perforance is keep dropping, then start optimizing again.
         elif self.continue_is_better(current, self.best) and self.in_stop:
             self.in_stop = False
             self.cooldown_counter = self.cooldown
             self.num_bad_epochs = 0
-                        
+
         # if we lower the learning rate, then
         # call reset.
+
     @property
     def in_cooldown(self):
         return self.cooldown_counter > 0
 
     def _cmp(self, mode, threshold_mode, threshold, a, best):
-        if mode == 'min' and threshold_mode == 'rel':
-            rel_epsilon = 1. - threshold
+        if mode == "min" and threshold_mode == "rel":
+            rel_epsilon = 1.0 - threshold
             return a < best * rel_epsilon
 
-        elif mode == 'min' and threshold_mode == 'abs':
+        elif mode == "min" and threshold_mode == "abs":
             return a < best - threshold
 
-        elif mode == 'max' and threshold_mode == 'rel':
-            rel_epsilon = threshold + 1.
+        elif mode == "max" and threshold_mode == "rel":
+            rel_epsilon = threshold + 1.0
             return a > best * rel_epsilon
 
         else:  # mode == 'max' and epsilon_mode == 'abs':
             return a > best + threshold
 
     def _init_is_better(self, mode, threshold, threshold_mode):
-        if mode not in {'min', 'max'}:
-            raise ValueError('mode ' + mode + ' is unknown!')
-        if threshold_mode not in {'rel', 'abs'}:
-            raise ValueError('threshold mode ' + threshold_mode + ' is unknown!')
+        if mode not in {"min", "max"}:
+            raise ValueError("mode " + mode + " is unknown!")
+        if threshold_mode not in {"rel", "abs"}:
+            raise ValueError("threshold mode " + threshold_mode + " is unknown!")
 
-        if mode == 'min':
+        if mode == "min":
             self.mode_worse = inf
         else:  # mode == 'max':
             self.mode_worse = -inf
@@ -136,45 +149,57 @@ class MultiTaskStopOnPlateau(object):
 
 
 class tbLogger(object):
-    def __init__(self, log_dir, txt_dir, task_names, task_ids, task_num_iters, gradient_accumulation_steps, save_logger=True, txt_name='out.txt'):
+    def __init__(
+        self,
+        log_dir,
+        txt_dir,
+        task_names,
+        task_ids,
+        task_num_iters,
+        gradient_accumulation_steps,
+        save_logger=True,
+        txt_name="out.txt",
+    ):
         logger.info("logging file at: " + log_dir)
-        
-        self.save_logger=save_logger
+
+        self.save_logger = save_logger
         self.log_dir = log_dir
         self.txt_dir = txt_dir
         if self.save_logger:
             self.logger = SummaryWriter(log_dir=log_dir)
 
-        self.txt_f = open(txt_dir + '/' + txt_name, 'w')
-        self.task_id2name = {ids:name.replace('+', 'plus') for ids, name in zip(task_ids, task_names)}
+        self.txt_f = open(txt_dir + "/" + txt_name, "w")
+        self.task_id2name = {
+            ids: name.replace("+", "plus") for ids, name in zip(task_ids, task_names)
+        }
         self.task_ids = task_ids
-        self.task_loss = {task_id:0 for task_id in task_ids}
-        self.task_loss_tmp = {task_id:0 for task_id in task_ids}
-        self.task_score_tmp = {task_id:0 for task_id in task_ids}
-        self.task_norm_tmp = {task_id:0 for task_id in task_ids}
-        self.task_step = {task_id:0 for task_id in task_ids}
-        self.task_step_tmp = {task_id:0 for task_id in task_ids}
+        self.task_loss = {task_id: 0 for task_id in task_ids}
+        self.task_loss_tmp = {task_id: 0 for task_id in task_ids}
+        self.task_score_tmp = {task_id: 0 for task_id in task_ids}
+        self.task_norm_tmp = {task_id: 0 for task_id in task_ids}
+        self.task_step = {task_id: 0 for task_id in task_ids}
+        self.task_step_tmp = {task_id: 0 for task_id in task_ids}
         self.task_num_iters = task_num_iters
         self.epochId = 0
         self.gradient_accumulation_steps = gradient_accumulation_steps
-        self.task_loss_val = {task_id:0 for task_id in task_ids}
-        self.task_score_val = {task_id:0 for task_id in task_ids}
-        self.task_step_val = {task_id:0 for task_id in task_ids}
-        self.task_iter_val = {task_id:0 for task_id in task_ids}
-        self.task_datasize_val = {task_id:0 for task_id in task_ids}
+        self.task_loss_val = {task_id: 0 for task_id in task_ids}
+        self.task_score_val = {task_id: 0 for task_id in task_ids}
+        self.task_step_val = {task_id: 0 for task_id in task_ids}
+        self.task_iter_val = {task_id: 0 for task_id in task_ids}
+        self.task_datasize_val = {task_id: 0 for task_id in task_ids}
 
-        self.masked_t_loss = {task_id:0 for task_id in task_ids}
-        self.masked_v_loss = {task_id:0 for task_id in task_ids}
-        self.next_sentense_loss = {task_id:0 for task_id in task_ids}
+        self.masked_t_loss = {task_id: 0 for task_id in task_ids}
+        self.masked_v_loss = {task_id: 0 for task_id in task_ids}
+        self.next_sentense_loss = {task_id: 0 for task_id in task_ids}
 
-        self.masked_t_loss_val = {task_id:0 for task_id in task_ids}
-        self.masked_v_loss_val = {task_id:0 for task_id in task_ids}
-        self.next_sentense_loss_val = {task_id:0 for task_id in task_ids}
+        self.masked_t_loss_val = {task_id: 0 for task_id in task_ids}
+        self.masked_v_loss_val = {task_id: 0 for task_id in task_ids}
+        self.next_sentense_loss_val = {task_id: 0 for task_id in task_ids}
 
     def __getstate__(self):
         d = dict(self.__dict__)
-        del d['logger']
-        del d['txt_f']
+        del d["logger"]
+        del d["txt_f"]
         return d
 
     def __setstate__(self, d):
@@ -182,7 +207,7 @@ class tbLogger(object):
         if self.save_logger:
             self.logger = SummaryWriter(log_dir=self.log_dir)
 
-        self.txt_f = open(self.txt_dir + '/' + 'out.txt', 'a')
+        self.txt_f = open(self.txt_dir + "/" + "out.txt", "a")
 
     def txt_close(self):
         self.txt_f.close()
@@ -192,7 +217,7 @@ class tbLogger(object):
             self.logger.add_scalar(split + "/" + key, val, step)
 
     def step_train(self, epochId, stepId, loss, score, norm, task_id, split):
-        
+
         self.task_loss[task_id] += loss
         self.task_loss_tmp[task_id] += loss
         self.task_score_tmp[task_id] += score
@@ -202,12 +227,22 @@ class tbLogger(object):
         self.epochId = epochId
 
         # plot on tensorboard.
-        self.linePlot(stepId, loss, split, self.task_id2name[task_id] + '_loss')
-        self.linePlot(stepId, score, split, self.task_id2name[task_id] + '_score')
-        self.linePlot(stepId, norm, split, self.task_id2name[task_id] + '_norm')
+        self.linePlot(stepId, loss, split, self.task_id2name[task_id] + "_loss")
+        self.linePlot(stepId, score, split, self.task_id2name[task_id] + "_score")
+        self.linePlot(stepId, norm, split, self.task_id2name[task_id] + "_norm")
 
-    def step_train_CC(self, epochId, stepId, masked_loss_t, masked_loss_v, next_sentence_loss, norm, task_id, split):
-        
+    def step_train_CC(
+        self,
+        epochId,
+        stepId,
+        masked_loss_t,
+        masked_loss_v,
+        next_sentence_loss,
+        norm,
+        task_id,
+        split,
+    ):
+
         self.masked_t_loss[task_id] += masked_loss_t
         self.masked_v_loss[task_id] += masked_loss_v
         self.next_sentense_loss[task_id] += next_sentence_loss
@@ -218,9 +253,18 @@ class tbLogger(object):
         self.epochId = epochId
 
         # plot on tensorboard.
-        self.linePlot(stepId, masked_loss_t, split, self.task_id2name[task_id] + '_masked_loss_t')
-        self.linePlot(stepId, masked_loss_v, split, self.task_id2name[task_id] + '_masked_loss_v')
-        self.linePlot(stepId, next_sentence_loss, split, self.task_id2name[task_id] + '_next_sentence_loss')
+        self.linePlot(
+            stepId, masked_loss_t, split, self.task_id2name[task_id] + "_masked_loss_t"
+        )
+        self.linePlot(
+            stepId, masked_loss_v, split, self.task_id2name[task_id] + "_masked_loss_v"
+        )
+        self.linePlot(
+            stepId,
+            next_sentence_loss,
+            split,
+            self.task_id2name[task_id] + "_next_sentence_loss",
+        )
 
     def step_val(self, epochId, loss, score, task_id, batch_size, split):
         self.task_loss_val[task_id] += loss * batch_size
@@ -228,7 +272,16 @@ class tbLogger(object):
         self.task_step_val[task_id] += self.gradient_accumulation_steps
         self.task_datasize_val[task_id] += batch_size
 
-    def step_val_CC(self, epochId,  masked_loss_t, masked_loss_v, next_sentence_loss, task_id, batch_size, split):
+    def step_val_CC(
+        self,
+        epochId,
+        masked_loss_t,
+        masked_loss_v,
+        next_sentence_loss,
+        task_id,
+        batch_size,
+        split,
+    ):
 
         self.masked_t_loss_val[task_id] += masked_loss_t
         self.masked_v_loss_val[task_id] += masked_loss_v
@@ -238,25 +291,35 @@ class tbLogger(object):
         self.task_datasize_val[task_id] += batch_size
 
     def showLossValAll(self):
-        progressInfo = "Eval Ep: %d " %self.epochId
-        lossInfo = 'Validation '
+        progressInfo = "Eval Ep: %d " % self.epochId
+        lossInfo = "Validation "
         val_scores = {}
         ave_loss = 0
         for task_id in self.task_ids:
             loss = self.task_loss_val[task_id] / float(self.task_step_val[task_id])
-            score = self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
-            val_scores[task_id]=score
+            score = self.task_score_val[task_id] / float(
+                self.task_datasize_val[task_id]
+            )
+            val_scores[task_id] = score
             ave_loss += loss
-            lossInfo += '[%s]: loss %.3f score %.3f ' %(self.task_id2name[task_id], loss, score * 100.0)
+            lossInfo += "[%s]: loss %.3f score %.3f " % (
+                self.task_id2name[task_id],
+                loss,
+                score * 100.0,
+            )
 
-            self.linePlot(self.epochId, loss, 'val', self.task_id2name[task_id] + '_loss')
-            self.linePlot(self.epochId, score, 'val', self.task_id2name[task_id] + '_score')
+            self.linePlot(
+                self.epochId, loss, "val", self.task_id2name[task_id] + "_loss"
+            )
+            self.linePlot(
+                self.epochId, score, "val", self.task_id2name[task_id] + "_score"
+            )
 
-        self.task_loss_val = {task_id:0 for task_id in self.task_loss_val}
-        self.task_score_val = {task_id:0 for task_id in self.task_score_val}
-        self.task_datasize_val = {task_id:0 for task_id in self.task_datasize_val}
-        self.task_step_val = {task_id:0 for task_id in self.task_ids}
-        
+        self.task_loss_val = {task_id: 0 for task_id in self.task_loss_val}
+        self.task_score_val = {task_id: 0 for task_id in self.task_score_val}
+        self.task_datasize_val = {task_id: 0 for task_id in self.task_datasize_val}
+        self.task_step_val = {task_id: 0 for task_id in self.task_ids}
+
         logger.info(progressInfo)
         logger.info(lossInfo)
         print(lossInfo, file=self.txt_f)
@@ -266,22 +329,38 @@ class tbLogger(object):
         return self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
 
     def showLossVal(self, task_id, task_stop_controller=None):
-        progressInfo = "Eval task %s on iteration %d " %(task_id, self.task_step[task_id])
-        lossInfo = 'Validation '
+        progressInfo = "Eval task %s on iteration %d " % (
+            task_id,
+            self.task_step[task_id],
+        )
+        lossInfo = "Validation "
         ave_loss = 0
         loss = self.task_loss_val[task_id] / float(self.task_datasize_val[task_id])
         score = self.task_score_val[task_id] / float(self.task_datasize_val[task_id])
         ave_loss += loss
-        lossInfo += '[%s]: loss %.3f score %.3f ' %(self.task_id2name[task_id], loss, score * 100.0)
+        lossInfo += "[%s]: loss %.3f score %.3f " % (
+            self.task_id2name[task_id],
+            loss,
+            score * 100.0,
+        )
 
-        self.linePlot(self.task_step[task_id], loss, 'val', self.task_id2name[task_id] + '_loss')
-        self.linePlot(self.task_step[task_id], score, 'val', self.task_id2name[task_id] + '_score')
+        self.linePlot(
+            self.task_step[task_id], loss, "val", self.task_id2name[task_id] + "_loss"
+        )
+        self.linePlot(
+            self.task_step[task_id], score, "val", self.task_id2name[task_id] + "_score"
+        )
         if task_stop_controller is not None:
-            self.linePlot(self.task_step[task_id], task_stop_controller[task_id].in_stop, 'val', self.task_id2name[task_id] + '_early_stop')
+            self.linePlot(
+                self.task_step[task_id],
+                task_stop_controller[task_id].in_stop,
+                "val",
+                self.task_id2name[task_id] + "_early_stop",
+            )
 
-        self.task_loss_val[task_id] = 0 
+        self.task_loss_val[task_id] = 0
         self.task_score_val[task_id] = 0
-        self.task_datasize_val[task_id] = 0 
+        self.task_datasize_val[task_id] = 0
         self.task_step_val[task_id] = 0
         logger.info(progressInfo)
         logger.info(lossInfo)
@@ -289,69 +368,119 @@ class tbLogger(object):
         return score
 
     def showLossTrain(self):
-        # show the current loss, once showed, reset the loss. 
-        lossInfo = ''
+        # show the current loss, once showed, reset the loss.
+        lossInfo = ""
         for task_id in self.task_ids:
             if self.task_num_iters[task_id] > 0:
                 if self.task_step_tmp[task_id]:
-                    lossInfo += '[%s]: iter %d Ep: %.2f loss %.3f score %.3f lr %.6g ' %(self.task_id2name[task_id], \
-                        self.task_step[task_id], self.task_step[task_id] / float(self.task_num_iters[task_id]), \
-                                            self.task_loss_tmp[task_id] / float(self.task_step_tmp[task_id]), \
-                                            self.task_score_tmp[task_id] / float(self.task_step_tmp[task_id]), \
-                                            self.task_norm_tmp[task_id] / float(self.task_step_tmp[task_id]))
-        
+                    lossInfo += (
+                        "[%s]: iter %d Ep: %.2f loss %.3f score %.3f lr %.6g "
+                        % (
+                            self.task_id2name[task_id],
+                            self.task_step[task_id],
+                            self.task_step[task_id]
+                            / float(self.task_num_iters[task_id]),
+                            self.task_loss_tmp[task_id]
+                            / float(self.task_step_tmp[task_id]),
+                            self.task_score_tmp[task_id]
+                            / float(self.task_step_tmp[task_id]),
+                            self.task_norm_tmp[task_id]
+                            / float(self.task_step_tmp[task_id]),
+                        )
+                    )
+
         logger.info(lossInfo)
         print(lossInfo, file=self.txt_f)
 
-        self.task_step_tmp = {task_id:0 for task_id in self.task_ids}
-        self.task_loss_tmp = {task_id:0 for task_id in self.task_ids}
-        self.task_score_tmp =  {task_id:0 for task_id in self.task_ids}
-        self.task_norm_tmp = {task_id:0 for task_id in self.task_ids}
+        self.task_step_tmp = {task_id: 0 for task_id in self.task_ids}
+        self.task_loss_tmp = {task_id: 0 for task_id in self.task_ids}
+        self.task_score_tmp = {task_id: 0 for task_id in self.task_ids}
+        self.task_norm_tmp = {task_id: 0 for task_id in self.task_ids}
 
     def showLossValCC(self):
-        progressInfo = "Eval Ep: %d " %self.epochId
-        lossInfo = 'Validation '
+        progressInfo = "Eval Ep: %d " % self.epochId
+        lossInfo = "Validation "
         for task_id in self.task_ids:
-            masked_t_loss_val = self.masked_t_loss_val[task_id] / float(self.task_step_val[task_id])
-            masked_v_loss_val = self.masked_v_loss_val[task_id] / float(self.task_step_val[task_id])
-            next_sentense_loss_val = self.next_sentense_loss_val[task_id] / float(self.task_step_val[task_id])
+            masked_t_loss_val = self.masked_t_loss_val[task_id] / float(
+                self.task_step_val[task_id]
+            )
+            masked_v_loss_val = self.masked_v_loss_val[task_id] / float(
+                self.task_step_val[task_id]
+            )
+            next_sentense_loss_val = self.next_sentense_loss_val[task_id] / float(
+                self.task_step_val[task_id]
+            )
 
-            lossInfo += '[%s]: masked_t %.3f masked_v %.3f NSP %.3f' %(self.task_id2name[task_id], masked_t_loss_val, masked_v_loss_val, next_sentense_loss_val)
+            lossInfo += "[%s]: masked_t %.3f masked_v %.3f NSP %.3f" % (
+                self.task_id2name[task_id],
+                masked_t_loss_val,
+                masked_v_loss_val,
+                next_sentense_loss_val,
+            )
 
-            self.linePlot(self.epochId, masked_t_loss_val, 'val', self.task_id2name[task_id] + '_mask_t')
-            self.linePlot(self.epochId, masked_v_loss_val, 'val', self.task_id2name[task_id] + '_maks_v')
-            self.linePlot(self.epochId, next_sentense_loss_val, 'val', self.task_id2name[task_id] + '_nsp')
+            self.linePlot(
+                self.epochId,
+                masked_t_loss_val,
+                "val",
+                self.task_id2name[task_id] + "_mask_t",
+            )
+            self.linePlot(
+                self.epochId,
+                masked_v_loss_val,
+                "val",
+                self.task_id2name[task_id] + "_maks_v",
+            )
+            self.linePlot(
+                self.epochId,
+                next_sentense_loss_val,
+                "val",
+                self.task_id2name[task_id] + "_nsp",
+            )
 
-        self.masked_t_loss_val = {task_id:0 for task_id in self.masked_t_loss_val}
-        self.masked_v_loss_val = {task_id:0 for task_id in self.masked_v_loss_val}
-        self.next_sentense_loss_val = {task_id:0 for task_id in self.next_sentense_loss_val}
-        self.task_datasize_val = {task_id:0 for task_id in self.task_datasize_val}
-        self.task_step_val = {task_id:0 for task_id in self.task_ids}
+        self.masked_t_loss_val = {task_id: 0 for task_id in self.masked_t_loss_val}
+        self.masked_v_loss_val = {task_id: 0 for task_id in self.masked_v_loss_val}
+        self.next_sentense_loss_val = {
+            task_id: 0 for task_id in self.next_sentense_loss_val
+        }
+        self.task_datasize_val = {task_id: 0 for task_id in self.task_datasize_val}
+        self.task_step_val = {task_id: 0 for task_id in self.task_ids}
 
         logger.info(lossInfo)
         print(lossInfo, file=self.txt_f)
 
     def showLossTrainCC(self):
-        # show the current loss, once showed, reset the loss. 
-        lossInfo = ''
+        # show the current loss, once showed, reset the loss.
+        lossInfo = ""
         for task_id in self.task_ids:
             if self.task_num_iters[task_id] > 0:
                 if self.task_step_tmp[task_id]:
-                    lossInfo += '[%s]: iter %d Ep: %.2f masked_t %.3f masked_v %.3f NSP %.3f lr %.6g' %(self.task_id2name[task_id], \
-                        self.task_step[task_id], self.task_step[task_id] / float(self.task_num_iters[task_id]), \
-                                            self.masked_t_loss[task_id] / float(self.task_step_tmp[task_id]), \
-                                            self.masked_v_loss[task_id] / float(self.task_step_tmp[task_id]), \
-                                            self.next_sentense_loss[task_id] / float(self.task_step_tmp[task_id]), \
-                                            self.task_norm_tmp[task_id] / float(self.task_step_tmp[task_id]))
-        
+                    lossInfo += (
+                        "[%s]: iter %d Ep: %.2f masked_t %.3f masked_v %.3f NSP %.3f lr %.6g"
+                        % (
+                            self.task_id2name[task_id],
+                            self.task_step[task_id],
+                            self.task_step[task_id]
+                            / float(self.task_num_iters[task_id]),
+                            self.masked_t_loss[task_id]
+                            / float(self.task_step_tmp[task_id]),
+                            self.masked_v_loss[task_id]
+                            / float(self.task_step_tmp[task_id]),
+                            self.next_sentense_loss[task_id]
+                            / float(self.task_step_tmp[task_id]),
+                            self.task_norm_tmp[task_id]
+                            / float(self.task_step_tmp[task_id]),
+                        )
+                    )
+
         logger.info(lossInfo)
         print(lossInfo, file=self.txt_f)
 
-        self.task_step_tmp = {task_id:0 for task_id in self.task_ids}
-        self.masked_t_loss = {task_id:0 for task_id in self.task_ids}
-        self.masked_v_loss =  {task_id:0 for task_id in self.task_ids}
-        self.next_sentense_loss = {task_id:0 for task_id in self.task_ids}
-        self.task_norm_tmp = {task_id:0 for task_id in self.task_ids}
+        self.task_step_tmp = {task_id: 0 for task_id in self.task_ids}
+        self.masked_t_loss = {task_id: 0 for task_id in self.task_ids}
+        self.masked_v_loss = {task_id: 0 for task_id in self.task_ids}
+        self.next_sentense_loss = {task_id: 0 for task_id in self.task_ids}
+        self.task_norm_tmp = {task_id: 0 for task_id in self.task_ids}
+
 
 def url_to_filename(url, etag=None):
     """
@@ -369,6 +498,7 @@ def url_to_filename(url, etag=None):
         filename += "." + etag_hash.hexdigest()
 
     return filename
+
 
 def filename_to_url(filename, cache_dir=None):
     """
@@ -423,7 +553,10 @@ def cached_path(url_or_filename, cache_dir=None):
         raise EnvironmentError("file {} not found".format(url_or_filename))
     else:
         # Something unknown
-        raise ValueError("unable to parse {} as a URL or as a local path".format(url_or_filename))
+        raise ValueError(
+            "unable to parse {} as a URL or as a local path".format(url_or_filename)
+        )
+
 
 def split_s3_path(url):
     """Split a full s3 path into the bucket name and path."""
@@ -443,6 +576,7 @@ def s3_request(func):
     Wrapper function for s3 requests in order to create more helpful error
     messages.
     """
+
     @wraps(func)
     def wrapper(url, *args, **kwargs):
         try:
@@ -452,7 +586,9 @@ def s3_request(func):
                 raise EnvironmentError("file {} not found".format(url))
             else:
                 raise
+
     return wrapper
+
 
 @s3_request
 def s3_etag(url):
@@ -462,12 +598,14 @@ def s3_etag(url):
     s3_object = s3_resource.Object(bucket_name, s3_path)
     return s3_object.e_tag
 
+
 @s3_request
 def s3_get(url, temp_file):
     """Pull a file directly from S3."""
     s3_resource = boto3.resource("s3")
     bucket_name, s3_path = split_s3_path(url)
     s3_resource.Bucket(bucket_name).download_fileobj(s3_path, temp_file)
+
 
 def http_get(url, temp_file):
     req = requests.get(url, stream=True)
@@ -555,10 +693,12 @@ def read_set_from_file(filename):
             collection.add(line.rstrip())
     return collection
 
+
 def get_file_extension(path, dot=True, lower=True):
     ext = os.path.splitext(path)[1]
     ext = ext if dot else ext[1:]
     return ext.lower() if lower else ext
+
 
 class PreTrainedModel(nn.Module):
     r""" Base class for all models.
@@ -619,7 +759,9 @@ class PreTrainedModel(nn.Module):
 
         # Copy word embeddings from the previous weights
         num_tokens_to_copy = min(old_num_tokens, new_num_tokens)
-        new_embeddings.weight.data[:num_tokens_to_copy, :] = old_embeddings.weight.data[:num_tokens_to_copy, :]
+        new_embeddings.weight.data[:num_tokens_to_copy, :] = old_embeddings.weight.data[
+            :num_tokens_to_copy, :
+        ]
 
         return new_embeddings
 
@@ -639,7 +781,9 @@ class PreTrainedModel(nn.Module):
         Return: ``torch.nn.Embeddings``
             Pointer to the input tokens Embeddings Module of the model
         """
-        base_model = getattr(self, self.base_model_prefix, self)  # get the base model if needed
+        base_model = getattr(
+            self, self.base_model_prefix, self
+        )  # get the base model if needed
         model_embeds = base_model._resize_token_embeddings(new_num_tokens)
         if new_num_tokens is None:
             return model_embeds
@@ -649,7 +793,7 @@ class PreTrainedModel(nn.Module):
         base_model.vocab_size = new_num_tokens
 
         # Tie weights again if needed
-        if hasattr(self, 'tie_weights'):
+        if hasattr(self, "tie_weights"):
             self.tie_weights()
 
         return model_embeds
@@ -659,17 +803,21 @@ class PreTrainedModel(nn.Module):
             Arguments:
                 heads_to_prune: dict with keys being selected layer indices (`int`) and associated values being the list of heads to prune in said layer (list of `int`).
         """
-        base_model = getattr(self, self.base_model_prefix, self)  # get the base model if needed
+        base_model = getattr(
+            self, self.base_model_prefix, self
+        )  # get the base model if needed
         base_model._prune_heads(heads_to_prune)
 
     def save_pretrained(self, save_directory):
         """ Save a model and its configuration file to a directory, so that it
             can be re-loaded using the `:func:`~pytorch_transformers.PreTrainedModel.from_pretrained`` class method.
         """
-        assert os.path.isdir(save_directory), "Saving path should be a directory where the model and configuration can be saved"
+        assert os.path.isdir(
+            save_directory
+        ), "Saving path should be a directory where the model and configuration can be saved"
 
         # Only save the model it-self if we are using distributed training
-        model_to_save = self.module if hasattr(self, 'module') else self
+        model_to_save = self.module if hasattr(self, "module") else self
 
         # Save configuration file
         model_to_save.config.save_pretrained(save_directory)
@@ -680,12 +828,7 @@ class PreTrainedModel(nn.Module):
         torch.save(model_to_save.state_dict(), output_model_file)
 
     @classmethod
-    def from_pretrained(
-        cls,
-        pretrained_model_name_or_path,
-        *model_args,
-        **kwargs
-    ):
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
         r"""Instantiate a pretrained pytorch model from a pre-trained model configuration.
         The model is set in evaluation mode by default using ``model.eval()`` (Dropout modules are deactivated)
         To train the model, you should first set it back in training mode with ``model.train()``
@@ -727,12 +870,12 @@ class PreTrainedModel(nn.Module):
             model = BertModel.from_pretrained('./tf_model/my_tf_checkpoint.ckpt.index', from_tf=True, config=config)
         """
 
-        config = kwargs.pop('config', None)
-        state_dict = kwargs.pop('state_dict', None)
-        cache_dir = kwargs.pop('cache_dir', None)
-        from_tf = kwargs.pop('from_tf', False)
-        output_loading_info = kwargs.pop('output_loading_info', False)
-        default_gpu = kwargs.pop('default_gpu', True)
+        config = kwargs.pop("config", None)
+        state_dict = kwargs.pop("state_dict", None)
+        cache_dir = kwargs.pop("cache_dir", None)
+        from_tf = kwargs.pop("from_tf", False)
+        output_loading_info = kwargs.pop("output_loading_info", False)
+        default_gpu = kwargs.pop("default_gpu", True)
 
         # Load config
         assert config is not None
@@ -740,11 +883,15 @@ class PreTrainedModel(nn.Module):
 
         # Load model
         if pretrained_model_name_or_path in cls.pretrained_model_archive_map:
-            archive_file = cls.pretrained_model_archive_map[pretrained_model_name_or_path]
+            archive_file = cls.pretrained_model_archive_map[
+                pretrained_model_name_or_path
+            ]
         elif os.path.isdir(pretrained_model_name_or_path):
             if from_tf:
                 # Directly load from a TensorFlow checkpoint
-                archive_file = os.path.join(pretrained_model_name_or_path, TF_WEIGHTS_NAME + ".index")
+                archive_file = os.path.join(
+                    pretrained_model_name_or_path, TF_WEIGHTS_NAME + ".index"
+                )
             else:
                 archive_file = os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)
         else:
@@ -760,41 +907,50 @@ class PreTrainedModel(nn.Module):
             if pretrained_model_name_or_path in cls.pretrained_model_archive_map:
                 logger.error(
                     "Couldn't reach server at '{}' to download pretrained weights.".format(
-                        archive_file))
+                        archive_file
+                    )
+                )
             else:
                 logger.error(
                     "Model name '{}' was not found in model name list ({}). "
                     "We assumed '{}' was a path or url but couldn't find any file "
                     "associated to this path or url.".format(
                         pretrained_model_name_or_path,
-                        ', '.join(cls.pretrained_model_archive_map.keys()),
-                        archive_file))
+                        ", ".join(cls.pretrained_model_archive_map.keys()),
+                        archive_file,
+                    )
+                )
             return None
         if default_gpu:
             if resolved_archive_file == archive_file:
                 logger.info("loading weights file {}".format(archive_file))
             else:
-                logger.info("loading weights file {} from cache at {}".format(
-                    archive_file, resolved_archive_file))
+                logger.info(
+                    "loading weights file {} from cache at {}".format(
+                        archive_file, resolved_archive_file
+                    )
+                )
 
         # Instantiate model.
         model = cls(config, *model_args, **model_kwargs)
 
         if state_dict is None and not from_tf:
-            state_dict = torch.load(resolved_archive_file, map_location='cpu')
+            state_dict = torch.load(resolved_archive_file, map_location="cpu")
         if from_tf:
             # Directly load from a TensorFlow checkpoint
-            return cls.load_tf_weights(model, config, resolved_archive_file[:-6])  # Remove the '.index'
+            return cls.load_tf_weights(
+                model, config, resolved_archive_file[:-6]
+            )  # Remove the '.index'
 
         # Convert old format to new format if needed from a PyTorch state_dict
         old_keys = []
         new_keys = []
         for key in state_dict.keys():
             new_key = None
-            if 'gamma' in key:
-                new_key = key.replace('gamma', 'weight')
-            if 'beta' in key:
-                new_key = key.replace('beta', 'bias')
+            if "gamma" in key:
+                new_key = key.replace("gamma", "weight")
+            if "beta" in key:
+                new_key = key.replace("beta", "bias")
             if new_key:
                 old_keys.append(key)
                 new_keys.append(new_key)
@@ -806,48 +962,71 @@ class PreTrainedModel(nn.Module):
         unexpected_keys = []
         error_msgs = []
         # copy state_dict so _load_from_state_dict can modify it
-        metadata = getattr(state_dict, '_metadata', None)
+        metadata = getattr(state_dict, "_metadata", None)
         state_dict = state_dict.copy()
         if metadata is not None:
             state_dict._metadata = metadata
 
-        def load(module, prefix=''):
+        def load(module, prefix=""):
             # bert.embeddings.word_embeddings.weight
             local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
             module._load_from_state_dict(
-                state_dict, prefix, local_metadata, True, missing_keys, unexpected_keys, error_msgs)
+                state_dict,
+                prefix,
+                local_metadata,
+                True,
+                missing_keys,
+                unexpected_keys,
+                error_msgs,
+            )
             for name, child in module._modules.items():
                 if child is not None:
-                    load(child, prefix + name + '.')
+                    load(child, prefix + name + ".")
 
         # Make sure we are able to load base models as well as derived models (with heads)
-        start_prefix = ''
+        start_prefix = ""
         model_to_load = model
-        if not hasattr(model, cls.base_model_prefix) and any(s.startswith(cls.base_model_prefix) for s in state_dict.keys()):
-            start_prefix = cls.base_model_prefix + '.'
-        if hasattr(model, cls.base_model_prefix) and not any(s.startswith(cls.base_model_prefix) for s in state_dict.keys()):
+        if not hasattr(model, cls.base_model_prefix) and any(
+            s.startswith(cls.base_model_prefix) for s in state_dict.keys()
+        ):
+            start_prefix = cls.base_model_prefix + "."
+        if hasattr(model, cls.base_model_prefix) and not any(
+            s.startswith(cls.base_model_prefix) for s in state_dict.keys()
+        ):
             model_to_load = getattr(model, cls.base_model_prefix)
 
         load(model_to_load, prefix=start_prefix)
         if len(missing_keys) > 0 and default_gpu:
-            logger.info("Weights of {} not initialized from pretrained model: {}".format(
-                model.__class__.__name__, missing_keys))
+            logger.info(
+                "Weights of {} not initialized from pretrained model: {}".format(
+                    model.__class__.__name__, missing_keys
+                )
+            )
         if len(unexpected_keys) > 0 and default_gpu:
-            logger.info("Weights from pretrained model not used in {}: {}".format(
-                model.__class__.__name__, unexpected_keys))
+            logger.info(
+                "Weights from pretrained model not used in {}: {}".format(
+                    model.__class__.__name__, unexpected_keys
+                )
+            )
         if len(error_msgs) > 0 and default_gpu:
-            raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(
-                               model.__class__.__name__, "\n\t".join(error_msgs)))
+            raise RuntimeError(
+                "Error(s) in loading state_dict for {}:\n\t{}".format(
+                    model.__class__.__name__, "\n\t".join(error_msgs)
+                )
+            )
 
-        if hasattr(model, 'tie_weights'):
+        if hasattr(model, "tie_weights"):
             model.tie_weights()  # make sure word embedding weights are still tied
 
         # Set model in evaluation mode to desactivate DropOut modules by default
         model.eval()
 
         if output_loading_info:
-            loading_info = {"missing_keys": missing_keys, "unexpected_keys": unexpected_keys, "error_msgs": error_msgs}
+            loading_info = {
+                "missing_keys": missing_keys,
+                "unexpected_keys": unexpected_keys,
+                "error_msgs": error_msgs,
+            }
             return model, loading_info
 
         return model
-        

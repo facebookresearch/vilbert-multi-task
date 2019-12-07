@@ -47,7 +47,9 @@ def _load_dataset(dataroot, name, clean_datasets):
 
             remove_ids = []
             if clean_datasets:
-                remove_ids = np.load(os.path.join(dataroot, "cache", "flickr_test_ids.npy"))
+                remove_ids = np.load(
+                    os.path.join(dataroot, "cache", "flickr_test_ids.npy")
+                )
                 remove_ids = [int(x) for x in remove_ids]
             # Build an index which maps image id with a list of hypothesis annotations.
             items = []
@@ -106,13 +108,25 @@ class VisualEntailmentDataset(Dataset):
 
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl",
             )
 
         if not os.path.exists(cache_path):
@@ -140,7 +154,7 @@ class VisualEntailmentDataset(Dataset):
             # ]
 
             tokens = self._tokenizer.encode(entry["hypothesis"])
-            tokens = tokens[:max_length-2]
+            tokens = tokens[: max_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             segment_ids = [0] * len(tokens)

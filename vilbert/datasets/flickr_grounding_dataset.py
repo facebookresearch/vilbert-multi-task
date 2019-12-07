@@ -59,6 +59,7 @@ def iou(anchors, gt_boxes):
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
 
+
 def get_sentence_data(fn):
     """
     Parses a sentence file from the Flickr30K Entities dataset
@@ -77,8 +78,8 @@ def get_sentence_data(fn):
                       phrase_type - a list of the coarse categories this 
                                     phrase belongs to
     """
-    with open(fn, 'r') as f:
-        sentences = f.read().split('\n')
+    with open(fn, "r") as f:
+        sentences = f.read().split("\n")
 
     annotations = []
     for sentence in sentences:
@@ -94,36 +95,43 @@ def get_sentence_data(fn):
         add_to_phrase = False
         for token in sentence.split():
             if add_to_phrase:
-                if token[-1] == ']':
+                if token[-1] == "]":
                     add_to_phrase = False
                     token = token[:-1]
                     current_phrase.append(token)
-                    phrases.append(' '.join(current_phrase))
+                    phrases.append(" ".join(current_phrase))
                     current_phrase = []
                 else:
                     current_phrase.append(token)
 
                 words.append(token)
             else:
-                if token[0] == '[':
+                if token[0] == "[":
                     add_to_phrase = True
                     first_word.append(len(words))
-                    parts = token.split('/')
+                    parts = token.split("/")
                     phrase_id.append(parts[1][3:])
                     phrase_type.append(parts[2:])
                 else:
                     words.append(token)
 
-        sentence_data = {'sentence' : ' '.join(words), 'phrases' : []}
-        for index, phrase, p_id, p_type in zip(first_word, phrases, phrase_id, phrase_type):
-            sentence_data['phrases'].append({'first_word_index' : index,
-                                             'phrase' : phrase,
-                                             'phrase_id' : p_id,
-                                             'phrase_type' : p_type})
+        sentence_data = {"sentence": " ".join(words), "phrases": []}
+        for index, phrase, p_id, p_type in zip(
+            first_word, phrases, phrase_id, phrase_type
+        ):
+            sentence_data["phrases"].append(
+                {
+                    "first_word_index": index,
+                    "phrase": phrase,
+                    "phrase_id": p_id,
+                    "phrase_type": p_type,
+                }
+            )
 
         annotations.append(sentence_data)
 
     return annotations
+
 
 def get_annotations(fn):
     """
@@ -142,31 +150,31 @@ def get_annotations(fn):
     """
     tree = ET.parse(fn)
     root = tree.getroot()
-    size_container = root.findall('size')[0]
-    anno_info = {'boxes' : {}, 'scene' : [], 'nobox' : []}
+    size_container = root.findall("size")[0]
+    anno_info = {"boxes": {}, "scene": [], "nobox": []}
     for size_element in size_container:
         anno_info[size_element.tag] = int(size_element.text)
 
-    for object_container in root.findall('object'):
-        for names in object_container.findall('name'):
+    for object_container in root.findall("object"):
+        for names in object_container.findall("name"):
             box_id = names.text
-            box_container = object_container.findall('bndbox')
+            box_container = object_container.findall("bndbox")
             if len(box_container) > 0:
-                if box_id not in anno_info['boxes']:
-                    anno_info['boxes'][box_id] = []
-                xmin = int(box_container[0].findall('xmin')[0].text) - 1
-                ymin = int(box_container[0].findall('ymin')[0].text) - 1
-                xmax = int(box_container[0].findall('xmax')[0].text) - 1
-                ymax = int(box_container[0].findall('ymax')[0].text) - 1
-                anno_info['boxes'][box_id].append([xmin, ymin, xmax, ymax])
+                if box_id not in anno_info["boxes"]:
+                    anno_info["boxes"][box_id] = []
+                xmin = int(box_container[0].findall("xmin")[0].text) - 1
+                ymin = int(box_container[0].findall("ymin")[0].text) - 1
+                xmax = int(box_container[0].findall("xmax")[0].text) - 1
+                ymax = int(box_container[0].findall("ymax")[0].text) - 1
+                anno_info["boxes"][box_id].append([xmin, ymin, xmax, ymax])
             else:
-                nobndbox = int(object_container.findall('nobndbox')[0].text)
+                nobndbox = int(object_container.findall("nobndbox")[0].text)
                 if nobndbox > 0:
-                    anno_info['nobox'].append(box_id)
+                    anno_info["nobox"].append(box_id)
 
-                scene = int(object_container.findall('scene')[0].text)
+                scene = int(object_container.findall("scene")[0].text)
                 if scene > 0:
-                    anno_info['scene'].append(box_id)
+                    anno_info["scene"].append(box_id)
 
     return anno_info
 
@@ -202,13 +210,35 @@ class FlickrGroundingDataset(Dataset):
 
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + clean_train
+                + ".pkl",
             )
 
         if not os.path.exists(cache_path):
@@ -224,27 +254,44 @@ class FlickrGroundingDataset(Dataset):
         entries = []
         remove_ids = []
         if clean_datasets:
-            remove_ids = np.load(os.path.join(self.dataroot, "cache", "flickr_test_ids.npy"))
+            remove_ids = np.load(
+                os.path.join(self.dataroot, "cache", "flickr_test_ids.npy")
+            )
             remove_ids = [int(x) for x in remove_ids]
 
-        with open(os.path.join('/checkpoint/vedanuj/datasets/flickr30k', '%s.txt' % self.split), "r") as f:
+        with open(
+            os.path.join(
+                "/checkpoint/vedanuj/datasets/flickr30k", "%s.txt" % self.split
+            ),
+            "r",
+        ) as f:
             images = f.read().splitlines()
 
         for img in images:
-            if self.split == 'train' and int(img) in remove_ids:
+            if self.split == "train" and int(img) in remove_ids:
                 continue
-            annotation = get_annotations(os.path.join('/checkpoint/vedanuj/datasets/flickr30k/Annotations', img + '.xml'))
-            sentences = get_sentence_data(os.path.join('/checkpoint/vedanuj/datasets/flickr30k/Sentences', img + '.txt'))
+            annotation = get_annotations(
+                os.path.join(
+                    "/checkpoint/vedanuj/datasets/flickr30k/Annotations", img + ".xml"
+                )
+            )
+            sentences = get_sentence_data(
+                os.path.join(
+                    "/checkpoint/vedanuj/datasets/flickr30k/Sentences", img + ".txt"
+                )
+            )
 
             for i, sent in enumerate(sentences):
-                for phrase in sent['phrases']:
-                    if str(phrase['phrase_id']) in annotation['boxes'].keys():
+                for phrase in sent["phrases"]:
+                    if str(phrase["phrase_id"]) in annotation["boxes"].keys():
                         entries.append(
                             {
-                                "caption": phrase['phrase'],
-                                "sent_id": phrase['phrase_id'],
+                                "caption": phrase["phrase"],
+                                "sent_id": phrase["phrase_id"],
                                 "image_id": int(img),
-                                "refBox": annotation['boxes'][str(phrase['phrase_id'])][0],
+                                "refBox": annotation["boxes"][str(phrase["phrase_id"])][
+                                    0
+                                ],
                             }
                         )
 
@@ -267,7 +314,7 @@ class FlickrGroundingDataset(Dataset):
             # ]
 
             tokens = self._tokenizer.encode(entry["caption"])
-            tokens = tokens[: self._max_seq_length-2]
+            tokens = tokens[: self._max_seq_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             segment_ids = [0] * len(tokens)

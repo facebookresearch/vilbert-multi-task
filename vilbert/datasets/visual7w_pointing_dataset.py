@@ -91,13 +91,35 @@ class Visual7wPointingDataset(Dataset):
         self.max_region_num = max_region_num
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + clean_train
+                + ".pkl",
             )
 
         if not os.path.exists(cache_path):
@@ -112,43 +134,50 @@ class Visual7wPointingDataset(Dataset):
         # Build an index which maps image id with a list of caption annotations.
         entries = []
         remove_ids = []
-        if clean_datasets or self.split == 'mteval':
-            remove_ids = np.load(os.path.join(self.dataroot, "cache", "genome_test_ids.npy"))
+        if clean_datasets or self.split == "mteval":
+            remove_ids = np.load(
+                os.path.join(self.dataroot, "cache", "genome_test_ids.npy")
+            )
             remove_ids = [int(x) for x in remove_ids]
 
         with open(os.path.join(self.dataroot, "dataset_v7w_pointing.json"), "rb") as f:
             visual7w = json.load(f)
         boxes_dict = {}
-        for b in visual7w['boxes']:
-            boxes_dict[b['box_id']] = [b['x'], b['y'], b['x'] + b['width'], b['y'] + b['height']]
-        if self.split == 'mteval':
-            split = 'train'
+        for b in visual7w["boxes"]:
+            boxes_dict[b["box_id"]] = [
+                b["x"],
+                b["y"],
+                b["x"] + b["width"],
+                b["y"] + b["height"],
+            ]
+        if self.split == "mteval":
+            split = "train"
         else:
             split = self.split
-        for img in visual7w['images']:
-            if img['split'] == split:
-                if self.split == 'train' and int(img['image_id']) in remove_ids:
+        for img in visual7w["images"]:
+            if img["split"] == split:
+                if self.split == "train" and int(img["image_id"]) in remove_ids:
                     continue
-                elif self.split == 'mteval' and int(img['image_id']) not in remove_ids:
+                elif self.split == "mteval" and int(img["image_id"]) not in remove_ids:
                     continue
                 bboxes = []
-                for qa in img['qa_pairs']:
-                    bboxes.extend(qa['multiple_choices'])
-                    bboxes.append(qa['answer'])
+                for qa in img["qa_pairs"]:
+                    bboxes.extend(qa["multiple_choices"])
+                    bboxes.append(qa["answer"])
                 bboxes = list(set(bboxes))
                 bboxes = sorted(bboxes)
 
-                for qa in img['qa_pairs']:
+                for qa in img["qa_pairs"]:
                     bbox_idx = []
-                    for a in sorted(qa['multiple_choices'] + [qa['answer']]):
+                    for a in sorted(qa["multiple_choices"] + [qa["answer"]]):
                         bbox_idx.append(bboxes.index(a))
                     entries.append(
                         {
-                            "caption": qa['question'],
-                            "sent_id": qa['qa_id'],
-                            "image_id": img['image_id'],
-                            "refBox": boxes_dict[qa['answer']],
-                            "ref_id": qa['answer'],
+                            "caption": qa["question"],
+                            "sent_id": qa["qa_id"],
+                            "image_id": img["image_id"],
+                            "refBox": boxes_dict[qa["answer"]],
+                            "ref_id": qa["answer"],
                             "mc_idx": bbox_idx,
                         }
                     )
@@ -172,7 +201,7 @@ class Visual7wPointingDataset(Dataset):
             # ]
 
             tokens = self._tokenizer.encode(entry["caption"])
-            tokens = tokens[: self._max_seq_length-2]
+            tokens = tokens[: self._max_seq_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             segment_ids = [0] * len(tokens)
@@ -209,7 +238,9 @@ class Visual7wPointingDataset(Dataset):
         ref_box = entry["refBox"]
         multiple_choice_idx = torch.from_numpy(np.array(entry["mc_idx"]))
 
-        features, num_boxes, boxes, boxes_ori = self._image_features_reader["v7w_" + str(image_id)]
+        features, num_boxes, boxes, boxes_ori = self._image_features_reader[
+            "v7w_" + str(image_id)
+        ]
 
         boxes_ori = boxes_ori[:num_boxes]
         boxes = boxes[:num_boxes]
@@ -228,13 +259,10 @@ class Visual7wPointingDataset(Dataset):
         mix_boxes_ori = np.concatenate((boxes_ori, gt_boxes_ori), axis=0)
         mix_boxes = np.concatenate((boxes, gt_boxes), axis=0)
         mix_features = np.concatenate((features, gt_features), axis=0)
-        mix_num_boxes = min(
-            int(num_boxes + int(gt_num_boxes) - 1), self.max_region_num
-        )
+        mix_num_boxes = min(int(num_boxes + int(gt_num_boxes) - 1), self.max_region_num)
         # given the mix boxes, and ref_box, calculate the overlap.
         target = iou(
-            torch.tensor(mix_boxes_ori[:, :4]).float(),
-            torch.tensor([ref_box]).float(),
+            torch.tensor(mix_boxes_ori[:, :4]).float(), torch.tensor([ref_box]).float()
         )
         target[target < 0.5] = 0
         # Only require the multiple choice bbox targets for calculating loss

@@ -40,6 +40,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -94,12 +95,20 @@ def main():
         "than this will be padded.",
     )
 
-    parser.add_argument("--use_location", action="store_true", help="whether use location.")
     parser.add_argument(
-        "--train_batch_size", default=128, type=int, help="Total batch size for training."
+        "--use_location", action="store_true", help="whether use location."
     )
     parser.add_argument(
-        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
+        "--train_batch_size",
+        default=128,
+        type=int,
+        help="Total batch size for training.",
+    )
+    parser.add_argument(
+        "--learning_rate",
+        default=5e-5,
+        type=float,
+        help="The initial learning rate for Adam.",
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -124,10 +133,15 @@ def main():
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument(
-        "--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus"
+        "--local_rank",
+        type=int,
+        default=-1,
+        help="local_rank for distributed training on gpus",
     )
-    
-    parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
+
+    parser.add_argument(
+        "--seed", type=int, default=42, help="random seed for initialization"
+    )
     parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
@@ -148,26 +162,31 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=20, help="Number of workers in the dataloader."
+        "--num_workers",
+        type=int,
+        default=20,
+        help="Number of workers in the dataloader.",
     )
     parser.add_argument(
-        "--from_pretrained", action="store_true", help="Wheter the tensor is from pretrained."
+        "--from_pretrained",
+        action="store_true",
+        help="Wheter the tensor is from pretrained.",
     )
     parser.add_argument(
-        "--save_name",
-        default='',
-        type=str,
-        help="save name for training.",
+        "--save_name", default="", type=str, help="save name for training."
     )
     parser.add_argument(
-        "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+        "--baseline",
+        action="store_true",
+        help="Wheter to use the baseline model (single bert).",
     )
-    parser.add_argument(
-        "--split", default='test', type=str, help="train or trainval."
-    )
+    parser.add_argument("--split", default="test", type=str, help="train or trainval.")
 
     parser.add_argument(
-        "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
+        "--use_chunk",
+        default=0,
+        type=float,
+        help="whether use chunck for parallel training.",
     )
     args = parser.parse_args()
 
@@ -178,26 +197,28 @@ def main():
         from multimodal_bert.multi_modal_bert import MultiModalBertForVQA, BertConfig
 
     print(args)
-    if args.save_name is not '':
+    if args.save_name is not "":
         timeStamp = args.save_name
     else:
         timeStamp = strftime("%d-%b-%y-%X-%a", gmtime())
         timeStamp += "_{:0>6d}".format(random.randint(0, 10e6))
-    
+
     savePath = os.path.join(args.output_dir, timeStamp)
 
     if not os.path.exists(savePath):
         os.makedirs(savePath)
-    
+
     config = BertConfig.from_json_file(args.config_file)
-    # save all the hidden parameters. 
-    with open(os.path.join(savePath, 'command.txt'), 'w') as f:
+    # save all the hidden parameters.
+    with open(os.path.join(savePath, "command.txt"), "w") as f:
         print(args, file=f)  # Python 3.x
-        print('\n', file=f)
+        print("\n", file=f)
         print(config, file=f)
 
     if args.local_rank == -1 or args.no_cuda:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
+        )
         n_gpu = torch.cuda.device_count()
     else:
         torch.cuda.set_device(args.local_rank)
@@ -229,14 +250,22 @@ def main():
     )
     image_features_reader = ImageFeaturesH5Reader(args.features_h5path, True)
 
-    if args.split == 'minval':
-        eval_dset = VQAClassificationDataset("minval", image_features_reader, tokenizer, dataroot="data/VQA")
-    elif args.split == 'test':
-        eval_dset = VQAClassificationDataset("test", image_features_reader, tokenizer, dataroot="data/VQA")
-    elif args.split == 'val':
-        eval_dset = VQAClassificationDataset("val", image_features_reader, tokenizer, dataroot="data/VQA")
-    elif args.split == 'test-dev':
-        eval_dset = VQAClassificationDataset("test-dev", image_features_reader, tokenizer, dataroot="data/VQA")
+    if args.split == "minval":
+        eval_dset = VQAClassificationDataset(
+            "minval", image_features_reader, tokenizer, dataroot="data/VQA"
+        )
+    elif args.split == "test":
+        eval_dset = VQAClassificationDataset(
+            "test", image_features_reader, tokenizer, dataroot="data/VQA"
+        )
+    elif args.split == "val":
+        eval_dset = VQAClassificationDataset(
+            "val", image_features_reader, tokenizer, dataroot="data/VQA"
+        )
+    elif args.split == "test-dev":
+        eval_dset = VQAClassificationDataset(
+            "test-dev", image_features_reader, tokenizer, dataroot="data/VQA"
+        )
 
     num_labels = eval_dset.num_ans_candidates
     if args.from_pretrained:
@@ -287,6 +316,7 @@ def main():
     eval_score, bound = evaluate(args, model, eval_dataloader)
     logger.info("\teval score: %.2f (%.2f)" % (100 * eval_score, 100 * bound))
 
+
 class TBlogger:
     def __init__(self, log_dir):
         print("logging file at: " + log_dir)
@@ -295,6 +325,7 @@ class TBlogger:
     def linePlot(self, step, val, split, key, xlabel="None"):
         self.logger.add_scalar(split + "/" + key, val, step)
 
+
 def evaluate(args, model, dataloader):
     score = 0
     upper_bound = 0
@@ -302,25 +333,34 @@ def evaluate(args, model, dataloader):
     results = []
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, question, target, input_mask, segment_ids, question_id = batch
+        features, spatials, image_mask, question, target, input_mask, segment_ids, question_id = (
+            batch
+        )
         with torch.no_grad():
-            pred = model(question, features, spatials, segment_ids, input_mask, image_mask)
+            pred = model(
+                question, features, spatials, segment_ids, input_mask, image_mask
+            )
             logits = torch.max(pred, 1)[1].data  # argmax
 
             for i in range(logits.size(0)):
-                results.append({'question_id':question_id[i].item(), \
-                        'answer':dataloader.dataset.label2ans[logits[i].item()]})
+                results.append(
+                    {
+                        "question_id": question_id[i].item(),
+                        "answer": dataloader.dataset.label2ans[logits[i].item()],
+                    }
+                )
 
         # batch_score = compute_score_with_logits(pred, target.cuda()).sum()
         # score += batch_score.item()
         # upper_bound += (target.max(1)[0]).sum()
         # num_data += pred.size(0)
 
-    json.dump(results, open(args.save_name+'.json','w'))
+    json.dump(results, open(args.save_name + ".json", "w"))
 
     # score = score / len(dataloader.dataset)
     # upper_bound = upper_bound / len(dataloader.dataset)
     # return score, upper_bound
+
 
 def instance_bce_with_logits(logits, labels):
     assert logits.dim() == 2
@@ -328,12 +368,14 @@ def instance_bce_with_logits(logits, labels):
     loss *= labels.size(1)
     return loss
 
+
 def compute_score_with_logits(logits, labels):
     logits = torch.max(logits, 1)[1].data  # argmax
     one_hots = torch.zeros(*labels.size()).cuda()
     one_hots.scatter_(1, logits.view(-1, 1), 1)
     scores = one_hots * labels
     return scores
+
 
 def lr_lambda_update(i_iter):
     warmup_iterations = 1000
@@ -346,6 +388,7 @@ def lr_lambda_update(i_iter):
     else:
         idx = bisect([], i_iter)
         return pow(lr_ratio, idx)
+
 
 if __name__ == "__main__":
 

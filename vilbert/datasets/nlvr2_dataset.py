@@ -93,13 +93,24 @@ class NLVR2Dataset(Dataset):
         self._image_features_reader = image_features_reader
         self._tokenizer = tokenizer
         self._padding_index = padding_index
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + ".pkl"
+                dataroot,
+                "cache",
+                task + "_" + split + "_" + str(max_seq_length) + ".pkl",
             )
 
         if not os.path.exists(cache_path):
@@ -127,7 +138,7 @@ class NLVR2Dataset(Dataset):
             # ]
 
             tokens = self._tokenizer.encode(entry["sentence"])
-            tokens = tokens[:max_length-2]
+            tokens = tokens[: max_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             segment_ids = [0] * len(tokens)
@@ -190,14 +201,14 @@ class NLVR2Dataset(Dataset):
         mix_boxes_pad[:mix_num_boxes] = np.concatenate((boxes_0, boxes_1), axis=0)[
             :mix_num_boxes
         ]
-        
+
         mix_features_pad[:mix_num_boxes] = np.concatenate(
             (features_0, features_1), axis=0
         )[:mix_num_boxes]
 
         img_segment_ids = np.zeros((mix_features_pad.shape[0]))
-        img_segment_ids[:boxes_0.shape[0]] = 0
-        img_segment_ids[boxes_0.shape[0]:] = 1
+        img_segment_ids[: boxes_0.shape[0]] = 0
+        img_segment_ids[boxes_0.shape[0] :] = 1
 
         features = torch.tensor(mix_features_pad).float()
         image_mask = torch.tensor(image_mask).long()

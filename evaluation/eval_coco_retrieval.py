@@ -43,9 +43,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--features_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/flick30k/flickr30k.h5")
+    parser.add_argument(
+        "--features_h5path",
+        default="/coc/pskynet2/jlu347/multi-modal-bert/data/flick30k/flickr30k.h5",
+    )
 
     # Required parameters
     parser.add_argument(
@@ -97,10 +101,16 @@ def main():
     )
 
     parser.add_argument(
-        "--train_batch_size", default=128, type=int, help="Total batch size for training."
+        "--train_batch_size",
+        default=128,
+        type=int,
+        help="Total batch size for training.",
     )
     parser.add_argument(
-        "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam."
+        "--learning_rate",
+        default=5e-5,
+        type=float,
+        help="The initial learning rate for Adam.",
     )
     parser.add_argument(
         "--num_train_epochs",
@@ -125,10 +135,15 @@ def main():
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument(
-        "--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus"
+        "--local_rank",
+        type=int,
+        default=-1,
+        help="local_rank for distributed training on gpus",
     )
-    
-    parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
+
+    parser.add_argument(
+        "--seed", type=int, default=42, help="random seed for initialization"
+    )
     parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
@@ -149,19 +164,23 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=1, help="Number of workers in the dataloader."
+        "--num_workers",
+        type=int,
+        default=1,
+        help="Number of workers in the dataloader.",
     )
     parser.add_argument(
-        "--from_pretrained", action="store_true", help="Wheter the tensor is from pretrained."
+        "--from_pretrained",
+        action="store_true",
+        help="Wheter the tensor is from pretrained.",
     )
     parser.add_argument(
-        "--save_name",
-        default='',
-        type=str,
-        help="save name for training.",
+        "--save_name", default="", type=str, help="save name for training."
     )
     parser.add_argument(
-        "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+        "--baseline",
+        action="store_true",
+        help="Wheter to use the baseline model (single bert).",
     )
 
     parser.add_argument(
@@ -170,36 +189,40 @@ def main():
 
     args = parser.parse_args()
 
-
     if args.baseline:
         from pytorch_pretrained_bert.modeling import BertConfig
         from multimodal_bert.bert import MultiModalBertForImageCaptionRetrieval
         from multimodal_bert.bert import BertForMultiModalPreTraining
     else:
-        from multimodal_bert.multi_modal_bert import MultiModalBertForImageCaptionRetrieval, BertConfig
+        from multimodal_bert.multi_modal_bert import (
+            MultiModalBertForImageCaptionRetrieval,
+            BertConfig,
+        )
         from multimodal_bert.multi_modal_bert import BertForMultiModalPreTraining
 
     print(args)
-    if args.save_name is not '':
+    if args.save_name is not "":
         timeStamp = args.save_name
     else:
         timeStamp = strftime("%d-%b-%y-%X-%a", gmtime())
         timeStamp += "_{:0>6d}".format(random.randint(0, 10e6))
-    
+
     savePath = os.path.join(args.output_dir, timeStamp)
 
     if not os.path.exists(savePath):
         os.makedirs(savePath)
-    
+
     config = BertConfig.from_json_file(args.config_file)
-    # save all the hidden parameters. 
-    with open(os.path.join(savePath, 'command.txt'), 'w') as f:
+    # save all the hidden parameters.
+    with open(os.path.join(savePath, "command.txt"), "w") as f:
         print(args, file=f)  # Python 3.x
-        print('\n', file=f)
+        print("\n", file=f)
         print(config, file=f)
 
     if args.local_rank == -1 or args.no_cuda:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
+        )
         n_gpu = torch.cuda.device_count()
     else:
         torch.cuda.set_device(args.local_rank)
@@ -228,7 +251,6 @@ def main():
     if n_gpu > 0:
         torch.cuda.manual_seed_all(args.seed)
 
-
     # if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
     #     raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
 
@@ -249,7 +271,9 @@ def main():
     config.fast_mode = True
     if args.from_pretrained:
         if args.zero_shot:
-            model = BertForMultiModalPreTraining.from_pretrained(args.pretrained_weight, config)
+            model = BertForMultiModalPreTraining.from_pretrained(
+                args.pretrained_weight, config
+            )
         else:
             model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
                 args.pretrained_weight, config, dropout_prob=0.1
@@ -262,7 +286,7 @@ def main():
         else:
             model = MultiModalBertForImageCaptionRetrieval.from_pretrained(
                 args.bert_model, config, dropout_prob=0.1
-            )            
+            )
 
     if args.fp16:
         model.half()
@@ -298,11 +322,16 @@ def main():
     loss_tmp = 0
 
     r1, r5, r10, medr, meanr = evaluate(args, model, eval_dataloader)
-    print('finish evaluation, save result to %s' )
-    
-    val_name = args.val_file.split('/')[-1]
-    with open(os.path.join(savePath, val_name + '_result.txt'), 'w') as f:
-        print("r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr), file=f)
+    print("finish evaluation, save result to %s")
+
+    val_name = args.val_file.split("/")[-1]
+    with open(os.path.join(savePath, val_name + "_result.txt"), "w") as f:
+        print(
+            "r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f"
+            % (r1, r5, r10, medr, meanr),
+            file=f,
+        )
+
 
 def evaluate(args, model, dataloader):
     score = 0
@@ -316,7 +345,9 @@ def evaluate(args, model, dataloader):
     model.eval()
     for batch in tqdm(iter(dataloader)):
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, caption, input_mask, segment_ids, target, caption_idx, image_idx = batch
+        features, spatials, image_mask, caption, input_mask, segment_ids, target, caption_idx, image_idx = (
+            batch
+        )
 
         features = features.squeeze(0)
         spatials = spatials.squeeze(0)
@@ -324,26 +355,47 @@ def evaluate(args, model, dataloader):
 
         with torch.no_grad():
             if args.zero_shot:
-                _, _, logit, _ = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-                score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = torch.softmax(logit, dim=1)[:,0].view(-1).cpu().numpy()
-                target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.float().cpu().numpy()
+                _, _, logit, _ = model(
+                    caption, features, spatials, segment_ids, input_mask, image_mask
+                )
+                score_matrix[caption_idx, image_idx * 500 : (image_idx + 1) * 500] = (
+                    torch.softmax(logit, dim=1)[:, 0].view(-1).cpu().numpy()
+                )
+                target_matrix[caption_idx, image_idx * 500 : (image_idx + 1) * 500] = (
+                    target.float().cpu().numpy()
+                )
             else:
-                logit = model(caption, features, spatials, segment_ids, input_mask, image_mask)
-                score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = logit.view(-1).cpu().numpy()
-                target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.float().cpu().numpy()
-                
+                logit = model(
+                    caption, features, spatials, segment_ids, input_mask, image_mask
+                )
+                score_matrix[caption_idx, image_idx * 500 : (image_idx + 1) * 500] = (
+                    logit.view(-1).cpu().numpy()
+                )
+                target_matrix[caption_idx, image_idx * 500 : (image_idx + 1) * 500] = (
+                    target.float().cpu().numpy()
+                )
+
             if image_idx.item() == 1:
-                rank = np.where((np.argsort(-score_matrix[caption_idx]) == np.where(target_matrix[caption_idx]==1)[0][0]) == 1)[0][0]
+                rank = np.where(
+                    (
+                        np.argsort(-score_matrix[caption_idx])
+                        == np.where(target_matrix[caption_idx] == 1)[0][0]
+                    )
+                    == 1
+                )[0][0]
                 rank_matrix[caption_idx] = rank
 
-                rank_matrix_tmp = rank_matrix[:caption_idx+1]
-                r1 = 100.0 * np.sum(rank_matrix_tmp < 1) / len(rank_matrix_tmp)  
+                rank_matrix_tmp = rank_matrix[: caption_idx + 1]
+                r1 = 100.0 * np.sum(rank_matrix_tmp < 1) / len(rank_matrix_tmp)
                 r5 = 100.0 * np.sum(rank_matrix_tmp < 5) / len(rank_matrix_tmp)
                 r10 = 100.0 * np.sum(rank_matrix_tmp < 10) / len(rank_matrix_tmp)
 
                 medr = np.floor(np.median(rank_matrix_tmp) + 1)
                 meanr = np.mean(rank_matrix_tmp) + 1
-                logger.info("%d Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(count, r1, r5, r10, medr, meanr))
+                logger.info(
+                    "%d Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f"
+                    % (count, r1, r5, r10, medr, meanr)
+                )
 
         count += 1
 
@@ -351,10 +403,14 @@ def evaluate(args, model, dataloader):
     r5 = 100.0 * np.sum(rank_matrix < 5) / len(rank_matrix)
     r10 = 100.0 * np.sum(rank_matrix < 10) / len(rank_matrix)
 
-    medr = np.floor(    np.median(rank_matrix) + 1)
+    medr = np.floor(np.median(rank_matrix) + 1)
     meanr = np.mean(rank_matrix) + 1
-    logger.info("Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr))
+    logger.info(
+        "Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f"
+        % (r1, r5, r10, medr, meanr)
+    )
     return r1, r5, r10, medr, meanr
+
 
 if __name__ == "__main__":
 

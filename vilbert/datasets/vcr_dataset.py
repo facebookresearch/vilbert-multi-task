@@ -20,8 +20,10 @@ import pdb
 import csv
 import sys
 
+
 def assert_eq(real, expected):
     assert real == expected, "%s (true) vs %s (expected)" % (real, expected)
+
 
 def _converId(img_id):
 
@@ -164,12 +166,34 @@ class VCRDataset(Dataset):
                     self._names.append(row[1])
 
         # cache file path data/cache/train_ques
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + "_vcr_fn.pkl")
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + "_vcr_fn.pkl",
+            )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + "_vcr_fn.pkl")
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + "_vcr_fn.pkl",
+            )
 
         if not os.path.exists(cache_path):
             self.tokenize()
@@ -197,7 +221,7 @@ class VCRDataset(Dataset):
             tokens_a, mask_a = self.replace_det_with_name(
                 entry["question"], random_names
             )
-            tokens_a = self._tokenizer.encode(' '.join(tokens_a))
+            tokens_a = self._tokenizer.encode(" ".join(tokens_a))
 
             input_ids_all = []
             # co_attention_mask_all = []
@@ -210,15 +234,19 @@ class VCRDataset(Dataset):
                 # self._truncate_seq_pair(
                 #     tokens_a, tokens_b, mask_a, mask_b, self._max_caption_length - 3
                 # )
-                tokens_b = self._tokenizer.encode(' '.join(tokens_b))
-                self._truncate_seq_pair(tokens_b, self._max_caption_length - 3 - len(tokens_a))
+                tokens_b = self._tokenizer.encode(" ".join(tokens_b))
+                self._truncate_seq_pair(
+                    tokens_b, self._max_caption_length - 3 - len(tokens_a)
+                )
 
-                if 'roberta' in self._bert_model:
-                    segment_ids = [0] * (len(tokens_a) + 2) +  [1] * (len(tokens_b) + 2)
+                if "roberta" in self._bert_model:
+                    segment_ids = [0] * (len(tokens_a) + 2) + [1] * (len(tokens_b) + 2)
                 else:
-                    segment_ids = [0] * (len(tokens_a) + 2) +  [1] * (len(tokens_b) + 1)
+                    segment_ids = [0] * (len(tokens_a) + 2) + [1] * (len(tokens_b) + 1)
 
-                input_ids = self._tokenizer.add_special_tokens_sentences_pair(tokens_a, tokens_b)
+                input_ids = self._tokenizer.add_special_tokens_sentences_pair(
+                    tokens_a, tokens_b
+                )
 
                 input_mask = [1] * len(input_ids)
                 # Zero-pad up to the sequence length.
@@ -316,7 +344,7 @@ class VCRDataset(Dataset):
             if total_length <= max_length:
                 break
             tokens_b.pop()
-                
+
     def __getitem__(self, index):
 
         entry = self._entries[index]
@@ -384,11 +412,7 @@ class VCRDataset(Dataset):
 
         # co_attention_idxs = entry["co_attention_mask"]
         co_attention_mask = torch.zeros(
-            (
-                len(entry["input_ids"]),
-                self._max_region_num,
-                self._max_caption_length,
-            )
+            (len(entry["input_ids"]), self._max_region_num, self._max_caption_length)
         )
 
         # for ii, co_attention_idx in enumerate(co_attention_idxs):

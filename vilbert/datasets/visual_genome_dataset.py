@@ -100,13 +100,25 @@ class GenomeQAClassificationDataset(Dataset):
 
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task + "_" + split + "_" + str(max_seq_length) + clean_train + ".pkl",
             )
 
         if not os.path.exists(cache_path):
@@ -133,9 +145,9 @@ class GenomeQAClassificationDataset(Dataset):
             #     for w in tokens
             # ]
             tokens = self._tokenizer.encode(entry["question"])
-            tokens = tokens[:max_length-2]
+            tokens = tokens[: max_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
-            
+
             segment_ids = [0] * len(tokens)
             input_mask = [1] * len(tokens)
 

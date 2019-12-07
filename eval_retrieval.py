@@ -20,10 +20,16 @@ import sys
 import pdb
 
 import torch
-import torch.nn.functional  as F
+import torch.nn.functional as F
 import torch.nn as nn
 
-from vilbert.task_utils import LoadDatasetEval, LoadLosses, ForwardModelsTrain, ForwardModelsVal, EvaluatingModel
+from vilbert.task_utils import (
+    LoadDatasetEval,
+    LoadLosses,
+    ForwardModelsTrain,
+    ForwardModelsVal,
+    EvaluatingModel,
+)
 from vilbert.vilbert import VILBertForVLTasks, BertForMultiModalPreTraining
 from vilbert.basebert import BaseBertForVLTasks
 
@@ -36,6 +42,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -76,9 +83,14 @@ def main():
         help="Whether to lower case the input text. True for uncased models, False for cased models.",
     )
     parser.add_argument(
-        "--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus"
+        "--local_rank",
+        type=int,
+        default=-1,
+        help="local_rank for distributed training on gpus",
     )
-    parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="random seed for initialization"
+    )
     parser.add_argument(
         "--fp16",
         action="store_true",
@@ -93,22 +105,28 @@ def main():
         "Positive power of 2: static loss scaling value.\n",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=16, help="Number of workers in the dataloader."
+        "--num_workers",
+        type=int,
+        default=16,
+        help="Number of workers in the dataloader.",
     )
     parser.add_argument(
-        "--save_name",
-        default='',
-        type=str,
-        help="save name for training.", 
+        "--save_name", default="", type=str, help="save name for training."
     )
     parser.add_argument(
-        "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
+        "--use_chunk",
+        default=0,
+        type=float,
+        help="whether use chunck for parallel training.",
     )
     parser.add_argument(
-        "--tasks", default='', type=str, help="1-2-3... training task separate by -"
+        "--tasks", default="", type=str, help="1-2-3... training task separate by -"
     )
     parser.add_argument(
-        "--in_memory", default=False, type=bool, help="whether use chunck for parallel training."
+        "--in_memory",
+        default=False,
+        type=bool,
+        help="whether use chunck for parallel training.",
     )
     parser.add_argument(
         "--baseline", action="store_true", help="whether use single stream baseline."
@@ -116,20 +134,21 @@ def main():
     parser.add_argument(
         "--zero_shot", action="store_true", help="whether use single stream baseline."
     )
+    parser.add_argument("--split", default="", type=str, help="which split to use.")
+    parser.add_argument("--batch_size", default=1, type=int, help="which split to use.")
     parser.add_argument(
-        "--split", default="", type=str, help="which split to use."
+        "--clean_train_sets",
+        default=True,
+        type=bool,
+        help="whether clean train sets for multitask data.",
     )
     parser.add_argument(
-        "--batch_size", default=1, type=int, help="which split to use."
+        "--task_specific_tokens",
+        action="store_true",
+        help="whether to use task specific tokens for the multi-task learning.",
     )
-    parser.add_argument(
-        "--clean_train_sets", default=True , type=bool, help="whether clean train sets for multitask data."
-    )
-    parser.add_argument(
-        "--task_specific_tokens", action="store_true", 
-        help="whether to use task specific tokens for the multi-task learning.")
     args = parser.parse_args()
-    with open('vilbert_tasks.yml', 'r') as f:
+    with open("vilbert_tasks.yml", "r") as f:
         task_cfg = edict(yaml.safe_load(f))
 
     random.seed(args.seed)
@@ -142,24 +161,28 @@ def main():
         from vilbert.vilbert import BertConfig
 
     task_names = []
-    for i, task_id in enumerate(args.tasks.split('-')):
-        task = 'TASK' + task_id
-        name = task_cfg[task]['name']
+    for i, task_id in enumerate(args.tasks.split("-")):
+        task = "TASK" + task_id
+        name = task_cfg[task]["name"]
         task_names.append(name)
 
     # timeStamp = '-'.join(task_names) + '_' + args.config_file.split('/')[1].split('.')[0]
-    if '/' in args.from_pretrained:
-        timeStamp = args.from_pretrained.split('/')[1]
+    if "/" in args.from_pretrained:
+        timeStamp = args.from_pretrained.split("/")[1]
     else:
         timeStamp = args.from_pretrained
 
     savePath = os.path.join(args.output_dir, timeStamp)
 
     config = BertConfig.from_json_file(args.config_file)
-    bert_weight_name = json.load(open("config/" + args.bert_model + "_weight_name.json", "r"))
+    bert_weight_name = json.load(
+        open("config/" + args.bert_model + "_weight_name.json", "r")
+    )
 
     if args.local_rank == -1 or args.no_cuda:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
+        )
         n_gpu = torch.cuda.device_count()
     else:
         torch.cuda.set_device(args.local_rank)
@@ -167,13 +190,13 @@ def main():
         n_gpu = 1
         # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.distributed.init_process_group(backend="nccl")
-    
+
     logger.info(
         "device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
             device, n_gpu, bool(args.local_rank != -1), args.fp16
         )
     )
-    
+
     default_gpu = False
     if dist.is_available() and args.local_rank != -1:
         rank = dist.get_rank()
@@ -185,8 +208,9 @@ def main():
     if default_gpu and not os.path.exists(savePath):
         os.makedirs(savePath)
 
-    task_batch_size, task_num_iters, task_ids, task_datasets_val, task_dataloader_val \
-                        = LoadDatasetEval(args, task_cfg, args.tasks.split('-'))
+    task_batch_size, task_num_iters, task_ids, task_datasets_val, task_dataloader_val = LoadDatasetEval(
+        args, task_cfg, args.tasks.split("-")
+    )
 
     num_labels = max([dataset.num_labels for dataset in task_datasets_val.values()])
 
@@ -195,13 +219,18 @@ def main():
 
     config.fast_mode = True
     if args.zero_shot:
-        model = BertForMultiModalPreTraining.from_pretrained(args.from_pretrained, config)
+        model = BertForMultiModalPreTraining.from_pretrained(
+            args.from_pretrained, config
+        )
     else:
         model = VILBertForVLTasks.from_pretrained(
-            args.from_pretrained, config=config, num_labels=num_labels, default_gpu=default_gpu
-            )
+            args.from_pretrained,
+            config=config,
+            num_labels=num_labels,
+            default_gpu=default_gpu,
+        )
 
-    task_losses = LoadLosses(args, task_cfg, args.tasks.split('-'))
+    task_losses = LoadLosses(args, task_cfg, args.tasks.split("-"))
     model.to(device)
     if args.local_rank != -1:
         try:
@@ -219,10 +248,10 @@ def main():
 
     print("***** Running training *****")
     print("  Num Iters: ", task_num_iters)
-    print("  Batch size: ", task_batch_size)    
+    print("  Batch size: ", task_batch_size)
 
     model.eval()
-    # when run evaluate, we run each task sequentially. 
+    # when run evaluate, we run each task sequentially.
     for task_id in task_ids:
         results = []
         others = []
@@ -234,10 +263,14 @@ def main():
 
         for i, batch in enumerate(task_dataloader_val[task_id]):
             batch = tuple(t.cuda(device=device, non_blocking=True) for t in batch)
-            features, spatials, image_mask, question, input_mask, segment_ids, target, caption_idx, image_idx = batch
-            task_tokens = question.new().resize_(question.size(0), 1).fill_(int(task_id[4:]))
+            features, spatials, image_mask, question, input_mask, segment_ids, target, caption_idx, image_idx = (
+                batch
+            )
+            task_tokens = (
+                question.new().resize_(question.size(0), 1).fill_(int(task_id[4:]))
+            )
 
-            if task_id in ['TASK7', 'TASK8']:
+            if task_id in ["TASK7", "TASK8"]:
                 batch_size = features.size(0)
                 features = features.squeeze(0)
                 spatials = spatials.squeeze(0)
@@ -245,50 +278,86 @@ def main():
 
             with torch.no_grad():
                 if args.zero_shot:
-                    _, _, vil_logit, _ = model(question, features, spatials, segment_ids, input_mask, image_mask, task_ids=task_tokens)
+                    _, _, vil_logit, _ = model(
+                        question,
+                        features,
+                        spatials,
+                        segment_ids,
+                        input_mask,
+                        image_mask,
+                        task_ids=task_tokens,
+                    )
 
-                    score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = torch.softmax(vil_logit, dim=1)[:,0].view(-1).cpu().numpy()
-                    target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.view(-1).float().cpu().numpy()
-                    
+                    score_matrix[
+                        caption_idx, image_idx * 500 : (image_idx + 1) * 500
+                    ] = (torch.softmax(vil_logit, dim=1)[:, 0].view(-1).cpu().numpy())
+                    target_matrix[
+                        caption_idx, image_idx * 500 : (image_idx + 1) * 500
+                    ] = (target.view(-1).float().cpu().numpy())
+
                 else:
-                    _, _, vil_logit, _, _, _, _, _, _ = model(question, features, spatials, segment_ids, input_mask, image_mask, task_ids=task_tokens)
-                    score_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = vil_logit.view(-1).cpu().numpy()
-                    target_matrix[caption_idx, image_idx*500:(image_idx+1)*500] = target.view(-1).float().cpu().numpy()
+                    _, _, vil_logit, _, _, _, _, _, _ = model(
+                        question,
+                        features,
+                        spatials,
+                        segment_ids,
+                        input_mask,
+                        image_mask,
+                        task_ids=task_tokens,
+                    )
+                    score_matrix[
+                        caption_idx, image_idx * 500 : (image_idx + 1) * 500
+                    ] = (vil_logit.view(-1).cpu().numpy())
+                    target_matrix[
+                        caption_idx, image_idx * 500 : (image_idx + 1) * 500
+                    ] = (target.view(-1).float().cpu().numpy())
 
                 if image_idx.item() == 1:
-                    rank = np.where((np.argsort(-score_matrix[caption_idx]) == np.where(target_matrix[caption_idx]==1)[0][0]) == 1)[0][0]
+                    rank = np.where(
+                        (
+                            np.argsort(-score_matrix[caption_idx])
+                            == np.where(target_matrix[caption_idx] == 1)[0][0]
+                        )
+                        == 1
+                    )[0][0]
                     rank_matrix[caption_idx] = rank
 
-                    rank_matrix_tmp = rank_matrix[:caption_idx+1]
-                    r1 = 100.0 * np.sum(rank_matrix_tmp < 1) / len(rank_matrix_tmp)  
+                    rank_matrix_tmp = rank_matrix[: caption_idx + 1]
+                    r1 = 100.0 * np.sum(rank_matrix_tmp < 1) / len(rank_matrix_tmp)
                     r5 = 100.0 * np.sum(rank_matrix_tmp < 5) / len(rank_matrix_tmp)
                     r10 = 100.0 * np.sum(rank_matrix_tmp < 10) / len(rank_matrix_tmp)
 
                     medr = np.floor(np.median(rank_matrix_tmp) + 1)
                     meanr = np.mean(rank_matrix_tmp) + 1
-                    print("%d Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(count, r1, r5, r10, medr, meanr))
+                    print(
+                        "%d Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f"
+                        % (count, r1, r5, r10, medr, meanr)
+                    )
 
                     results.append(np.argsort(-score_matrix[caption_idx]).tolist()[:20])
             count += 1
-
 
         r1 = 100.0 * np.sum(rank_matrix < 1) / len(rank_matrix)
         r5 = 100.0 * np.sum(rank_matrix < 5) / len(rank_matrix)
         r10 = 100.0 * np.sum(rank_matrix < 10) / len(rank_matrix)
 
-        medr = np.floor(    np.median(rank_matrix) + 1)
+        medr = np.floor(np.median(rank_matrix) + 1)
         meanr = np.mean(rank_matrix) + 1
 
         print("************************************************")
-        print("Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f" %(r1, r5, r10, medr, meanr))
+        print(
+            "Final r1:%.3f, r5:%.3f, r10:%.3f, mder:%.3f, meanr:%.3f"
+            % (r1, r5, r10, medr, meanr)
+        )
         print("************************************************")
 
         if args.split:
-            json_path = os.path.join(savePath, args.split)           
+            json_path = os.path.join(savePath, args.split)
         else:
-            json_path = os.path.join(savePath, task_cfg[task_id]['val_split'])   
-        json.dump(results, open(json_path+ '_result.json', 'w'))
-        json.dump(others, open(json_path+ '_others.json', 'w'))
+            json_path = os.path.join(savePath, task_cfg[task_id]["val_split"])
+        json.dump(results, open(json_path + "_result.json", "w"))
+        json.dump(others, open(json_path + "_others.json", "w"))
+
 
 if __name__ == "__main__":
 

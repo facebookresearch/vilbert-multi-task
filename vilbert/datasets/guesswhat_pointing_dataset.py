@@ -93,13 +93,35 @@ class GuessWhatPointingDataset(Dataset):
 
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + clean_train
+                + ".pkl",
             )
 
         if not os.path.exists(cache_path):
@@ -114,35 +136,53 @@ class GuessWhatPointingDataset(Dataset):
         # Build an index which maps image id with a list of caption annotations.
         entries = []
         remove_ids = []
-        if clean_datasets or self.split == 'mteval':
-            remove_ids = np.load(os.path.join(self.dataroot, "cache", "coco_test_ids.npy"))
+        if clean_datasets or self.split == "mteval":
+            remove_ids = np.load(
+                os.path.join(self.dataroot, "cache", "coco_test_ids.npy")
+            )
             remove_ids = [int(x) for x in remove_ids]
 
-        all_images = cPickle.load(open(os.path.join(self.dataroot, "cache", "image_bbox_list.pkl"), 'rb'))
-        boxes_dict = cPickle.load(open(os.path.join(self.dataroot, "cache", "bboxes_dict.pkl"), 'rb'))
+        all_images = cPickle.load(
+            open(os.path.join(self.dataroot, "cache", "image_bbox_list.pkl"), "rb")
+        )
+        boxes_dict = cPickle.load(
+            open(os.path.join(self.dataroot, "cache", "bboxes_dict.pkl"), "rb")
+        )
 
-        if self.split == 'mteval':
-            annotations_path = os.path.join(self.dataroot, "guesswhat.%s.jsonl" % 'train')
+        if self.split == "mteval":
+            annotations_path = os.path.join(
+                self.dataroot, "guesswhat.%s.jsonl" % "train"
+            )
         else:
-            annotations_path = os.path.join(self.dataroot, "guesswhat.%s.jsonl" % self.split)
+            annotations_path = os.path.join(
+                self.dataroot, "guesswhat.%s.jsonl" % self.split
+            )
 
         with jsonlines.open(annotations_path) as reader:
             # Build an index which maps image id with a list of qa annotations.
             for annotation in reader:
-                if self.split == 'train' and int(annotation['image']['id']) in remove_ids:
+                if (
+                    self.split == "train"
+                    and int(annotation["image"]["id"]) in remove_ids
+                ):
                     continue
-                elif self.split == 'mteval' and int(annotation['image']['id']) not in remove_ids:
+                elif (
+                    self.split == "mteval"
+                    and int(annotation["image"]["id"]) not in remove_ids
+                ):
                     continue
                 questions = []
                 answers = []
                 bboxes = []
-                for q in annotation['qas']:
-                    questions.append(q['question'])
+                for q in annotation["qas"]:
+                    questions.append(q["question"])
                     answers.append(q["answer"])
 
-                for o in annotation['objects']:
-                    bboxes.append(o['id'])
-                total_bboxes = list(set(all_images[annotation['image']['id']]['bboxes']))
+                for o in annotation["objects"]:
+                    bboxes.append(o["id"])
+                total_bboxes = list(
+                    set(all_images[annotation["image"]["id"]]["bboxes"])
+                )
                 total_bboxes = sorted(total_bboxes)
 
                 bbox_idx = []
@@ -153,10 +193,10 @@ class GuessWhatPointingDataset(Dataset):
                     {
                         "questions": questions,
                         "answers": answers,
-                        "dialog_id": annotation['id'],
-                        "image_id": annotation['image']['id'],
-                        "refBox": boxes_dict[annotation['object_id']],
-                        "ref_id": annotation['object_id'],
+                        "dialog_id": annotation["id"],
+                        "image_id": annotation["image"]["id"],
+                        "refBox": boxes_dict[annotation["object_id"]],
+                        "ref_id": annotation["object_id"],
                         "mc_idx": bbox_idx,
                     }
                 )
@@ -172,7 +212,7 @@ class GuessWhatPointingDataset(Dataset):
         for entry in self.entries:
 
             sentence = ""
-            for sent, ans in zip(entry['questions'], entry['answers']):
+            for sent, ans in zip(entry["questions"], entry["answers"]):
                 sentence += "start " + sent + " answer " + ans + " stop "
 
             tokens = self._tokenizer.encode(sentence)
@@ -220,7 +260,9 @@ class GuessWhatPointingDataset(Dataset):
         boxes = boxes[:num_boxes]
         features = features[:num_boxes]
 
-        gt_features, gt_num_boxes, gt_boxes, gt_boxes_ori = self._gt_image_features_reader[image_id]
+        gt_features, gt_num_boxes, gt_boxes, gt_boxes_ori = self._gt_image_features_reader[
+            image_id
+        ]
 
         # merge two boxes, and assign the labels.
         gt_boxes_ori = gt_boxes_ori[1:gt_num_boxes]
@@ -231,13 +273,10 @@ class GuessWhatPointingDataset(Dataset):
         mix_boxes_ori = np.concatenate((boxes_ori, gt_boxes_ori), axis=0)
         mix_boxes = np.concatenate((boxes, gt_boxes), axis=0)
         mix_features = np.concatenate((features, gt_features), axis=0)
-        mix_num_boxes = min(
-            int(num_boxes + int(gt_num_boxes) - 1), self.max_region_num
-        )
+        mix_num_boxes = min(int(num_boxes + int(gt_num_boxes) - 1), self.max_region_num)
         # given the mix boxes, and ref_box, calculate the overlap.
         mix_target = iou(
-            torch.tensor(mix_boxes_ori[:, :4]).float(),
-            torch.tensor([ref_box]).float(),
+            torch.tensor(mix_boxes_ori[:, :4]).float(), torch.tensor([ref_box]).float()
         )
         mix_target[mix_target < 0.5] = 0
 

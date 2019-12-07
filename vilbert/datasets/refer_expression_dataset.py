@@ -83,8 +83,8 @@ class ReferExpressionDataset(Dataset):
         else:
             self.refer = REFER(dataroot, dataset=task, splitBy="unc")
 
-        if self.split == 'mteval':
-            self.ref_ids = self.refer.getRefIds(split='train')
+        if self.split == "mteval":
+            self.ref_ids = self.refer.getRefIds(split="train")
         else:
             self.ref_ids = self.refer.getRefIds(split=split)
 
@@ -104,13 +104,35 @@ class ReferExpressionDataset(Dataset):
 
         clean_train = "_cleaned" if clean_datasets else ""
 
-        if 'roberta' in bert_model:
+        if "roberta" in bert_model:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + 'roberta' + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + "roberta"
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + clean_train
+                + ".pkl",
             )
         else:
             cache_path = os.path.join(
-                dataroot, "cache", task + "_" + split + "_" + str(max_seq_length) + "_" + str(max_region_num) + clean_train + ".pkl"
+                dataroot,
+                "cache",
+                task
+                + "_"
+                + split
+                + "_"
+                + str(max_seq_length)
+                + "_"
+                + str(max_region_num)
+                + clean_train
+                + ".pkl",
             )
 
         if not os.path.exists(cache_path):
@@ -128,16 +150,18 @@ class ReferExpressionDataset(Dataset):
         # Build an index which maps image id with a list of caption annotations.
         entries = []
         remove_ids = []
-        if clean_datasets or self.split == 'mteval':
-            remove_ids = np.load(os.path.join(self.dataroot, "cache", "coco_test_ids.npy"))
+        if clean_datasets or self.split == "mteval":
+            remove_ids = np.load(
+                os.path.join(self.dataroot, "cache", "coco_test_ids.npy")
+            )
             remove_ids = [int(x) for x in remove_ids]
 
         for ref_id in self.ref_ids:
             ref = self.refer.Refs[ref_id]
             image_id = ref["image_id"]
-            if self.split == 'train' and int(image_id) in remove_ids:
+            if self.split == "train" and int(image_id) in remove_ids:
                 continue
-            elif self.split == 'mteval' and int(image_id) not in remove_ids:
+            elif self.split == "mteval" and int(image_id) not in remove_ids:
                 continue
             ref_id = ref["ref_id"]
             refBox = self.refer.getRefBox(ref_id)
@@ -172,7 +196,7 @@ class ReferExpressionDataset(Dataset):
             # ]
 
             tokens = self._tokenizer.encode(entry["caption"])
-            tokens = tokens[: self._max_seq_length-2]
+            tokens = tokens[: self._max_seq_length - 2]
             tokens = self._tokenizer.add_special_tokens_single_sentence(tokens)
 
             segment_ids = [0] * len(tokens)

@@ -46,13 +46,12 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Data files for FOIL task.
-    parser.add_argument("--features_h5path", default="/coc/pskynet2/jlu347/multi-modal-bert/data/referExpression")
     parser.add_argument(
-        "--instances-jsonpath", default="data/referExpression"
+        "--features_h5path",
+        default="/coc/pskynet2/jlu347/multi-modal-bert/data/referExpression",
     )
-    parser.add_argument(
-        "--task", default="refcoco+"
-    )
+    parser.add_argument("--instances-jsonpath", default="data/referExpression")
+    parser.add_argument("--task", default="refcoco+")
 
     # Required parameters
     parser.add_argument(
@@ -94,7 +93,10 @@ def main():
         "than this will be padded.",
     )
     parser.add_argument(
-        "--train_batch_size", default=128, type=int, help="Total batch size for training."
+        "--train_batch_size",
+        default=128,
+        type=int,
+        help="Total batch size for training.",
     )
     parser.add_argument(
         "--no_cuda", action="store_true", help="Whether not to use CUDA when available"
@@ -106,10 +108,15 @@ def main():
     )
 
     parser.add_argument(
-        "--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus"
+        "--local_rank",
+        type=int,
+        default=-1,
+        help="local_rank for distributed training on gpus",
     )
-    
-    parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
+
+    parser.add_argument(
+        "--seed", type=int, default=42, help="random seed for initialization"
+    )
     parser.add_argument(
         "--gradient_accumulation_steps",
         type=int,
@@ -122,21 +129,34 @@ def main():
         help="Whether to use 16-bit float precision instead of 32-bit",
     )
     parser.add_argument(
-        "--num_workers", type=int, default=20, help="Number of workers in the dataloader."
+        "--num_workers",
+        type=int,
+        default=20,
+        help="Number of workers in the dataloader.",
     )
     parser.add_argument(
-        "--from_pretrained", action="store_true", help="Wheter the tensor is from pretrained."
+        "--from_pretrained",
+        action="store_true",
+        help="Wheter the tensor is from pretrained.",
     )
     parser.add_argument(
-        "--baseline", action="store_true", help="Wheter to use the baseline model (single bert)."
+        "--baseline",
+        action="store_true",
+        help="Wheter to use the baseline model (single bert).",
     )
 
     parser.add_argument(
-        "--use_chunk", default=0, type=float, help="whether use chunck for parallel training."
+        "--use_chunk",
+        default=0,
+        type=float,
+        help="whether use chunck for parallel training.",
     )
 
     parser.add_argument(
-        "--split", default='test', type=str, help="whether use chunck for parallel training."
+        "--split",
+        default="test",
+        type=str,
+        help="whether use chunck for parallel training.",
     )
 
     args = parser.parse_args()
@@ -145,14 +165,19 @@ def main():
         from pytorch_pretrained_bert.modeling import BertConfig
         from multimodal_bert.bert import MultiModalBertForReferExpression
     else:
-        from multimodal_bert.multi_modal_bert import MultiModalBertForReferExpression, BertConfig
+        from multimodal_bert.multi_modal_bert import (
+            MultiModalBertForReferExpression,
+            BertConfig,
+        )
 
     # Declare path to save checkpoints.
     print(args)
     config = BertConfig.from_json_file(args.config_file)
 
     if args.local_rank == -1 or args.no_cuda:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
+        )
         n_gpu = torch.cuda.device_count()
     else:
         torch.cuda.set_device(args.local_rank)
@@ -187,13 +212,18 @@ def main():
         args.bert_model, do_lower_case=args.do_lower_case
     )
 
-    features_h5path = os.path.join(args.features_h5path, args.task + '.h5')
-    gt_features_h5path = os.path.join(args.features_h5path, args.task + '_gt.h5')
+    features_h5path = os.path.join(args.features_h5path, args.task + ".h5")
+    gt_features_h5path = os.path.join(args.features_h5path, args.task + "_gt.h5")
 
     image_features_reader = ImageFeaturesH5Reader(features_h5path, True)
 
     eval_dset = ReferExpressionDataset(
-        args.task, args.split, args.instances_jsonpath, image_features_reader, None, tokenizer
+        args.task,
+        args.split,
+        args.instances_jsonpath,
+        image_features_reader,
+        None,
+        tokenizer,
     )
 
     # config = BertConfig.from_json_file(args.config_file)
@@ -206,9 +236,9 @@ def main():
     else:
         model = MultiModalBertForReferExpression(config, dropout_prob=0.2)
 
-    print("loading model from %s" %(args.pretrained_weight))
+    print("loading model from %s" % (args.pretrained_weight))
     checkpoint = torch.load(args.pretrained_weight)
-    model.load_state_dict(checkpoint)    
+    model.load_state_dict(checkpoint)
 
     if args.fp16:
         model.half()
@@ -250,15 +280,19 @@ def evaluate(args, model, dataloader):
 
     for batch in dataloader:
         batch = tuple(t.cuda() for t in batch)
-        features, spatials, image_mask, captions, target, input_mask, segment_ids = batch
+        features, spatials, image_mask, captions, target, input_mask, segment_ids = (
+            batch
+        )
         with torch.no_grad():
-            logits = model(captions, features, spatials, segment_ids, input_mask, image_mask)
+            logits = model(
+                captions, features, spatials, segment_ids, input_mask, image_mask
+            )
         loss = instance_bce_with_logits(logits.squeeze(2), target.squeeze(2))
 
         _, select_idx = torch.max(logits, dim=1)
-        select_target = target.squeeze(2).gather(1, select_idx.view(-1,1))
-        #count the accuracy.
-        score += torch.sum(select_target>0.5).item()
+        select_target = target.squeeze(2).gather(1, select_idx.view(-1, 1))
+        # count the accuracy.
+        score += torch.sum(select_target > 0.5).item()
         total_loss += loss.sum().item()
         num_data += features.size(0)
 
@@ -270,6 +304,7 @@ def instance_bce_with_logits(logits, labels):
     loss = F.binary_cross_entropy_with_logits(logits, labels)
     loss *= labels.size(1)
     return loss
+
 
 if __name__ == "__main__":
     main()
