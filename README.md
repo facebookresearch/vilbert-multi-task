@@ -2,16 +2,25 @@
 
 Code and pre-trained models for **12-in-1: Multi-Task Vision and Language Representation Learning**.
 
+```
+@article{lu201912,
+  title={12-in-1: Multi-Task Vision and Language Representation Learning},
+  author={Lu, Jiasen and Goswami, Vedanuj and Rohrbach, Marcus and Parikh, Devi and Lee, Stefan},
+  journal={arXiv preprint arXiv:1912.02315},
+  year={2019}
+}
+```
+
 
 ## Repository Setup
 
 1. Create a fresh conda environment, and install all dependencies.
 
 ```text
-conda create -n vilbert python=3.6
-conda activate vilbert-MT
-git clone xxx
-cd ViLBert-MT
+conda create -n vilbert-mt python=3.6
+conda activate vilbert-mt
+git clone --recursive https://github.com/fairinternal/vilbert-multi-task.git
+cd vilbert-multi-task
 pip install -r requirements.txt
 ```
 
