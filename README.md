@@ -93,9 +93,9 @@ code tobe added here.
 ```
 code tobe added here.
 ```
+ 
 
 
+## License
 
-### Add your own tasks 
-
-
+vilbert-multi-task is licensed under MIT license available in [LICENSE](LICENSE) file.
