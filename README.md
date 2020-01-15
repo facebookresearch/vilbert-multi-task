@@ -1,6 +1,6 @@
 # Multi-Task Vision and Language Representation Learning (ViLBERT-MT)
 
-Code and pre-trained models for **12-in-1: Multi-Task Vision and Language Representation Learning**.
+Code and pre-trained models for [12-in-1: Multi-Task Vision and Language Representation Learning](https://arxiv.org/abs/1912.02315):
 
 ```
 @article{lu201912,
@@ -11,6 +11,17 @@ Code and pre-trained models for **12-in-1: Multi-Task Vision and Language Repres
 }
 ```
 
+and [ViLBERT: Pretraining Task-Agnostic Visiolinguistic Representations for Vision-and-Language Tasks](https://arxiv.org/abs/1908.02265):
+
+```
+@inproceedings{lu2019vilbert,
+  title={Vilbert: Pretraining task-agnostic visiolinguistic representations for vision-and-language tasks},
+  author={Lu, Jiasen and Batra, Dhruv and Parikh, Devi and Lee, Stefan},
+  booktitle={Advances in Neural Information Processing Systems},
+  pages={13--23},
+  year={2019}
+}
+```
 
 ## Repository Setup
 
@@ -19,7 +30,7 @@ Code and pre-trained models for **12-in-1: Multi-Task Vision and Language Repres
 ```text
 conda create -n vilbert-mt python=3.6
 conda activate vilbert-mt
-git clone --recursive https://github.com/fairinternal/vilbert-multi-task.git
+git clone --recursive https://github.com/facebookresearch/vilbert-multi-task.git
 cd vilbert-multi-task
 pip install -r requirements.txt
 ```
