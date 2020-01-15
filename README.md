@@ -40,71 +40,28 @@ python setup.py develop
 
 Check `README.md` under `data` for more details.  
 
-## Visiolinguistic Pre-training
+## Visiolinguistic Pre-training and Multi Task Training
 
-To train the model: 
-
-```
-To be added
-```
-
-For internal use: copy the pre-trained checkpoint from Skynet 
+### Pretraining on Conceptual Captions
 
 ```
-cp -a /srv/share3/jlu347/vilbert-MT/save/* #to_your_directory.
-```
-
-## Benchmark Vision-Lanugage Tasks 
-
-| Task    | Sub-Task | Model | LR   | Results (split) |
-|:-------:|:------:|:---:|:------:|:--------------------------------------:|
-| **VQA** | - | **ViLBERT** | 4e-5 | **70.55** (test-dev) |
-| - | - | DFAF | - |70.22 (test-dev) |
-|**Ref Expression** | RefCOCO+ | **ViLBERT** | 4e-5 | **72.34** (val) - **78.52** (testA) - **62.61** (testB) |
-|-|RefCOCO+|MAttNet|-|65.33 (val) - 71.62 (testA) - 56.02 (testB)|
-|**Ref Expression**|RefCOCO|**ViLBERT**|4e-5|-|
-|-|RefCOCO|MAttNet|-|-|
-|**Ref Expression**|Refg|**ViLBERT**|4e-5|-|
-|-|Refg|MAttNet|-|-|
-|**Image Caption Ranking**|Image Retrieval|**ViLBERT**|2e-5|**58.20** (R1) - **84.90** (R5) - **91.52** (R10)|
-|-|Image Retrieval|SCAN|-|48.60 (R1) - 77.70 (R5) - 85.20 (R10)|
-
-
-## Single-task Training
-### VQA 
-
-To fintune a 6-layer vilbert model for VQA with 8 GPU. `--tasks 1` means VQA tasks. Check `vlbert_tasks.yml` for more settings for VQA tasks.  
-
-```bash
-python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 train_tasks.py --bert_model bert-base-uncased --from_pretrained save/bert_base_6_layer_6_connect_freeze_0/pytorch_model_8.bin  --config_file config/bert_base_6layer_6conect.json  --learning_rate 4e-5 --num_workers 16 --tasks 1 --save_name pretrained
-```
-
-### Refer Expression
-```
-python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 train_tasks.py --bert_model bert-base-uncased --from_pretrained save/bert_base_6_layer_6_connect_freeze_0/pytorch_model_8.bin  --config_file config/bert_base_6layer_6conect.json  --learning_rate 4e-5 --num_workers 16 --tasks 11 --save_name pretrained
-```
-
-### Image Retrieval
-```
-python -m torch.distributed.launch --nproc_per_node=8 --nnodes=1 --node_rank=0 train_tasks.py --bert_model bert-base-uncased --from_pretrained save/bert_base_6_layer_6_connect_freeze_0/pytorch_model_8.bin  --config_file config/bert_base_6layer_6conect.json  --learning_rate 4e-5 --num_workers 9 --tasks 11 --save_name pretrained
-```
-
-## Multi-task Training
-
-```
-code tobe added here.
+python train_concap.py --bert_model bert-base-uncased --config_file config/bert_base_6layer_6conect.json --train_batch_size 512 --objective 1 --file_path <path_to_extracted_cc_features>
 ```
 
 
-
-## Fine-tune from Multi-task trained model
+### Multi-task Training
 
 ```
-code tobe added here.
+python train_tasks.py --bert_model bert-base-uncased --from_pretrained <pretrained_model_path> --config_file config/bert_base_6layer_6conect.json --tasks 1-2-4-7-8-9-10-11-12-13-15-17 --lr_scheduler 'warmup_linear' --train_iter_gap 4 --task_specific_tokens --save_name multi_task_model
+```
+
+
+### Fine-tune from Multi-task trained model
+
+```
+python train_tasks.py --bert_model bert-base-uncased --from_pretrained <multi_task_model_path> --config_file config/bert_base_6layer_6conect.json --tasks 1 --lr_scheduler 'warmup_linear' --train_iter_gap 4 --task_specific_tokens --save_name finetune_from_multi_task_model
 ```
  
-
-
 ## License
 
 vilbert-multi-task is licensed under MIT license available in [LICENSE](LICENSE) file.
