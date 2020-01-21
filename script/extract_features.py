@@ -3,7 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-# Requires vqa-maskrcnn-benchmark to be built and installed
+# Requires vqa-maskrcnn-benchmark to be built and installed. See Readme
+# for more details.
 import argparse
 import glob
 import os
@@ -42,7 +43,7 @@ class FeatureExtractor:
         parser.add_argument(
             "--num_features",
             type=int,
-            default=36,
+            default=100,
             help="Number of features to extract.",
         )
         parser.add_argument(
