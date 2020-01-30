@@ -1,6 +1,6 @@
 # Multi-Task Vision and Language Representation Learning (ViLBERT-MT)
 
-Code and pre-trained models for [12-in-1: Multi-Task Vision and Language Representation Learning](https://arxiv.org/abs/1912.02315):
+Please cite the following if you use this code. Code and pre-trained models for [12-in-1: Multi-Task Vision and Language Representation Learning](https://arxiv.org/abs/1912.02315):
 
 ```
 @article{lu201912,
