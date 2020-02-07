@@ -94,7 +94,7 @@ class FeatureExtractor:
         proposals_batch = []
         for idx, img_info in enumerate(im_infos):
             boxes_tensor = torch.from_numpy(
-                proposals[idx]["bbox"][: int(proposals[idx]["num_box"]), 1:]
+                proposals[idx]["bbox"][: int(proposals[idx]["num_box"]), 0:]
             ).to("cuda")
             orig_image_size = (img_info["width"], img_info["height"])
             boxes = BoxList(boxes_tensor, orig_image_size)
