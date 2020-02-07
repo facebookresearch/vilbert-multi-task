@@ -94,7 +94,7 @@ class FeatureExtractor:
         proposals_batch = []
         for idx, img_info in enumerate(im_infos):
             boxes_tensor = torch.from_numpy(
-                proposals[idx]["bbox"][: int(proposals[idx]["num_box"]), 0:]
+                proposals[idx]["bbox"][: int(proposals[idx]["num_box"]), 1:]
             ).to("cuda")
             orig_image_size = (img_info["width"], img_info["height"])
             boxes = BoxList(boxes_tensor, orig_image_size)
@@ -224,8 +224,7 @@ class FeatureExtractor:
             yield array[i : i + chunk_size]
 
     def _save_feature(self, file_name, feature, info):
-        file_base_name = os.path.basename(file_name)
-        file_base_name = file_base_name.split(".")[0]
+        file_base_name = str(file_name).split(".")[0]
         info["image_id"] = file_base_name
         info["features"] = feature.cpu().numpy()
         file_base_name = str(file_base_name) + ".npy"
@@ -233,7 +232,7 @@ class FeatureExtractor:
         np.save(os.path.join(self.args.output_folder, file_base_name), info)
 
     def extract_features(self):
-        files = np.load(args.imdb_gt_file, allow_pickle=True)
+        files = np.load(self.args.imdb_gt_file, allow_pickle=True)
         # files = sorted(files)
         # files = [files[i: i+1000] for i in range(0, len(files), 1000)][self.args.partition]
         for chunk in self._chunks(files, self.args.batch_size):
