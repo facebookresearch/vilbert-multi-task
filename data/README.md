@@ -54,5 +54,60 @@ python script/convert_to_lmdb.py --features_dir <path_to_extracted_features> --l
 
 ## Datasets
 
-Download the data for different datasets to the `data` directory.
+Download the data for different datasets to the `data` directory. Here are the links for downloading all the data for *downstream* tasks used in this project :
 
+1. Run from root directory
+
+```text
+cd data
+wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets.tar.gz
+tar xf datasets.tar.gz
+```
+
+The extracted folder has all the datasets and their cache directories that can be pointed to in the `vilbert_tasks.yaml` file.
+
+2. Download extracted features for COCO, GQA and NLVR2
+
+Some of the features are not present in the extracted folder in Step 1. Those can be downloaded following these commands :
+
+#### COCO features
+
+```text
+cd coco
+
+mkdir features_100
+
+cd features_100
+
+mkdir COCO_test_resnext152_faster_rcnn_genome.lmdb
+
+mkdir COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+
+wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb/data.mdb && mv data.mdb features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb/
+
+wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets/coco/features_100/COCO_test_resnext152_faster_rcnn_genome.lmdb/data.mdb && mv data.mdb features_100/COCO_test_resnext152_faster_rcnn_genome.lmdb/
+```
+
+#### GQA features
+
+```text
+cd gqa
+
+mkdir gqa_resnext152_faster_rcnn_genome.lmdb
+
+cd gqa_resnext152_faster_rcnn_genome.lmdb
+
+wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets/gqa/gqa_resnext152_faster_rcnn_genome.lmdb/data.mdb
+```
+
+#### NLVR2 features
+
+```text
+cd nlvr2
+
+mkdir nlvr2_resnext152_faster_rcnn_genome.lmdb
+
+cd nlvr2_resnext152_faster_rcnn_genome.lmdb
+
+wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets/nlvr2/nlvr2_resnext152_faster_rcnn_genome.lmdb/data.mdb
+```
