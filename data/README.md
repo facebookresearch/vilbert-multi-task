@@ -83,9 +83,9 @@ mkdir COCO_test_resnext152_faster_rcnn_genome.lmdb
 
 mkdir COCO_trainval_resnext152_faster_rcnn_genome.lmdb
 
-wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb/data.mdb && mv data.mdb features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb/
+wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets/coco/features_100/COCO_trainval_resnext152_faster_rcnn_genome.lmdb/data.mdb && mv data.mdb COCO_trainval_resnext152_faster_rcnn_genome.lmdb/
 
-wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets/coco/features_100/COCO_test_resnext152_faster_rcnn_genome.lmdb/data.mdb && mv data.mdb features_100/COCO_test_resnext152_faster_rcnn_genome.lmdb/
+wget https://dl.fbaipublicfiles.com/vilbert-multi-task/datasets/coco/features_100/COCO_test_resnext152_faster_rcnn_genome.lmdb/data.mdb && mv data.mdb COCO_test_resnext152_faster_rcnn_genome.lmdb/
 ```
 
 #### GQA features
