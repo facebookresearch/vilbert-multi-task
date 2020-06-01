@@ -547,14 +547,13 @@ def main():
                             for param_group in optimizer.param_groups:
                                 param_group["lr"] = lr_this_step
 
+                        optimizer.step()
+                        model.zero_grad()
                         if first_task and (
                             global_step < warmpu_steps
                             or args.lr_scheduler == "warmup_linear"
                         ):
                             warmup_scheduler.step()
-
-                        optimizer.step()
-                        model.zero_grad()
                         if first_task:
                             global_step += 1
                             first_task = False
