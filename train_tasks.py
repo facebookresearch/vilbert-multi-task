@@ -226,6 +226,9 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
     if args.baseline:
         from pytorch_transformers.modeling_bert import BertConfig
         from vilbert.basebert import BaseBertForVLTasks
@@ -506,6 +509,7 @@ def main():
     task_count = {name: 0 for name in task_ids}
     for epochId in tqdm(range(start_epoch, args.num_train_epochs), desc="Epoch"):
         model.train()
+        torch.autograd.set_detect_anomaly(True)
         for step in range(median_num_iter):
             iterId = startIterID + step + (epochId * median_num_iter)
             first_task = True

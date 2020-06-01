@@ -24,7 +24,6 @@ from torch.utils.data.distributed import DistributedSampler
 from tensorboardX import SummaryWriter
 
 from pytorch_transformers.tokenization_bert import BertTokenizer
-from pytorch_transformers.tokenization_roberta import RobertaTokenizer
 from pytorch_transformers.optimization import AdamW, WarmupLinearSchedule
 
 import vilbert.utils as utils
@@ -304,14 +303,9 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
-    if "roberta" in args.bert_model:
-        tokenizer = RobertaTokenizer.from_pretrained(
-            args.bert_model, do_lower_case=args.do_lower_case
-        )
-    else:
-        tokenizer = BertTokenizer.from_pretrained(
-            args.bert_model, do_lower_case=args.do_lower_case
-        )
+    tokenizer = BertTokenizer.from_pretrained(
+        args.bert_model, do_lower_case=args.do_lower_case
+    )
     num_train_optimization_steps = None
     train_dataset = ConceptCapLoaderTrain(
         args.file_path,
