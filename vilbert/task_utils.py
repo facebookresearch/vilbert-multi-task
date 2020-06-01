@@ -16,7 +16,6 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.distributed import DistributedSampler
 from pytorch_transformers.tokenization_bert import BertTokenizer
-from pytorch_transformers.tokenization_roberta import RobertaTokenizer
 from vilbert.datasets import DatasetMapTrain, DatasetMapEval
 from vilbert.datasets._image_features_reader import ImageFeaturesH5Reader
 import pdb
@@ -394,14 +393,9 @@ def LoadLosses(args, task_cfg, task_ids):
 
 def LoadDatasets(args, task_cfg, ids, split="trainval"):
 
-    if "roberta" in args.bert_model:
-        tokenizer = RobertaTokenizer.from_pretrained(
-            args.bert_model, do_lower_case=args.do_lower_case
-        )
-    else:
-        tokenizer = BertTokenizer.from_pretrained(
-            args.bert_model, do_lower_case=args.do_lower_case
-        )
+    tokenizer = BertTokenizer.from_pretrained(
+        args.bert_model, do_lower_case=args.do_lower_case
+    )
 
     task_feature_reader1 = {}
     task_feature_reader2 = {}

@@ -15,8 +15,6 @@ from pytorch_transformers.tokenization_bert import BertTokenizer
 from ._image_features_reader import ImageFeaturesH5Reader
 import _pickle as cPickle
 
-from tools.refer.refer import REFER
-
 
 def iou(anchors, gt_boxes):
     """

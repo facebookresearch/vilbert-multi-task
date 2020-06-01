@@ -318,7 +318,6 @@ class VQAClassificationDataset(Dataset):
             input_mask,
             segment_ids,
             co_attention_mask,
-            image_id,
             question_id,
         )
 
