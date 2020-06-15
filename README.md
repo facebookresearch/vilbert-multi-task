@@ -1,13 +1,14 @@
 # Multi-Task Vision and Language Representation Learning (ViLBERT-MT)
 
-Please cite the following if you use this code. Code and pre-trained models for [12-in-1: Multi-Task Vision and Language Representation Learning](https://arxiv.org/abs/1912.02315):
+Please cite the following if you use this code. Code and pre-trained models for [12-in-1: Multi-Task Vision and Language Representation Learning](http://openaccess.thecvf.com/content_CVPR_2020/html/Lu_12-in-1_Multi-Task_Vision_and_Language_Representation_Learning_CVPR_2020_paper.html):
 
 ```
-@article{lu201912,
-  title={12-in-1: Multi-Task Vision and Language Representation Learning},
-  author={Lu, Jiasen and Goswami, Vedanuj and Rohrbach, Marcus and Parikh, Devi and Lee, Stefan},
-  journal={arXiv preprint arXiv:1912.02315},
-  year={2019}
+@InProceedings{Lu_2020_CVPR,
+author = {Lu, Jiasen and Goswami, Vedanuj and Rohrbach, Marcus and Parikh, Devi and Lee, Stefan},
+title = {12-in-1: Multi-Task Vision and Language Representation Learning},
+booktitle = {The IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+month = {June},
+year = {2020}
 }
 ```
 
