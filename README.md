@@ -1,4 +1,4 @@
-# Multi-Task Vision and Language Representation Learning (ViLBERT-MT)
+# 12-in-1: Multi-Task Vision and Language Representation Learning
 
 Please cite the following if you use this code. Code and pre-trained models for [12-in-1: Multi-Task Vision and Language Representation Learning](http://openaccess.thecvf.com/content_CVPR_2020/html/Lu_12-in-1_Multi-Task_Vision_and_Language_Representation_Learning_CVPR_2020_paper.html):
 
