@@ -2,7 +2,7 @@ pytorch-transformers==1.0.0
 numpy==1.16.4
 lmdb==0.94
 tensorboardX==1.2
-tensorflow==2.4.0
+tensorflow==2.5.0
 tensorpack==0.9.4
 tqdm==4.31.1
 easydict==1.9
