@@ -43,7 +43,7 @@ Generate a `.npy` file with the following format for all the images and their bb
 Run from root directory
 
 ```text
-python script/extract_features.py --model_file data/detectron_model.pth --config_file data/detectron_config.yaml --imdb_gt_file <path_to_imdb_npy_file_generated_above> --output_folder <path_to_output_extracted_features>
+python script/extract_features_from_gt.py --model_file data/detectron_model.pth --config_file data/detectron_config.yaml --imdb_gt_file <path_to_imdb_npy_file_generated_above> --output_folder <path_to_output_extracted_features>
 ```
 
 4. Convert the extracted images to an LMDB file
