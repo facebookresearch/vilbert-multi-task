@@ -98,7 +98,7 @@ class FeatureExtractor:
             ).to("cuda")
             orig_image_size = (img_info["width"], img_info["height"])
             boxes = BoxList(boxes_tensor, orig_image_size)
-            image_size = (images.image_sizes[idx][1], images.image_sizes[idx][0])
+            image_size = (img_info["scale_width"], img_info["scale_height"])
             boxes = boxes.resize(image_size)
             proposals_batch.append(boxes)
         return proposals_batch
@@ -130,7 +130,12 @@ class FeatureExtractor:
         )
         img = torch.from_numpy(im).permute(2, 0, 1)
 
-        im_info = {"width": im_width, "height": im_height}
+        im_info = {
+            "width": im_width, 
+            "height": im_height,
+            "scale_width": img.shape[2],
+            "scale_height": img.shape[1],
+            }
 
         return img, im_scale, im_info
 
