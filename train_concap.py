@@ -272,8 +272,7 @@ def main():
         default_gpu = True
 
     if default_gpu:
-        if not os.path.exists(savePath):
-            os.makedirs(savePath)
+        os.makedirs(savePath, exist_ok=True)
 
     config = BertConfig.from_json_file(args.config_file)
 
