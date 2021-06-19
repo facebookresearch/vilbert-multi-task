@@ -60,7 +60,7 @@ def main():
     input_file = json.load(open(args.input_file, 'r'))
     
     compared_file = None
-    if args.compared_file != ''
+    if args.compared_file != '':
         compared_file = json.load(open(args.compared_file, 'r'))
 
     task = 'TASK' + args.tasks
@@ -84,13 +84,11 @@ def main():
         for i, seq in enumerate(input_file):
             correct_input = False
             target = int(i / 5)
-            if target in seq[:topK]
+            if target in seq[:topK]:
                 correct_input = True
 
         if compared_file:
-
-        
-        pdb.set_trace()
+            pdb.set_trace()
 
 if __name__ == "__main__":
     main()
