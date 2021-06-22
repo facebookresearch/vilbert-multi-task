@@ -331,3 +331,22 @@ TASK18:
   val_split: val
   lr: 0.000002
   num_epoch: 20
+TASK19:
+  name: OKVQA
+  type: VL-classifier
+  loss: BCEWithLogitLoss
+  process: normal
+  task_id: 18
+  dataroot: data/okvqa/
+  features_h5path1: data/coco/COCO_trainval_resnext152_faster_rcnn_genome.lmdb
+  features_h5path2: ''
+  train_annotations_jsonpath: ''
+  val_annotations_jsonpath: ''
+  max_seq_length: 23
+  max_region_num: 101
+  batch_size: 128
+  eval_batch_size: 1024
+  train_split: train
+  val_split: val
+  lr: 0.00004
+  num_epoch: 200

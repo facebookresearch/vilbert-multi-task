@@ -1,8 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
 from .concept_cap_dataset import (
     ConceptCapLoaderTrain,
     ConceptCapLoaderVal,
@@ -24,6 +19,7 @@ from .guesswhat_dataset import GuessWhatDataset
 from .visual7w_pointing_dataset import Visual7wPointingDataset
 from .guesswhat_pointing_dataset import GuessWhatPointingDataset
 from .flickr_grounding_dataset import FlickrGroundingDataset
+from .okvqa_dataset import OKVQAClassificationDataset
 
 # from .flickr_retreival_dataset import FlickrRetreivalDatasetTrain, FlickrRetreivalDatasetVal
 __all__ = [
@@ -46,7 +42,7 @@ __all__ = [
     "Visual7wPointingDataset",
     "GuessWhatPointingDataset",
     "FlickrGroundingDataset",
-    "",
+    "OKVQAClassificationDataset",
 ]
 
 DatasetMapTrain = {
@@ -68,6 +64,7 @@ DatasetMapTrain = {
     "Visual7w": Visual7wPointingDataset,
     "GuessWhatPointing": GuessWhatPointingDataset,
     "FlickrGrounding": FlickrGroundingDataset,
+    "OKVQA": OKVQAClassificationDataset,
 }
 
 
@@ -90,4 +87,5 @@ DatasetMapEval = {
     "Visual7w": Visual7wPointingDataset,
     "GuessWhatPointing": GuessWhatPointingDataset,
     "FlickrGrounding": FlickrGroundingDataset,
+    "OKVQA": OKVQAClassificationDataset,
 }
