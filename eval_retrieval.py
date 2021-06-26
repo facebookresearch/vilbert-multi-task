@@ -241,12 +241,13 @@ def main():
             )
         model = DDP(model, deay_allreduce=True)
 
-    elif n_gpu > 1:
-        model = nn.DataParallel(model)
+    # it will cause a wrong when computing the indexes of score_matrix 
+    # elif n_gpu > 1:
+    #     model = nn.DataParallel(model)
 
     no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
 
-    print("***** Running training *****")
+    print("***** Running eval *****")
     print("  Num Iters: ", task_num_iters)
     print("  Batch size: ", task_batch_size)
 
@@ -296,7 +297,7 @@ def main():
                     ] = (target.view(-1).float().cpu().numpy())
 
                 else:
-                    _, _, vil_logit, _, _, _, _, _, _ = model(
+                    _, _, vil_logit, _, _, _, _, _, _, _ = model(
                         question,
                         features,
                         spatials,
